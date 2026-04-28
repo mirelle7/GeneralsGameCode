@@ -96,6 +96,8 @@ set(WWLIB_SRC
     ref_ptr.h
     refcount.cpp
     refcount.h
+    registryini.cpp
+    registryini.h
     #regexpr.cpp
     #regexpr.h
     #search.h
