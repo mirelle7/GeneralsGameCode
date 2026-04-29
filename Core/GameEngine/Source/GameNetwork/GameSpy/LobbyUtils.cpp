@@ -754,7 +754,7 @@ void RefreshGameInfoListBox( GameWindow *mainWin, GameWindow *win )
 //		return;
 //	}
 //
-//	Int selectedID = (Int)GadgetListBoxGetItemData(mainWin, selected);
+//	Int selectedID = (Int)(intptr_t)GadgetListBoxGetItemData(mainWin, selected);
 //	if (selectedID < 0)
 //	{
 //		return;
