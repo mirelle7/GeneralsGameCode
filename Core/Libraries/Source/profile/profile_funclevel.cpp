@@ -579,7 +579,12 @@ const char *ProfileFuncLevel::Id::GetSource() const
                                          helpFile,sizeof(helpFile),&func->funcLine,nullptr);
 
     char help[300];
+// GeneralsX @build fbraz 03/02/2026 Use snprintf on Linux, wsprintf on Windows
+#ifdef _WIN32
     wsprintf(help,ofsFunc?"%s+0x%x":"%s",helpFunc,ofsFunc);
+#else
+    snprintf(help, sizeof(help), ofsFunc?"%s+0x%x":"%s", helpFunc, ofsFunc);
+#endif
     func->funcSource=(char *)ProfileAllocMemory(strlen(helpFile)+1);
     strcpy(func->funcSource,helpFile);
     func->funcName=(char *)ProfileAllocMemory(strlen(help)+1);
@@ -792,4 +797,7 @@ ProfileFuncLevel::ProfileFuncLevel()
 #endif // !defined HAS_PROFILE
 
 ProfileFuncLevel ProfileFuncLevel::Instance;
+// GeneralsX @build fbraz 03/02/2026 testEvent only exists on Windows (see internal.h)
+#ifdef _WIN32
 HANDLE ProfileFastCS::testEvent=::CreateEvent(nullptr,FALSE,FALSE,"");
+#endif
