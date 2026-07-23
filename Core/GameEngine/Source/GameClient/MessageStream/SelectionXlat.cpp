@@ -244,6 +244,7 @@ SelectionTranslator *TheSelectionTranslator = nullptr;
 SelectionTranslator::SelectionTranslator()
 {
 	m_leftMouseButtonIsDown = FALSE;
+	m_dragSeat = -1;
 	m_dragSelecting = FALSE;
 	m_lastGroupSelTime = 0;
 	m_lastGroupSelGroup = -1;
@@ -535,7 +536,9 @@ GameMessageDisposition SelectionTranslator::onRawMousePosition(MAYBE_UNUSED cons
 	// modifier appears to be unused, and the argument doesn't exist.  jba.
 	//Int modifier = msg->getArgument( 1 )->integer;
 
-	if (m_leftMouseButtonIsDown)
+	// splitscreen: only the seat that pressed the button extends its own
+	// drag - another seat's cursor movement must not stretch this drag box.
+	if (m_leftMouseButtonIsDown && msg->getSeatIndex() == m_dragSeat)
 	{
 		ICoord2D delta;
 
@@ -887,7 +890,7 @@ GameMessageDisposition SelectionTranslator::onMouseLeftClick(MAYBE_UNUSED const 
 		GameMessage *newMsg = TheMessageStream->appendMessage(GameMessage::MSG_CREATE_SELECTED_GROUP);
 		newMsg->appendBooleanArgument(!addToGroup);
 
-		Player *localPlayer = ThePlayerList->getLocalPlayer();
+		Player *localPlayer = getCommandActingPlayer();
 
 		Int newDrawablesSelected = 0;
 		Drawable *draw = nullptr;
@@ -1010,10 +1013,11 @@ GameMessageDisposition SelectionTranslator::onMouseLeftClick(MAYBE_UNUSED const 
 	return DESTROY_MESSAGE;
 }
 
-GameMessageDisposition SelectionTranslator::onRawMouseLeftButtonDown(MAYBE_UNUSED const GameMessage *msg)
+GameMessageDisposition SelectionTranslator::onRawMouseLeftButtonDown(const GameMessage *msg)
 {
 	// cannot actually start area selection yet - have to wait for cursor to move a bit
 	m_leftMouseButtonIsDown = true;
+	m_dragSeat = msg->getSeatIndex();	// splitscreen: this seat owns the drag
 	m_leftMouseDownAnchor = msg->getArgument( 0 )->pixel;
 
 	return KEEP_MESSAGE;
@@ -1170,7 +1174,7 @@ GameMessageDisposition SelectionTranslator::onMetaSelectTeam(MAYBE_UNUSED const 
 			// TheSuperHackers @bugfix Stubbjax 26/05/2025 Perform selection on double-press
 			// if the group or part of it is somehow deselected between presses.
 			performSelection = FALSE;
-			Player *player = ThePlayerList->getLocalPlayer();
+			Player *player = getCommandActingPlayer();
 			if (player)
 			{
 				Squad *selectedSquad = player->getHotkeySquad(group);
@@ -1195,7 +1199,7 @@ GameMessageDisposition SelectionTranslator::onMetaSelectTeam(MAYBE_UNUSED const 
 
 			// no need to send two messages for selecting the same group.
 			TheMessageStream->appendMessage((GameMessage::Type)(GameMessage::MSG_SELECT_TEAM0 + group));
-			Player *player = ThePlayerList->getLocalPlayer();
+			Player *player = getCommandActingPlayer();
 			if (player)
 			{
 				Squad *selectedSquad = player->getHotkeySquad(group);
@@ -1238,7 +1242,7 @@ GameMessageDisposition SelectionTranslator::onMetaAddTeam(MAYBE_UNUSED const Gam
 		if ( now - m_lastGroupSelTime < TheGlobalData->m_doubleClickTimeMS && group == m_lastGroupSelGroup )
 		{
 			DEBUG_LOG(("META: DOUBLETAP select team %d",group));
-			Player *player = ThePlayerList->getLocalPlayer();
+			Player *player = getCommandActingPlayer();
 			if (player)
 			{
 				Squad *selectedSquad = player->getHotkeySquad(group);
@@ -1269,7 +1273,7 @@ GameMessageDisposition SelectionTranslator::onMetaAddTeam(MAYBE_UNUSED const Gam
 
 			// no need to send two messages for selecting the same group.
 			TheMessageStream->appendMessage((GameMessage::Type)(GameMessage::MSG_ADD_TEAM0 + group));
-			Player *player = ThePlayerList->getLocalPlayer();
+			Player *player = getCommandActingPlayer();
 			if (player)
 			{
 				Squad *selectedSquad = player->getHotkeySquad(group);
@@ -1305,7 +1309,7 @@ GameMessageDisposition SelectionTranslator::onMetaViewTeam(MAYBE_UNUSED const Ga
 	if ( group >= 0 && group < 10 )
 	{
 		DEBUG_LOG(("META: view team %d",group));
-		Player *player = ThePlayerList->getLocalPlayer();
+		Player *player = getCommandActingPlayer();
 		if (player)
 		{
 			Squad *selectedSquad = player->getHotkeySquad(group);
