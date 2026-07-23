@@ -645,6 +645,10 @@ public:
 
 	Int getPlayerIndex() const { return m_playerIndex; }		///< Return the originating player
 
+	// Splitscreen: which local seat generated this message (client-only, default
+	// 0 = the legacy local player). Never serialized (not in Recorder/network).
+	Int getSeatIndex() const { return m_seatIndex; }
+
 	// access methods for GameMessageArgumentType enum
 	void appendIntegerArgument( Int arg );
 	void appendRealArgument( Real arg );
@@ -670,6 +674,7 @@ public:
 	void friend_setPrev(GameMessage* m) { m_prev = m; }
 	void friend_setList(GameMessageList* m) { m_list = m; }
 	void friend_setPlayerIndex(Int i) { m_playerIndex = i; }
+	void friend_setSeatIndex(Int i) { m_seatIndex = i; }
 
 private:
 	// friend classes are bad. don't use them. no, really.
@@ -681,6 +686,7 @@ private:
 	Type m_type;										///< The type of this message
 
 	Int m_playerIndex;													///< The Player who issued the command
+	Int m_seatIndex;													///< Splitscreen: local seat that generated this (client-only, default 0)
 
 	std::vector<GameMessageArgument*> m_argList;						///< This message's arguments
 

@@ -1014,6 +1014,7 @@ GlobalData::GlobalData()
 	m_shellMapName.set("Maps\\ShellMap1\\ShellMap1.map");
 	m_shellMapOn =TRUE;
 	m_playIntro = TRUE;
+	m_splitscreenEnabled = FALSE;
 	m_playSizzle = TRUE;
 	m_loadScreenRender = FALSE;
 

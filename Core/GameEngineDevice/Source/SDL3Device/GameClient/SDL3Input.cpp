@@ -34,6 +34,7 @@
 #include "Common/FileSystem.h"
 #include "Common/GameEngine.h"
 #include "Common/MessageStream.h"
+#include "Common/SeatManager.h"
 #include "GameClient/Display.h"
 #include "GameClient/InGameUI.h"
 #include "GameClient/LookAtXlat.h"
@@ -196,6 +197,33 @@ void SDL3Mouse::setVisibility(Bool visible)
 	{
 		SDL_HideCursor();
 	}
+}
+
+void SDL3Mouse::setPosition(Int x, Int y)
+{
+	// Update the engine cursor state.
+	Mouse::setPosition(x, y);
+
+	// Warp the OS cursor so the visible hardware cursor follows (used by the
+	// splitscreen pad-driven seat, WP2). Convert game-internal coords to window
+	// pixels; letterbox offset is ignored here (good enough for dev testing).
+	if (!m_Window)
+		return;
+
+	int winW = 0, winH = 0;
+	SDL_GetWindowSizeInPixels(m_Window, &winW, &winH);
+	int intW = TheDisplay ? TheDisplay->getWidth()  : winW;
+	int intH = TheDisplay ? TheDisplay->getHeight() : winH;
+
+	float wx = (float)x;
+	float wy = (float)y;
+	if (intW > 0 && intH > 0 && (winW != intW || winH != intH))
+	{
+		wx = x * (float)winW / (float)intW;
+		wy = y * (float)winH / (float)intH;
+	}
+
+	SDL_WarpMouseInWindow(m_Window, wx, wy);
 }
 
 void SDL3Mouse::loseFocus()
@@ -690,7 +718,8 @@ SDL3InputManager::SDL3InputManager(SDL_Window* window)
 	, m_mouseNextGet(0)
 	, m_keyNextFree(0)
 	, m_keyNextGet(0)
-	, m_gamepad(nullptr)
+	, m_primaryDevice(0)
+	, m_precisionMode(FALSE)
 	, m_lastUpdateTime(0)
 	, m_cursorSpeed(0.0f)
 	, m_edgeAccelTimer(0.0f)
@@ -704,13 +733,16 @@ SDL3InputManager::SDL3InputManager(SDL_Window* window)
 		m_keyEvents[i].type = SDL_EVENT_FIRST;
 	TheSDL3InputManager = this;
 
-	openFirstGamepad();
+	// TheSeatManager is a device-independent subsystem created later in
+	// GameEngine::init; it may not exist yet. Opening pads here only populates
+	// the local table - seat binding happens once joining is allowed.
+	openAllGamepads();
 	m_lastUpdateTime = SDL_GetTicks();
 }
 
 SDL3InputManager::~SDL3InputManager()
 {
-	closeGamepad();
+	closeAllGamepads();
 	SDL3Mouse::freeCursorResources();
 	TheSDL3InputManager = nullptr;
 }
@@ -735,13 +767,11 @@ void SDL3InputManager::update()
 				break;
 
 			case SDL_EVENT_GAMEPAD_ADDED:
-				if (!m_gamepad)
-					openFirstGamepad();
+				openGamepad(event.gdevice.which);
 				break;
 
 			case SDL_EVENT_GAMEPAD_REMOVED:
-				if (m_gamepad && event.gdevice.which == SDL_GetGamepadID(m_gamepad))
-					closeGamepad();
+				closeGamepad(event.gdevice.which);
 				break;
 
 			case SDL_EVENT_WINDOW_FOCUS_GAINED:
@@ -867,55 +897,93 @@ void SDL3InputManager::addKeyboardSDLEvent(const SDL_Event& event)
 	m_keyNextFree = nextFree;
 }
 
-void SDL3InputManager::openFirstGamepad()
+void SDL3InputManager::openGamepad(SDL_JoystickID id)
+{
+	if (id == 0 || m_pads.find(id) != m_pads.end())
+		return;
+
+	SDL_Gamepad* pad = SDL_OpenGamepad(id);
+	if (!pad)
+		return;
+
+	PadEntry entry;
+	entry.pad = pad;
+	m_pads[id] = entry;
+	DEBUG_LOG(("SDL3InputManager: Opened gamepad %u: %s", id, SDL_GetGamepadName(pad)));
+
+	// The first pad becomes the primary and drives the OS mouse while splitscreen
+	// is off (legacy single-player behavior).
+	if (m_primaryDevice == 0)
+		m_primaryDevice = id;
+}
+
+void SDL3InputManager::closeGamepad(SDL_JoystickID id)
+{
+	std::map<SDL_JoystickID, PadEntry>::iterator it = m_pads.find(id);
+	if (it == m_pads.end())
+		return;
+
+	if (it->second.pad)
+		SDL_CloseGamepad(it->second.pad);
+	m_pads.erase(it);
+
+	if (TheSeatManager)
+		TheSeatManager->onDeviceDisconnected((Int)id);
+
+	// If the primary pad left, promote another open pad (if any) so the OS mouse
+	// path keeps a driver.
+	if (id == m_primaryDevice)
+		m_primaryDevice = m_pads.empty() ? 0 : m_pads.begin()->first;
+}
+
+void SDL3InputManager::openAllGamepads()
 {
 	int count = 0;
 	SDL_JoystickID* joysticks = SDL_GetGamepads(&count);
 	if (joysticks)
 	{
 		for (int i = 0; i < count; ++i)
-		{
-			m_gamepad = SDL_OpenGamepad(joysticks[i]);
-			if (m_gamepad)
-			{
-				DEBUG_LOG(("SDL3InputManager: Opened gamepad: %s", SDL_GetGamepadName(m_gamepad)));
-				break;
-			}
-		}
+			openGamepad(joysticks[i]);
 		SDL_free(joysticks);
 	}
 }
 
-void SDL3InputManager::closeGamepad()
+void SDL3InputManager::closeAllGamepads()
 {
-	if (m_state.rtDown)
-		virtualPulseKey(SDL_SCANCODE_LCTRL, false);
-
-	if (m_gamepad)
+	std::map<SDL_JoystickID, PadEntry>::iterator primaryIt = m_pads.find(m_primaryDevice);
+	if (primaryIt != m_pads.end())
 	{
-		if (m_state.stickLeft) virtualPulseKey(SDL_SCANCODE_LEFT, false);
-		if (m_state.stickRight) virtualPulseKey(SDL_SCANCODE_RIGHT, false);
-		if (m_state.stickUp) virtualPulseKey(SDL_SCANCODE_UP, false);
-		if (m_state.stickDown) virtualPulseKey(SDL_SCANCODE_DOWN, false);
+		GamepadState& state = primaryIt->second.injectState;
 
-		if (m_state.buttonState[SDL_GAMEPAD_BUTTON_SOUTH]) virtualPulseMouse(SDL_BUTTON_LEFT, false);
-		if (m_state.buttonState[SDL_GAMEPAD_BUTTON_EAST]) virtualPulseMouse(SDL_BUTTON_RIGHT, false);
-		if (m_state.buttonState[SDL_GAMEPAD_BUTTON_WEST]) virtualPulseKey(SDL_SCANCODE_A, false);
-		if (m_state.buttonState[SDL_GAMEPAD_BUTTON_LEFT_SHOULDER]) virtualPulseKey(SDL_SCANCODE_Q, false);
-		if (m_state.buttonState[SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER]) virtualPulseKey(SDL_SCANCODE_LSHIFT, false);
-		if (m_state.buttonState[SDL_GAMEPAD_BUTTON_START]) virtualPulseKey(SDL_SCANCODE_ESCAPE, false);
-		if (m_state.buttonState[SDL_GAMEPAD_BUTTON_BACK]) virtualPulseKey(SDL_SCANCODE_SPACE, false);
-		if (m_state.buttonState[SDL_GAMEPAD_BUTTON_DPAD_UP]) virtualPulseKey(SDL_SCANCODE_2, false);
-		if (m_state.buttonState[SDL_GAMEPAD_BUTTON_DPAD_DOWN]) virtualPulseKey(SDL_SCANCODE_4, false);
-		if (m_state.buttonState[SDL_GAMEPAD_BUTTON_DPAD_LEFT]) virtualPulseKey(SDL_SCANCODE_1, false);
-		if (m_state.buttonState[SDL_GAMEPAD_BUTTON_DPAD_RIGHT]) virtualPulseKey(SDL_SCANCODE_3, false);
+		if (state.rtDown)
+			virtualPulseKey(SDL_SCANCODE_LCTRL, false);
 
-		m_state = GamepadState();
-		m_lastUpdateTime = 0;
+		if (state.stickLeft) virtualPulseKey(SDL_SCANCODE_LEFT, false);
+		if (state.stickRight) virtualPulseKey(SDL_SCANCODE_RIGHT, false);
+		if (state.stickUp) virtualPulseKey(SDL_SCANCODE_UP, false);
+		if (state.stickDown) virtualPulseKey(SDL_SCANCODE_DOWN, false);
 
-		SDL_CloseGamepad(m_gamepad);
-		m_gamepad = nullptr;
+		if (state.buttonState[SDL_GAMEPAD_BUTTON_SOUTH]) virtualPulseMouse(SDL_BUTTON_LEFT, false);
+		if (state.buttonState[SDL_GAMEPAD_BUTTON_EAST]) virtualPulseMouse(SDL_BUTTON_RIGHT, false);
+		if (state.buttonState[SDL_GAMEPAD_BUTTON_WEST]) virtualPulseKey(SDL_SCANCODE_A, false);
+		if (state.buttonState[SDL_GAMEPAD_BUTTON_LEFT_SHOULDER]) virtualPulseKey(SDL_SCANCODE_Q, false);
+		if (state.buttonState[SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER]) virtualPulseKey(SDL_SCANCODE_LSHIFT, false);
+		if (state.buttonState[SDL_GAMEPAD_BUTTON_START]) virtualPulseKey(SDL_SCANCODE_ESCAPE, false);
+		if (state.buttonState[SDL_GAMEPAD_BUTTON_BACK]) virtualPulseKey(SDL_SCANCODE_SPACE, false);
+		if (state.buttonState[SDL_GAMEPAD_BUTTON_DPAD_UP]) virtualPulseKey(SDL_SCANCODE_2, false);
+		if (state.buttonState[SDL_GAMEPAD_BUTTON_DPAD_DOWN]) virtualPulseKey(SDL_SCANCODE_4, false);
+		if (state.buttonState[SDL_GAMEPAD_BUTTON_DPAD_LEFT]) virtualPulseKey(SDL_SCANCODE_1, false);
+		if (state.buttonState[SDL_GAMEPAD_BUTTON_DPAD_RIGHT]) virtualPulseKey(SDL_SCANCODE_3, false);
 	}
+
+	for (std::map<SDL_JoystickID, PadEntry>::iterator it = m_pads.begin(); it != m_pads.end(); ++it)
+	{
+		if (it->second.pad)
+			SDL_CloseGamepad(it->second.pad);
+	}
+	m_pads.clear();
+	m_primaryDevice = 0;
+	m_lastUpdateTime = 0;
 
 	m_cursorSpeed = 0.0f;
 	m_edgeAccelTimer = 0.0f;
@@ -996,12 +1064,10 @@ void SDL3InputManager::handleGamepadButton(SDL_GamepadButton button, bool& curre
 
 void SDL3InputManager::processGamepadInput()
 {
-	if (!m_gamepad)
-		return;
-
 	if (m_window && !(SDL_GetWindowFlags(m_window) & SDL_WINDOW_INPUT_FOCUS))
 	{
-		m_state = GamepadState();
+		for (std::map<SDL_JoystickID, PadEntry>::iterator it = m_pads.begin(); it != m_pads.end(); ++it)
+			it->second.injectState = GamepadState();
 		m_lastUpdateTime = 0;
 		m_cursorSpeed = 0.0f;
 		m_edgeAccelTimer = 0.0f;
@@ -1012,23 +1078,114 @@ void SDL3InputManager::processGamepadInput()
 		return;
 	}
 
-	const float DEADZONE = DEFAULT_DEADZONE;
-	float rx = SDL_GetGamepadAxis(m_gamepad, SDL_GAMEPAD_AXIS_RIGHTX) / AXIS_MAX;
-	float ry = SDL_GetGamepadAxis(m_gamepad, SDL_GAMEPAD_AXIS_RIGHTY) / AXIS_MAX;
-
-	float lx_axis = SDL_GetGamepadAxis(m_gamepad, SDL_GAMEPAD_AXIS_LEFTX) / AXIS_MAX;
-	float ly_axis = SDL_GetGamepadAxis(m_gamepad, SDL_GAMEPAD_AXIS_LEFTY) / AXIS_MAX;
-	float stickMag_check = sqrtf(lx_axis * lx_axis + ly_axis * ly_axis);
-
-	bool hasStickInput = (stickMag_check > DEADZONE) || (SDL_fabsf(rx) > DEADZONE) || (SDL_fabsf(ry) > DEADZONE);
-	if (TheLookAtTranslator)
-		TheLookAtTranslator->setControllerInputActive(hasStickInput);
-
 	Uint64 now = SDL_GetTicks();
 	float deltaTime = (now - m_lastUpdateTime) / 1000.0f;
 	m_lastUpdateTime = now;
 	if (deltaTime > 0.1f)
 		deltaTime = 0.1f;
+
+	Bool splitscreen = (TheSeatManager && TheSeatManager->isSplitscreenEnabled());
+	if (TheSeatManager)
+		TheSeatManager->setConnectedDeviceCount((Int)m_pads.size());
+
+	if (TheLookAtTranslator)
+	{
+		const float DEADZONE = DEFAULT_DEADZONE;
+		std::map<SDL_JoystickID, PadEntry>::iterator primaryIt = m_pads.find(m_primaryDevice);
+		bool hasStickInput = false;
+		if (primaryIt != m_pads.end() && primaryIt->second.pad)
+		{
+			SDL_Gamepad* primaryPad = primaryIt->second.pad;
+			float rx = SDL_GetGamepadAxis(primaryPad, SDL_GAMEPAD_AXIS_RIGHTX) / AXIS_MAX;
+			float ry = SDL_GetGamepadAxis(primaryPad, SDL_GAMEPAD_AXIS_RIGHTY) / AXIS_MAX;
+			float lx_axis = SDL_GetGamepadAxis(primaryPad, SDL_GAMEPAD_AXIS_LEFTX) / AXIS_MAX;
+			float ly_axis = SDL_GetGamepadAxis(primaryPad, SDL_GAMEPAD_AXIS_LEFTY) / AXIS_MAX;
+			float stickMag_check = sqrtf(lx_axis * lx_axis + ly_axis * ly_axis);
+			hasStickInput = (stickMag_check > DEADZONE) || (SDL_fabsf(rx) > DEADZONE) || (SDL_fabsf(ry) > DEADZONE);
+		}
+		TheLookAtTranslator->setControllerInputActive(hasStickInput);
+	}
+
+	for (std::map<SDL_JoystickID, PadEntry>::iterator it = m_pads.begin(); it != m_pads.end(); ++it)
+	{
+		PadEntry& entry = it->second;
+		if (!entry.pad)
+			continue;
+
+		if (splitscreen)
+		{
+			// Track each pad as a seat (for the overlay and future per-seat
+			// routing). Pressing JOIN/CONFIRM on an unbound pad claims a free seat.
+			SeatInputState state;
+			readGamepadState(entry.pad, entry, state);
+
+			Int seat = TheSeatManager->getSeatForDevice((Int)it->first);
+			if (seat < 0 && (state.buttonPressed[SEAT_BUTTON_JOIN] || state.buttonPressed[SEAT_BUTTON_CONFIRM]))
+				seat = TheSeatManager->bindSeatToDevice((Int)it->first);
+			if (seat >= 0)
+				TheSeatManager->setSeatInput(seat, state);
+		}
+
+		// The primary pad keeps the full legacy button/cursor mapping so the
+		// controller has all its buttons regardless of splitscreen mode. Per-seat
+		// command routing (so a second pad drives a second player) is WP5.
+		if (it->first == m_primaryDevice)
+			injectLegacyMouseKeyboard(entry, deltaTime);
+	}
+}
+
+void SDL3InputManager::readGamepadState(SDL_Gamepad* pad, PadEntry& entry, SeatInputState& out) const
+{
+	out.clear();
+	if (!pad)
+		return;
+
+	const float DEADZONE = DEFAULT_DEADZONE;
+
+	float lx = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTX)  / AXIS_MAX;
+	float ly = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTY)  / AXIS_MAX;
+	float rx = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTX) / AXIS_MAX;
+	float ry = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTY) / AXIS_MAX;
+	out.leftX  = (SDL_fabsf(lx) > DEADZONE) ? lx : 0.0f;
+	out.leftY  = (SDL_fabsf(ly) > DEADZONE) ? ly : 0.0f;
+	out.rightX = (SDL_fabsf(rx) > DEADZONE) ? rx : 0.0f;
+	out.rightY = (SDL_fabsf(ry) > DEADZONE) ? ry : 0.0f;
+	out.leftTrigger  = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER)  / AXIS_MAX;
+	out.rightTrigger = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) / AXIS_MAX;
+
+	// Map physical gamepad buttons to engine-side logical buttons (SeatInput.h).
+	static const SDL_GamepadButton s_logicalMap[SEAT_BUTTON_COUNT] =
+	{
+		SDL_GAMEPAD_BUTTON_SOUTH,           // SEAT_BUTTON_CONFIRM
+		SDL_GAMEPAD_BUTTON_EAST,            // SEAT_BUTTON_CANCEL
+		SDL_GAMEPAD_BUTTON_WEST,            // SEAT_BUTTON_ACTION
+		SDL_GAMEPAD_BUTTON_NORTH,           // SEAT_BUTTON_ALT_ACTION
+		SDL_GAMEPAD_BUTTON_LEFT_SHOULDER,   // SEAT_BUTTON_MODIFIER
+		SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER,  // SEAT_BUTTON_COMMAND_BAR
+		SDL_GAMEPAD_BUTTON_START,           // SEAT_BUTTON_JOIN
+		SDL_GAMEPAD_BUTTON_BACK,            // SEAT_BUTTON_LEAVE
+		SDL_GAMEPAD_BUTTON_LEFT_STICK,      // SEAT_BUTTON_CURSOR_CLICK
+		SDL_GAMEPAD_BUTTON_RIGHT_STICK,     // SEAT_BUTTON_CAMERA_RESET
+		SDL_GAMEPAD_BUTTON_DPAD_UP,         // SEAT_BUTTON_DPAD_UP
+		SDL_GAMEPAD_BUTTON_DPAD_DOWN,       // SEAT_BUTTON_DPAD_DOWN
+		SDL_GAMEPAD_BUTTON_DPAD_LEFT,       // SEAT_BUTTON_DPAD_LEFT
+		SDL_GAMEPAD_BUTTON_DPAD_RIGHT,      // SEAT_BUTTON_DPAD_RIGHT
+	};
+
+	for (Int i = 0; i < SEAT_BUTTON_COUNT; ++i)
+	{
+		bool down = SDL_GetGamepadButton(pad, s_logicalMap[i]);
+		out.buttonDown[i]     = down ? TRUE : FALSE;
+		out.buttonPressed[i]  = (down && !entry.prevLogical[i]) ? TRUE : FALSE;
+		out.buttonReleased[i] = (!down && entry.prevLogical[i]) ? TRUE : FALSE;
+		entry.prevLogical[i]  = down;
+	}
+}
+
+void SDL3InputManager::injectLegacyMouseKeyboard(PadEntry& entry, float deltaTime)
+{
+	SDL_Gamepad* pad = entry.pad;
+	const float DEADZONE = DEFAULT_DEADZONE;
 
 	float resolutionScale = 1.0f;
 	int windowWidth = 0;
@@ -1040,23 +1197,24 @@ void SDL3InputManager::processGamepadInput()
 	const float CURSOR_ACCELERATION = DEFAULT_CURSOR_ACCELERATION * resolutionScale;
 	const float CURSOR_DECELERATION = DEFAULT_CURSOR_DECELERATION * resolutionScale;
 
-	// 1. TRIGGERS (Modifiers: RT = Force Attack / LCtrl, LT = Unmapped)
-	bool ltPressed = SDL_GetGamepadAxis(m_gamepad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > TRIGGER_THRESHOLD;
-	if (ltPressed != m_state.ltDown)
+	// 1. TRIGGERS (Modifiers: RT = Force Attack / LCtrl, LT = Precision)
+	bool ltPressed = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > TRIGGER_THRESHOLD;
+	if (ltPressed != entry.injectState.ltDown)
 	{
-		m_state.ltDown = ltPressed;
+		entry.injectState.ltDown = ltPressed;
+		m_precisionMode = entry.injectState.ltDown;
 	}
 
-	bool rtPressed = SDL_GetGamepadAxis(m_gamepad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) > TRIGGER_THRESHOLD;
-	if (rtPressed != m_state.rtDown)
+	bool rtPressed = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) > TRIGGER_THRESHOLD;
+	if (rtPressed != entry.injectState.rtDown)
 	{
-		m_state.rtDown = rtPressed;
-		virtualPulseKey(SDL_SCANCODE_LCTRL, m_state.rtDown);
+		entry.injectState.rtDown = rtPressed;
+		virtualPulseKey(SDL_SCANCODE_LCTRL, entry.injectState.rtDown);
 	}
 
 	// 2. STICKS (Movement & Panning)
-	float lx = SDL_GetGamepadAxis(m_gamepad, SDL_GAMEPAD_AXIS_LEFTX) / AXIS_MAX;
-	float ly = SDL_GetGamepadAxis(m_gamepad, SDL_GAMEPAD_AXIS_LEFTY) / AXIS_MAX;
+	float lx = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTX) / AXIS_MAX;
+	float ly = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTY) / AXIS_MAX;
 	float stickMagnitude = sqrtf(lx * lx + ly * ly);
 	if (stickMagnitude > 1.0f)
 		stickMagnitude = 1.0f;
@@ -1152,30 +1310,30 @@ void SDL3InputManager::processGamepadInput()
 		m_cursorRemainderY = 0.0f;
 	}
 
-	rx = SDL_GetGamepadAxis(m_gamepad, SDL_GAMEPAD_AXIS_RIGHTX) / AXIS_MAX;
-	ry = SDL_GetGamepadAxis(m_gamepad, SDL_GAMEPAD_AXIS_RIGHTY) / AXIS_MAX;
+	float rx = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTX) / AXIS_MAX;
+	float ry = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTY) / AXIS_MAX;
 
 	handleGamepadButton(
 		SDL_GAMEPAD_BUTTON_INVALID,
-		m_state.stickLeft,
+		entry.injectState.stickLeft,
 		rx < -DEADZONE,
 		[this](bool d) { virtualPulseKey(SDL_SCANCODE_LEFT, d); }
 	);
 	handleGamepadButton(
 		SDL_GAMEPAD_BUTTON_INVALID,
-		m_state.stickRight,
+		entry.injectState.stickRight,
 		rx > DEADZONE,
 		[this](bool d) { virtualPulseKey(SDL_SCANCODE_RIGHT, d); }
 	);
 	handleGamepadButton(
 		SDL_GAMEPAD_BUTTON_INVALID,
-		m_state.stickUp,
+		entry.injectState.stickUp,
 		ry < -DEADZONE,
 		[this](bool d) { virtualPulseKey(SDL_SCANCODE_UP, d); }
 	);
 	handleGamepadButton(
 		SDL_GAMEPAD_BUTTON_INVALID,
-		m_state.stickDown,
+		entry.injectState.stickDown,
 		ry > DEADZONE,
 		[this](bool d) { virtualPulseKey(SDL_SCANCODE_DOWN, d); }
 	);
@@ -1183,86 +1341,86 @@ void SDL3InputManager::processGamepadInput()
 	// 3. BUTTONS & D-PAD (Actions & Hotkeys)
 	handleGamepadButton(
 		SDL_GAMEPAD_BUTTON_SOUTH,
-		m_state.buttonState[SDL_GAMEPAD_BUTTON_SOUTH],
-		SDL_GetGamepadButton(m_gamepad, SDL_GAMEPAD_BUTTON_SOUTH),
+		entry.injectState.buttonState[SDL_GAMEPAD_BUTTON_SOUTH],
+		SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_SOUTH),
 		[this](bool d) { virtualPulseMouse(SDL_BUTTON_LEFT, d); }
 	);
 	handleGamepadButton(
 		SDL_GAMEPAD_BUTTON_EAST,
-		m_state.buttonState[SDL_GAMEPAD_BUTTON_EAST],
-		SDL_GetGamepadButton(m_gamepad, SDL_GAMEPAD_BUTTON_EAST),
+		entry.injectState.buttonState[SDL_GAMEPAD_BUTTON_EAST],
+		SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_EAST),
 		[this](bool d) { virtualPulseMouse(SDL_BUTTON_RIGHT, d); }
 	);
 	handleGamepadButton(
 		SDL_GAMEPAD_BUTTON_WEST,
-		m_state.buttonState[SDL_GAMEPAD_BUTTON_WEST],
-		SDL_GetGamepadButton(m_gamepad, SDL_GAMEPAD_BUTTON_WEST),
+		entry.injectState.buttonState[SDL_GAMEPAD_BUTTON_WEST],
+		SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_WEST),
 		[this](bool d) { virtualPulseKey(SDL_SCANCODE_A, d); }
 	);
 	handleGamepadButton(
 		SDL_GAMEPAD_BUTTON_NORTH,
-		m_state.buttonState[SDL_GAMEPAD_BUTTON_NORTH],
-		SDL_GetGamepadButton(m_gamepad, SDL_GAMEPAD_BUTTON_NORTH),
+		entry.injectState.buttonState[SDL_GAMEPAD_BUTTON_NORTH],
+		SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_NORTH),
 		[this](bool d) { if (d && TheMessageStream && TheMessageStream->isReadyForMessages()) TheMessageStream->appendMessage(GameMessage::MSG_META_STOP); }
 	);
 	handleGamepadButton(
 		SDL_GAMEPAD_BUTTON_LEFT_SHOULDER,
-		m_state.buttonState[SDL_GAMEPAD_BUTTON_LEFT_SHOULDER],
-		SDL_GetGamepadButton(m_gamepad, SDL_GAMEPAD_BUTTON_LEFT_SHOULDER),
+		entry.injectState.buttonState[SDL_GAMEPAD_BUTTON_LEFT_SHOULDER],
+		SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_LEFT_SHOULDER),
 		[this](bool d) { virtualPulseKey(SDL_SCANCODE_Q, d); }
 	);
 	handleGamepadButton(
 		SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER,
-		m_state.buttonState[SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER],
-		SDL_GetGamepadButton(m_gamepad, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER),
+		entry.injectState.buttonState[SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER],
+		SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER),
 		[this](bool d) { virtualPulseKey(SDL_SCANCODE_LSHIFT, d); }
 	);
 	handleGamepadButton(
 		SDL_GAMEPAD_BUTTON_START,
-		m_state.buttonState[SDL_GAMEPAD_BUTTON_START],
-		SDL_GetGamepadButton(m_gamepad, SDL_GAMEPAD_BUTTON_START),
+		entry.injectState.buttonState[SDL_GAMEPAD_BUTTON_START],
+		SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_START),
 		[this](bool d) { virtualPulseKey(SDL_SCANCODE_ESCAPE, d); }
 	);
 	handleGamepadButton(
 		SDL_GAMEPAD_BUTTON_BACK,
-		m_state.buttonState[SDL_GAMEPAD_BUTTON_BACK],
-		SDL_GetGamepadButton(m_gamepad, SDL_GAMEPAD_BUTTON_BACK),
+		entry.injectState.buttonState[SDL_GAMEPAD_BUTTON_BACK],
+		SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_BACK),
 		[this](bool d) { virtualPulseKey(SDL_SCANCODE_SPACE, d); }
 	);
 	handleGamepadButton(
 		SDL_GAMEPAD_BUTTON_DPAD_LEFT,
-		m_state.buttonState[SDL_GAMEPAD_BUTTON_DPAD_LEFT],
-		SDL_GetGamepadButton(m_gamepad, SDL_GAMEPAD_BUTTON_DPAD_LEFT),
+		entry.injectState.buttonState[SDL_GAMEPAD_BUTTON_DPAD_LEFT],
+		SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_DPAD_LEFT),
 		[this](bool d) { virtualPulseKey(SDL_SCANCODE_1, d); }
 	);
 	handleGamepadButton(
 		SDL_GAMEPAD_BUTTON_DPAD_UP,
-		m_state.buttonState[SDL_GAMEPAD_BUTTON_DPAD_UP],
-		SDL_GetGamepadButton(m_gamepad, SDL_GAMEPAD_BUTTON_DPAD_UP),
+		entry.injectState.buttonState[SDL_GAMEPAD_BUTTON_DPAD_UP],
+		SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_DPAD_UP),
 		[this](bool d) { virtualPulseKey(SDL_SCANCODE_2, d); }
 	);
 	handleGamepadButton(
 		SDL_GAMEPAD_BUTTON_DPAD_RIGHT,
-		m_state.buttonState[SDL_GAMEPAD_BUTTON_DPAD_RIGHT],
-		SDL_GetGamepadButton(m_gamepad, SDL_GAMEPAD_BUTTON_DPAD_RIGHT),
+		entry.injectState.buttonState[SDL_GAMEPAD_BUTTON_DPAD_RIGHT],
+		SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_DPAD_RIGHT),
 		[this](bool d) { virtualPulseKey(SDL_SCANCODE_3, d); }
 	);
 	handleGamepadButton(
 		SDL_GAMEPAD_BUTTON_DPAD_DOWN,
-		m_state.buttonState[SDL_GAMEPAD_BUTTON_DPAD_DOWN],
-		SDL_GetGamepadButton(m_gamepad, SDL_GAMEPAD_BUTTON_DPAD_DOWN),
+		entry.injectState.buttonState[SDL_GAMEPAD_BUTTON_DPAD_DOWN],
+		SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_DPAD_DOWN),
 		[this](bool d) { virtualPulseKey(SDL_SCANCODE_4, d); }
 	);
 	handleGamepadButton(
 		SDL_GAMEPAD_BUTTON_LEFT_STICK,
-		m_state.buttonState[SDL_GAMEPAD_BUTTON_LEFT_STICK],
-		SDL_GetGamepadButton(m_gamepad, SDL_GAMEPAD_BUTTON_LEFT_STICK),
+		entry.injectState.buttonState[SDL_GAMEPAD_BUTTON_LEFT_STICK],
+		SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_LEFT_STICK),
 		[this](bool d) { if (d && TheMessageStream && TheMessageStream->isReadyForMessages()) TheMessageStream->appendMessage(GameMessage::MSG_META_SELECT_NEXT_IDLE_WORKER); }
 	);
 	handleGamepadButton(
 		SDL_GAMEPAD_BUTTON_RIGHT_STICK,
-		m_state.buttonState[SDL_GAMEPAD_BUTTON_RIGHT_STICK],
-		SDL_GetGamepadButton(m_gamepad, SDL_GAMEPAD_BUTTON_RIGHT_STICK),
+		entry.injectState.buttonState[SDL_GAMEPAD_BUTTON_RIGHT_STICK],
+		SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_RIGHT_STICK),
 		[this](bool d) { if (d && TheMessageStream && TheMessageStream->isReadyForMessages()) TheMessageStream->appendMessage(GameMessage::MSG_META_VIEW_COMMAND_CENTER); }
 	);
 }

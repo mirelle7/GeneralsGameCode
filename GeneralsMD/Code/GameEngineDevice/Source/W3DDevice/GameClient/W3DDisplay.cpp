@@ -83,6 +83,9 @@ static void drawFramerateBar();
 #include "W3DDevice/GameClient/W3DProjectedShadow.h"
 #include "W3DDevice/GameClient/W3DScreenshot.h"
 #include "W3DDevice/GameClient/W3DShroud.h"
+#if RTS_SDL3_ENABLE
+#include "W3DDevice/GameClient/W3DSeatCursorRenderer.h"
+#endif
 #include "WWMath/wwmath.h"
 #include "WWLib/registry.h"
 #include "WW3D2/ww3d.h"
@@ -2005,6 +2008,11 @@ AGAIN:
 				// draw the mouse
 				if( TheMouse )
 					TheMouse->DRAW();
+
+#if RTS_SDL3_ENABLE
+				// draw per-seat software cursors (splitscreen) on top of the UI and mouse
+				W3DSeatCursorRenderer::render();
+#endif
 
 				if ( m_videoStream && m_videoBuffer )
 				{
