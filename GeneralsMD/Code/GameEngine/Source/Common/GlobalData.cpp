@@ -1015,6 +1015,7 @@ GlobalData::GlobalData()
 	m_shellMapOn =TRUE;
 	m_playIntro = TRUE;
 	m_splitscreenEnabled = FALSE;
+	m_splitscreenFakeSeats = 0;
 	m_playSizzle = TRUE;
 	m_loadScreenRender = FALSE;
 

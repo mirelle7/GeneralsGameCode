@@ -193,7 +193,7 @@ Bool CanSelectDrawable( const Drawable *draw, Bool dragSelecting )
 	}
 	//Now allowing the selection of everything including enemies... but only if not drag selecting.
 	//In fact the only way you can drag select is if the unit is on your team.
-	if( dragSelecting && !obj->isLocallyControlled() )
+	if( dragSelecting && !obj->isControlledByPlayer(getCommandActingPlayer()) )
 	{
 		return FALSE;
 	}
@@ -589,7 +589,7 @@ GameMessageDisposition SelectionTranslator::onRawMousePosition(MAYBE_UNUSED cons
 		{
 			Coord3D position;
 
-			if( TheTacticalView->screenToTerrain( &pixel, &position ) )
+			if( getCommandActingView()->screenToTerrain( &pixel, &position ) )
 			{
 				mouseoverMessage = TheMessageStream->appendMessage( GameMessage::MSG_MOUSEOVER_LOCATION_HINT );
 				mouseoverMessage->appendLocationArgument( position );
@@ -633,7 +633,7 @@ GameMessageDisposition SelectionTranslator::onMouseLeftDoubleClick(MAYBE_UNUSED 
 	// We have to have an object in order to be able to do interesting double click stuff on
 	// him. Also, if it is a structure, it is already selected, so don't select all the units
 	// like him.
-	if (pickedObj == nullptr || !pickedObj->isLocallyControlled())
+	if (pickedObj == nullptr || !pickedObj->isControlledByPlayer(getCommandActingPlayer()))
 		return KEEP_MESSAGE;
 
 	// Ok. The logic is a little bit weird here. What we need to do is deselect everything
@@ -741,7 +741,7 @@ GameMessageDisposition SelectionTranslator::onMouseLeftClick(MAYBE_UNUSED const 
 	PickDrawableStruct pds;
 	pds.drawableListToFill = &drawablesThatWillSelect;
 	pds.isPointSelection = isPoint;
-	TheTacticalView->iterateDrawablesInRegion(&selectionRegion, addDrawableToList, &pds);
+	getCommandActingView()->iterateDrawablesInRegion(&selectionRegion, addDrawableToList, &pds);
 
 	if (drawablesThatWillSelect.empty())
 	{
@@ -917,7 +917,7 @@ GameMessageDisposition SelectionTranslator::onMouseLeftClick(MAYBE_UNUSED const 
 
 			Drawable *drawToSelect = nullptr;
 			ObjectID objToAppend = INVALID_ID;
-			if (si.selectMine && obj->isLocallyControlled())
+			if (si.selectMine && obj->isControlledByPlayer(getCommandActingPlayer()))
 			{
 				if (!obj->isKindOf(KINDOF_STRUCTURE) || si.selectMineBuildings)
 				{
@@ -1141,7 +1141,7 @@ GameMessageDisposition SelectionTranslator::onMetaCreateTeam(MAYBE_UNUSED const 
 		Drawable *drawable = TheGameClient->getDrawableList();
 		while (drawable != nullptr)
 		{
-			if (drawable->isSelected() && drawable->getObject() && drawable->getObject()->isLocallyControlled())
+			if (drawable->isSelected() && drawable->getObject() && drawable->getObject()->isControlledByPlayer(getCommandActingPlayer()))
 			{
 				newmsg->appendObjectIDArgument(drawable->getObject()->getID());
 			}
