@@ -83,10 +83,24 @@ static const Int edgeScrollSize = 3;
 static Mouse::MouseCursor prevCursor = Mouse::ARROW;
 
 //-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
+/** Splitscreen: this translator is a single shared object, and everything it touches while
+	scrolling - the OS mouse cursor, the tactical view's mouse lock, the UI's "is scrolling"
+	flag - belongs to seat 0. A pad seat scrolls its own view with its own stick and has its own
+	software cursor, so when one of ITS messages reaches here none of that shared state may be
+	written: doing so snapped player 1's cursor back to the plain arrow every time player 2
+	moved. Screen-edge scrolling is likewise a seat-0 concept here - a pad seat's cursor sits at
+	its viewport edge constantly. */
+static Bool scrollingOwnsSharedState()
+{
+	return getCommandActingSeat() == 0;
+}
+
 void LookAtTranslator::setScrolling( ScrollType scrollType )
 {
 	if (TheInGameUI != nullptr && !TheInGameUI->getInputEnabled())
+		return;
+
+	if (!scrollingOwnsSharedState())
 		return;
 
 	if (!m_isScrolling)
@@ -108,6 +122,9 @@ void LookAtTranslator::setScrolling( ScrollType scrollType )
 //-----------------------------------------------------------------------------
 void LookAtTranslator::stopScrolling()
 {
+	if (!scrollingOwnsSharedState())
+		return;
+
 	if (m_isScrolling)
 	{
 		if (TheStatsCollector != nullptr)
