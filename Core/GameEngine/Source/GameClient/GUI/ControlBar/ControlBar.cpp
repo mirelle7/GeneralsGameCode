@@ -3238,6 +3238,8 @@ void ControlBar::showRallyPoint(const Coord3D* loc)
 void ControlBar::setControlBarSchemeByPlayer(Player *p)
 {
 	if(m_controlBarSchemeManager)
+		// Splitscreen: the scheme manager is shared, so say which bar this applies to.
+		m_controlBarSchemeManager->setApplyToBar( this );
 		m_controlBarSchemeManager->setControlBarSchemeByPlayer(p);
 
 	static NameKeyType buttonPlaceBeaconID = NAMEKEY( "ControlBar.wnd:ButtonPlaceBeacon" );
@@ -3283,6 +3285,8 @@ void ControlBar::setControlBarSchemeByPlayer(Player *p)
 void ControlBar::setControlBarSchemeByPlayerTemplate( const PlayerTemplate *pt)
 {
 	if(m_controlBarSchemeManager)
+		// Splitscreen: the scheme manager is shared, so say which bar this applies to.
+		m_controlBarSchemeManager->setApplyToBar( this );
 		m_controlBarSchemeManager->setControlBarSchemeByPlayerTemplate(pt);
 
 	static NameKeyType buttonPlaceBeaconID = NAMEKEY( "ControlBar.wnd:ButtonPlaceBeacon" );
@@ -3330,6 +3334,8 @@ void ControlBar::setControlBarSchemeByPlayerTemplate( const PlayerTemplate *pt)
 void ControlBar::setControlBarSchemeByName(const AsciiString& name)
 {
 	if(m_controlBarSchemeManager)
+		// Splitscreen: the scheme manager is shared, so say which bar this applies to.
+		m_controlBarSchemeManager->setApplyToBar( this );
 		m_controlBarSchemeManager->setControlBarScheme( name );
 		switchControlBarStage(CONTROL_BAR_STAGE_DEFAULT);
 
@@ -3513,7 +3519,9 @@ void ControlBar::setDefaultControlBarConfig()
 //	if(m_currentControlBarStage == CONTROL_BAR_STAGE_SQUISHED)
 //	{
 //		m_controlBarResizer->sizeWindowsDefault();
-//		m_controlBarSchemeManager->setControlBarSchemeByPlayerTemplate(getBarPlayer()->getPlayerTemplate(), FALSE);
+//		// Splitscreen: the scheme manager is shared, so say which bar this applies to.
+		m_controlBarSchemeManager->setApplyToBar( this );
+		m_controlBarSchemeManager->setControlBarSchemeByPlayerTemplate(getBarPlayer()->getPlayerTemplate(), FALSE);
 //	}
 	m_currentControlBarStage = CONTROL_BAR_STAGE_DEFAULT;
 	setScaledViewportHeight();
@@ -3536,6 +3544,8 @@ void ControlBar::setSquishedControlBarConfig()
 //	m_controlBarResizer->sizeWindowsAlt();
 	repopulateBuildTooltipLayout();
 	setFullViewportHeight();
+	// Splitscreen: the scheme manager is shared, so say which bar this applies to.
+	m_controlBarSchemeManager->setApplyToBar( this );
 	m_controlBarSchemeManager->setControlBarSchemeByPlayerTemplate(getBarPlayer()->getPlayerTemplate(), TRUE);
 }
 
@@ -3544,7 +3554,9 @@ void ControlBar::setLowControlBarConfig()
 //	if(m_currentControlBarStage == CONTROL_BAR_STAGE_SQUISHED)
 //	{
 //		m_controlBarResizer->sizeWindowsDefault();
-//		m_controlBarSchemeManager->setControlBarSchemeByPlayerTemplate(getBarPlayer()->getPlayerTemplate(), FALSE);
+//		// Splitscreen: the scheme manager is shared, so say which bar this applies to.
+		m_controlBarSchemeManager->setApplyToBar( this );
+		m_controlBarSchemeManager->setControlBarSchemeByPlayerTemplate(getBarPlayer()->getPlayerTemplate(), FALSE);
 //	}
 
 	m_currentControlBarStage = CONTROL_BAR_STAGE_LOW;
