@@ -751,7 +751,6 @@ SDL3InputManager::SDL3InputManager(SDL_Window* window)
 	, m_mouseNextGet(0)
 	, m_keyNextFree(0)
 	, m_keyNextGet(0)
-	, m_primaryDevice(0)
 	, m_precisionMode(FALSE)
 	, m_lastUpdateTime(0)
 	, m_cursorSpeed(0.0f)
@@ -943,11 +942,8 @@ void SDL3InputManager::openGamepad(SDL_JoystickID id)
 	entry.pad = pad;
 	m_pads[id] = entry;
 	DEBUG_LOG(("SDL3InputManager: Opened gamepad %u: %s", id, SDL_GetGamepadName(pad)));
-
-	// The first pad becomes the primary and drives the OS mouse while splitscreen
-	// is off (legacy single-player behavior).
-	if (m_primaryDevice == 0)
-		m_primaryDevice = id;
+	// Which seat this pad serves is the seat layer's call, made per frame in
+	// processGamepadInput - there is no device role to assign here.
 }
 
 void SDL3InputManager::closeGamepad(SDL_JoystickID id)
@@ -960,13 +956,10 @@ void SDL3InputManager::closeGamepad(SDL_JoystickID id)
 		SDL_CloseGamepad(it->second.pad);
 	m_pads.erase(it);
 
+	// Hand the unplug to the seat layer, which owns the device population: it releases
+	// the seat-0 role if this pad held it, so a remaining pad can take over the mouse.
 	if (TheSeatManager)
-		TheSeatManager->onDeviceDisconnected((Int)id);
-
-	// If the primary pad left, promote another open pad (if any) so the OS mouse
-	// path keeps a driver.
-	if (id == m_primaryDevice)
-		m_primaryDevice = m_pads.empty() ? 0 : m_pads.begin()->first;
+		TheSeatManager->onDeviceRemoved((Int)id);
 }
 
 void SDL3InputManager::openAllGamepads()
@@ -983,10 +976,12 @@ void SDL3InputManager::openAllGamepads()
 
 void SDL3InputManager::closeAllGamepads()
 {
-	std::map<SDL_JoystickID, PadEntry>::iterator primaryIt = m_pads.find(m_primaryDevice);
-	if (primaryIt != m_pads.end())
+	// No persistent "primary" pad anymore (the seat layer assigns seat 0 to a pad
+	// per frame), so release virtual input for every pad's inject state; entries that
+	// never drove the OS mouse/keyboard have all-false state and the guards no-op.
+	for (std::map<SDL_JoystickID, PadEntry>::iterator it = m_pads.begin(); it != m_pads.end(); ++it)
 	{
-		GamepadState& state = primaryIt->second.injectState;
+		GamepadState& state = it->second.injectState;
 
 		if (state.rtDown)
 			virtualPulseKey(SDL_SCANCODE_LCTRL, false);
@@ -1015,7 +1010,6 @@ void SDL3InputManager::closeAllGamepads()
 			SDL_CloseGamepad(it->second.pad);
 	}
 	m_pads.clear();
-	m_primaryDevice = 0;
 	m_lastUpdateTime = 0;
 
 	m_cursorSpeed = 0.0f;
@@ -1117,27 +1111,11 @@ void SDL3InputManager::processGamepadInput()
 	if (deltaTime > 0.1f)
 		deltaTime = 0.1f;
 
-	Bool splitscreen = (TheSeatManager && TheSeatManager->isSplitscreenEnabled());
 	if (TheSeatManager)
 		TheSeatManager->setConnectedDeviceCount((Int)m_pads.size());
 
-	if (TheLookAtTranslator)
-	{
-		const float DEADZONE = DEFAULT_DEADZONE;
-		std::map<SDL_JoystickID, PadEntry>::iterator primaryIt = m_pads.find(m_primaryDevice);
-		bool hasStickInput = false;
-		if (primaryIt != m_pads.end() && primaryIt->second.pad)
-		{
-			SDL_Gamepad* primaryPad = primaryIt->second.pad;
-			float rx = SDL_GetGamepadAxis(primaryPad, SDL_GAMEPAD_AXIS_RIGHTX) / AXIS_MAX;
-			float ry = SDL_GetGamepadAxis(primaryPad, SDL_GAMEPAD_AXIS_RIGHTY) / AXIS_MAX;
-			float lx_axis = SDL_GetGamepadAxis(primaryPad, SDL_GAMEPAD_AXIS_LEFTX) / AXIS_MAX;
-			float ly_axis = SDL_GetGamepadAxis(primaryPad, SDL_GAMEPAD_AXIS_LEFTY) / AXIS_MAX;
-			float stickMag_check = sqrtf(lx_axis * lx_axis + ly_axis * ly_axis);
-			hasStickInput = (stickMag_check > DEADZONE) || (SDL_fabsf(rx) > DEADZONE) || (SDL_fabsf(ry) > DEADZONE);
-		}
-		TheLookAtTranslator->setControllerInputActive(hasStickInput);
-	}
+	const float DEADZONE = DEFAULT_DEADZONE;
+	bool hasStickInput = false;
 
 	for (std::map<SDL_JoystickID, PadEntry>::iterator it = m_pads.begin(); it != m_pads.end(); ++it)
 	{
@@ -1145,32 +1123,38 @@ void SDL3InputManager::processGamepadInput()
 		if (!entry.pad)
 			continue;
 
-		if (splitscreen)
+		SeatInputState state;
+		readGamepadState(entry.pad, entry, state);
+
+		// The seat layer owns every pad and decides which seat this one belongs to; the
+		// answer is the only thing this backend branches on. There is no longer a separate
+		// "legacy" pad path running its own admission rules in parallel - injecting the
+		// mouse/keyboard is simply what seat 0 does with a pad.
+		const Int seat = (TheSeatManager != nullptr)
+			? TheSeatManager->routeDeviceInput((Int)it->first, state)
+			: 0;	// no seat layer (VC6/non-SDL3 configurations): behave as seat 0
+
+		if (seat == 0)
 		{
-			// Track each pad as a seat (for the overlay and future per-seat
-			// routing). Pressing JOIN/CONFIRM on an unbound pad claims a free seat.
-			SeatInputState state;
-			readGamepadState(entry.pad, entry, state);
-
-			Int seat = TheSeatManager->getSeatForDevice((Int)it->first);
-			if (seat < 0 && (state.buttonPressed[SEAT_BUTTON_JOIN] || state.buttonPressed[SEAT_BUTTON_CONFIRM]))
-				seat = TheSeatManager->bindSeatToDevice((Int)it->first);
-			if (seat >= 0)
-			{
-				// WP5: a bound pad drives its OWN seat (cursor + seat-tagged
-				// select/command messages emitted from SeatManager), NOT the shared
-				// OS mouse. So it does not run the legacy injection below.
-				TheSeatManager->setSeatInput(seat, state);
-				continue;
-			}
-		}
-
-		// Legacy path: an unbound pad (or splitscreen off) - the primary pad drives
-		// the OS mouse/keyboard with the full button mapping, so single-player and
-		// pre-join menu navigation are unchanged.
-		if (it->first == m_primaryDevice)
+			// Seat 0 == the keyboard/mouse seat. Its pad drives the OS pointer with the
+			// full legacy button mapping, so single-player and menu navigation are
+			// unchanged whether or not splitscreen is enabled.
 			injectLegacyMouseKeyboard(entry, deltaTime);
+
+			float rx = SDL_GetGamepadAxis(entry.pad, SDL_GAMEPAD_AXIS_RIGHTX) / AXIS_MAX;
+			float ry = SDL_GetGamepadAxis(entry.pad, SDL_GAMEPAD_AXIS_RIGHTY) / AXIS_MAX;
+			float lx_axis = SDL_GetGamepadAxis(entry.pad, SDL_GAMEPAD_AXIS_LEFTX) / AXIS_MAX;
+			float ly_axis = SDL_GetGamepadAxis(entry.pad, SDL_GAMEPAD_AXIS_LEFTY) / AXIS_MAX;
+			float stickMag_check = sqrtf(lx_axis * lx_axis + ly_axis * ly_axis);
+			hasStickInput = (stickMag_check > DEADZONE) || (SDL_fabsf(rx) > DEADZONE) || (SDL_fabsf(ry) > DEADZONE);
+		}
+		// seat > 0: driven entirely by SeatManager::createStreamMessages (own cursor,
+		// seat-tagged messages) - the backend must not inject anything for it.
+		// seat < 0: another pad is already acting for seat 0; this one idles until it joins.
 	}
+
+	if (TheLookAtTranslator)
+		TheLookAtTranslator->setControllerInputActive(hasStickInput);
 }
 
 void SDL3InputManager::readGamepadState(SDL_Gamepad* pad, PadEntry& entry, SeatInputState& out) const
