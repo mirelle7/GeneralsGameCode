@@ -6594,6 +6594,8 @@ void InGameUI::selectNextIdleWorker()
 	g_dbgIdleListSize = (Int)m_idleWorkers[index].size();
 	g_dbgIdleSelCount = getSelectCount();
 	g_dbgIdleResult = 1;
+	seatLog("ACT selectNextIdleWorker actSeat=%d actPly=%d list=%d selCount=%d",
+		getCommandActingSeat(), index, g_dbgIdleListSize, g_dbgIdleSelCount);
 
 	if(m_idleWorkers[index].empty())
 	{
