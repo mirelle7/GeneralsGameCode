@@ -3831,7 +3831,13 @@ void InGameUI::deselectAllDrawables( Int seat, Bool postMsg )
 //-------------------------------------------------------------------------------------------------
 const DrawableList *InGameUI::getAllSelectedDrawables() const
 {
-	return getAllSelectedDrawables( 0 );
+	// Legacy accessor: the acting seat, like selectDrawable/deselectAllDrawables/getSelectCount.
+	// These three no-arg selection accessors were the odd ones out, still hard-coding seat 0 - so
+	// getSelectCount() answered for the seat that pressed the button while this answered for
+	// player 1. selectNextIdleWorker uses both: with one thing selected on a pad seat and nothing
+	// on seat 0, the count took the "exactly one selected" branch and the lookup then handed it a
+	// null drawable to dereference. m_activeSeat is 0 outside translation, so nothing else moves.
+	return getAllSelectedDrawables( m_activeSeat );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -3847,7 +3853,7 @@ const DrawableList *InGameUI::getAllSelectedDrawables( Int seat ) const
 //-------------------------------------------------------------------------------------------------
 const DrawableList *InGameUI::getAllSelectedLocalDrawables()
 {
-	return getAllSelectedLocalDrawables( 0 );
+	return getAllSelectedLocalDrawables( m_activeSeat );	// see getAllSelectedDrawables()
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -3871,7 +3877,7 @@ const DrawableList *InGameUI::getAllSelectedLocalDrawables( Int seat )
 //-------------------------------------------------------------------------------------------------
 Drawable *InGameUI::getFirstSelectedDrawable()
 {
-	return getFirstSelectedDrawable( 0 );
+	return getFirstSelectedDrawable( m_activeSeat );	// see getAllSelectedDrawables()
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -6597,16 +6603,22 @@ void InGameUI::selectNextIdleWorker()
 	else
 	{
 		Drawable *selectedDrawable = getFirstSelectedDrawable();
+
 		// TheSuperHackers @tweak Stubbjax 22/07/2025 Idle worker iteration now correctly identifies and
 		// iterates contained idle workers. Previous iteration logic would not go past contained workers,
 		// and was not guaranteed to select top-level containers.
 		ObjectPtrVector uniqueIdleWorkers = getUniqueIdleWorkers(m_idleWorkers[index]);
 
+		// The count above and this lookup are two different queries, and they could disagree - they
+		// did, because getSelectCount() followed the acting seat and getFirstSelectedDrawable() did
+		// not. So never dereference the drawable on the strength of the count.
+		Object *selectedObject = selectedDrawable ? selectedDrawable->getObject() : nullptr;
+
 		ObjectPtrVector::iterator it = uniqueIdleWorkers.begin();
-		while(it != uniqueIdleWorkers.end())
+		while(selectedObject != nullptr && it != uniqueIdleWorkers.end())
 		{
 			Object *itObj = *it;
-			if(itObj == selectedDrawable->getObject())
+			if(itObj == selectedObject)
 			{
 				++it;
 				if(it != uniqueIdleWorkers.end())
