@@ -372,6 +372,7 @@ public:
 	Bool m_splitscreenEnabled;					///< Splitscreen dev mode (-splitscreendev); gates local-seat binding
 	Int m_splitscreenFakeSeats;				///< Fake seats to pre-bind (-splitscreendev <n>), for testing layouts without that many pads
 	Bool m_splitscreenDebugOverlay;		///< Show the seat debug table (-splitscreendevquiet turns it off; the text covers player 1's viewport)
+	Bool m_splitscreenObserveAI;			///< Fake seats WATCH live AI players instead of taking them over (-splitscreendevtakeover restores the takeover)
 	Bool m_playSizzle;								///< Flag to say whether we play the sizzle movie after the logo movie.
 
 	Bool m_loadScreenRender;						///< flag to disallow rendering of almost everything during a loadscreen
