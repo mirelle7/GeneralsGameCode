@@ -260,7 +260,7 @@ GameMessageDisposition WindowTranslator::translateGameMessage(const GameMessage 
 		// ------------------------------------------------------------------------
 		case GameMessage::MSG_RAW_MOUSE_LEFT_BUTTON_UP:
 		{
-			if( TheInGameUI && TheInGameUI->isPlacementAnchored() )
+			if( TheInGameUI && TheInGameUI->isPlacementAnchored( getCommandActingSeat() ) )
 			{
 				//If we release the button outside
 				forceKeepMessage = TRUE;
