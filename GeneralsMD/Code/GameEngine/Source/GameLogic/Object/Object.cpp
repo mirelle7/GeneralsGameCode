@@ -1960,8 +1960,12 @@ void Object::attemptDamage( DamageInfo *damageInfo )
 			getControllingPlayer() &&
 			!BitIsSet(damageInfo->in.m_sourcePlayerMask, getControllingPlayer()->getPlayerMask()) &&
 			m_radarData != nullptr &&
-			isLocallyControlled() &&
-			!isKindOf( KINDOF_NO_ATTACK_WARNING ) )
+			!isKindOf( KINDOF_NO_ATTACK_WARNING ) &&
+			// Splitscreen: ask whether ANY local seat commands this player, not only whether
+			// seat 0 does. isLocallyControlled() compares against ThePlayerList's local player,
+			// so the under-attack event never even fired for seats 1..7. Kept LAST in the chain
+			// so the seat scan is only reached after the cheap tests cull most objects.
+			rts::getSeatIndexForPlayer( getControllingPlayer()->getPlayerIndex() ) >= 0 )
 		TheRadar->tryUnderAttackEvent( this );
 
 }
