@@ -16,6 +16,8 @@
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "Lib/BaseType.h"
+
 #include <cstdio>
 #include <memory>
 #include <SDL3_image/SDL_image.h>
@@ -63,9 +65,8 @@ SDL_Cursor* SDL3CursorManager::getCursor(Mouse::MouseCursor cursor, int directio
 
 const AnimatedCursor* SDL3CursorManager::getAnimatedCursor(Mouse::MouseCursor cursor, int direction)
 {
-	if (cursor < Mouse::FIRST_CURSOR || cursor >= Mouse::NUM_MOUSE_CURSORS)
+	if (cursor < 0 || cursor >= Mouse::NUM_MOUSE_CURSORS)
 		return nullptr;
-
 	if (direction < 0 || direction >= MAX_2D_CURSOR_DIRECTIONS)
 		direction = 0;
 
@@ -142,6 +143,34 @@ AnimatedCursor* SDL3CursorManager::loadANI(const char* filepath)
 	}
 
 	std::unique_ptr<AnimatedCursor> cursor(new AnimatedCursor());
+	cursor->m_hotSpotX = hot_spot_x;
+	cursor->m_hotSpotY = hot_spot_y;
+
+	// Splitscreen: retain the decoded frames in ARGB8888 for W3DSeatCursorRenderer
+	for (int i = 0; i < anim->count; ++i)
+	{
+		SDL_Surface* srcSurf = anim->frames[i];
+		if (!srcSurf)
+			continue;
+
+		SDL_Surface* argbSurf = SDL_ConvertSurface(srcSurf, SDL_PIXELFORMAT_ARGB8888);
+		if (argbSurf)
+		{
+			CursorFrameRGBA frame;
+			frame.m_width = argbSurf->w;
+			frame.m_height = argbSurf->h;
+			frame.m_pixels.resize((size_t)argbSurf->w * (size_t)argbSurf->h * 4);
+
+			for (int y = 0; y < argbSurf->h; ++y)
+			{
+				const uint8_t* rowSrc = (const uint8_t*)argbSurf->pixels + (size_t)y * (size_t)argbSurf->pitch;
+				uint8_t* rowDst = frame.m_pixels.data() + (size_t)y * (size_t)argbSurf->w * 4;
+				memcpy(rowDst, rowSrc, (size_t)argbSurf->w * 4);
+			}
+			cursor->m_frames.push_back(std::move(frame));
+			SDL_DestroySurface(argbSurf);
+		}
+	}
 
 	if (anim->count > 1)
 	{
@@ -161,39 +190,6 @@ AnimatedCursor* SDL3CursorManager::loadANI(const char* filepath)
 	if (!cursor->m_cursor)
 	{
 		DEBUG_LOG(("loadANI: Failed to create cursor from %s. hot=(%d, %d), count=%d. Error: %s", filepath, hot_spot_x, hot_spot_y, anim->count, SDL_GetError()));
-	}
-
-	// Splitscreen: keep the decoded pixels. SDL_Cursor is opaque and only the window manager can
-	// draw it, so seat cursors - which we draw ourselves - had no art for the 27 cursor states that
-	// ship no texture, and fell back to the arrow. Copy to tightly-packed ARGB8888 while the
-	// surfaces are still alive; IMG_FreeAnimation below releases them.
-	cursor->m_hotSpotX = hot_spot_x;
-	cursor->m_hotSpotY = hot_spot_y;
-	cursor->m_frames.resize(anim->count);
-	for (int i = 0; i < anim->count; ++i)
-	{
-		SDL_Surface *src = anim->frames[i];
-		if (src == nullptr)
-			continue;
-
-		// Convert rather than assume: .ani frames are commonly 4bpp or 8bpp indexed.
-		SDL_Surface *conv = SDL_ConvertSurface(src, SDL_PIXELFORMAT_ARGB8888);
-		if (conv == nullptr)
-			continue;
-
-		CursorFrameRGBA &f = cursor->m_frames[i];
-		f.m_width  = conv->w;
-		f.m_height = conv->h;
-		f.m_pixels.resize((size_t)conv->w * (size_t)conv->h * 4u);
-
-		// Copy row by row: the surface pitch is not necessarily w*4.
-		const UnsignedByte *srcBits = (const UnsignedByte *)conv->pixels;
-		for (int y = 0; y < conv->h; ++y)
-			memcpy(&f.m_pixels[(size_t)y * (size_t)conv->w * 4u],
-				srcBits + (size_t)y * (size_t)conv->pitch,
-				(size_t)conv->w * 4u);
-
-		SDL_DestroySurface(conv);
 	}
 
 	IMG_FreeAnimation(anim);
