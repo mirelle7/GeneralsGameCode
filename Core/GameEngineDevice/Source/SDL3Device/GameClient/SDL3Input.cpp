@@ -338,6 +338,17 @@ void SDL3Mouse::addSDLEvent(SDL_Event* event)
 
 void SDL3Mouse::translateEvent(const SDL_Event& event, MouseIO* result)
 {
+	if (!result)
+		return;
+
+	// Reset state
+	result->leftState = result->rightState = result->middleState = MBS_None;
+	result->wheelPos = 0;
+	result->deltaPos.x = result->deltaPos.y = 0;
+
+	// Common timestamp (SDL3 uses nanoseconds, engine usually wants ms)
+	result->time = (Uint32)(event.common.timestamp / 1000000);
+
 	int rawX = 0;
 	int rawY = 0;
 	Uint32 windowID = 0;
