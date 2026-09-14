@@ -1007,6 +1007,21 @@ ControlBar::ControlBar()
 	m_isObserverCommandBar = FALSE;
 	m_observerLookAtPlayer = nullptr;
 	m_observedPlayer = nullptr;
+	m_observerPlayerInfoWindow = nullptr;
+	m_observerPlayerListWindow = nullptr;
+	for( i = 0; i < MAX_OBSERVER_PLAYER_BUTTONS; i++ )
+	{
+		m_observerButtonPlayer[ i ] = nullptr;
+		m_observerStaticTextPlayer[ i ] = nullptr;
+	}
+	m_observerWinFlag = nullptr;
+	m_observerWinGeneralPortrait = nullptr;
+	m_observerButtonIdleWorker = nullptr;
+	m_observerStaticTextNumberOfUnits = nullptr;
+	m_observerStaticTextNumberOfBuildings = nullptr;
+	m_observerStaticTextNumberOfUnitsKilled = nullptr;
+	m_observerStaticTextNumberOfUnitsLost = nullptr;
+	m_observerStaticTextPlayerName = nullptr;
 	m_buildToolTipLayout = nullptr;
 	m_tooltipPrevWindow = nullptr;
 	m_tooltipWaitInitialized = FALSE;

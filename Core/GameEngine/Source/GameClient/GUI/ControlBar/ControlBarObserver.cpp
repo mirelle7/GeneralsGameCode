@@ -68,7 +68,7 @@
 //-----------------------------------------------------------------------------
 // DEFINES ////////////////////////////////////////////////////////////////////
 //-----------------------------------------------------------------------------
-enum { MAX_BUTTONS = 8};
+enum { MAX_BUTTONS = ControlBar::MAX_OBSERVER_PLAYER_BUTTONS };
 static NameKeyType buttonPlayerID[MAX_BUTTONS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
@@ -77,24 +77,14 @@ static NameKeyType staticTextPlayerID[MAX_BUTTONS] = { NAMEKEY_INVALID,NAMEKEY_I
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID };
-static GameWindow *ObserverPlayerInfoWindow = nullptr;
-static GameWindow *ObserverPlayerListWindow = nullptr;
 
-static GameWindow *buttonPlayer[MAX_BUTTONS] = {0};
-static GameWindow *staticTextPlayer[MAX_BUTTONS] = {0};
-
+// Splitscreen: the observer panel's windows are ControlBar members, not file statics. Every
+// bar has its own copy of ControlBar.wnd, so one set of statics was overwritten by each seat
+// bar as it was created and left pointing at that bar's windows after it was destroyed - the
+// classic bar then wrote through freed windows the next time it showed the observer list.
+// The name keys above are the same in every copy and stay shared.
 
 static NameKeyType buttonCancelID = NAMEKEY_INVALID;
-
-static GameWindow *winFlag = nullptr;
-static GameWindow *winGeneralPortrait = nullptr;
-// TheSuperHackers @tweak Allow idle worker selection for observers.
-static GameWindow *buttonIdleWorker = nullptr;
-static GameWindow *staticTextNumberOfUnits = nullptr;
-static GameWindow *staticTextNumberOfBuildings = nullptr;
-static GameWindow *staticTextNumberOfUnitsKilled = nullptr;
-static GameWindow *staticTextNumberOfUnitsLost = nullptr;
-static GameWindow *staticTextPlayerName = nullptr;
 
 static NameKeyType s_replayObserverNameKey = NAMEKEY_INVALID;
 
@@ -105,28 +95,30 @@ static NameKeyType s_replayObserverNameKey = NAMEKEY_INVALID;
 
 void ControlBar::initObserverControls()
 {
-	ObserverPlayerInfoWindow = TheWindowManager->winGetWindowFromId(nullptr, TheNameKeyGenerator->nameToKey("ControlBar.wnd:ObserverPlayerInfoWindow"));
-	ObserverPlayerListWindow = TheWindowManager->winGetWindowFromId(nullptr, TheNameKeyGenerator->nameToKey("ControlBar.wnd:ObserverPlayerListWindow"));
+	// Splitscreen: resolve inside THIS bar's own layout copy. The global lookup returns whichever
+	// copy of a name was created last, which is a seat bar's once one exists.
+	m_observerPlayerInfoWindow = findBarWindowById(TheNameKeyGenerator->nameToKey("ControlBar.wnd:ObserverPlayerInfoWindow"));
+	m_observerPlayerListWindow = findBarWindowById(TheNameKeyGenerator->nameToKey("ControlBar.wnd:ObserverPlayerListWindow"));
 
 	for (Int i = 0; i < MAX_BUTTONS; i++)
 	{
 		AsciiString tmpString;
 		tmpString.format("ControlBar.wnd:ButtonPlayer%d", i);
 		buttonPlayerID[i] = TheNameKeyGenerator->nameToKey( tmpString );
-		buttonPlayer[i] = TheWindowManager->winGetWindowFromId( ObserverPlayerListWindow, buttonPlayerID[i] );
+		m_observerButtonPlayer[i] = findBarWindowById( buttonPlayerID[i] );
 		tmpString.format("ControlBar.wnd:StaticTextPlayer%d", i);
 		staticTextPlayerID[i] = TheNameKeyGenerator->nameToKey( tmpString );
-		staticTextPlayer[i] = TheWindowManager->winGetWindowFromId( ObserverPlayerListWindow, staticTextPlayerID[i] );
+		m_observerStaticTextPlayer[i] = findBarWindowById( staticTextPlayerID[i] );
 	}
 
-	staticTextNumberOfUnits = TheWindowManager->winGetWindowFromId(nullptr, TheNameKeyGenerator->nameToKey("ControlBar.wnd:StaticTextNumberOfUnits"));
-	staticTextNumberOfBuildings = TheWindowManager->winGetWindowFromId(nullptr, TheNameKeyGenerator->nameToKey("ControlBar.wnd:StaticTextNumberOfBuildings"));
-	staticTextNumberOfUnitsKilled = TheWindowManager->winGetWindowFromId(nullptr, TheNameKeyGenerator->nameToKey("ControlBar.wnd:StaticTextNumberOfUnitsKilled"));
-	staticTextNumberOfUnitsLost = TheWindowManager->winGetWindowFromId(nullptr, TheNameKeyGenerator->nameToKey("ControlBar.wnd:StaticTextNumberOfUnitsLost"));
-	staticTextPlayerName = TheWindowManager->winGetWindowFromId(nullptr, TheNameKeyGenerator->nameToKey("ControlBar.wnd:StaticTextPlayerName"));
-	winFlag = TheWindowManager->winGetWindowFromId(nullptr, TheNameKeyGenerator->nameToKey("ControlBar.wnd:WinFlag"));
-	winGeneralPortrait = TheWindowManager->winGetWindowFromId(nullptr, TheNameKeyGenerator->nameToKey("ControlBar.wnd:WinGeneralPortrait"));
-	buttonIdleWorker = TheWindowManager->winGetWindowFromId(nullptr, TheNameKeyGenerator->nameToKey("ControlBar.wnd:ButtonIdleWorker"));
+	m_observerStaticTextNumberOfUnits = findBarWindowById(TheNameKeyGenerator->nameToKey("ControlBar.wnd:StaticTextNumberOfUnits"));
+	m_observerStaticTextNumberOfBuildings = findBarWindowById(TheNameKeyGenerator->nameToKey("ControlBar.wnd:StaticTextNumberOfBuildings"));
+	m_observerStaticTextNumberOfUnitsKilled = findBarWindowById(TheNameKeyGenerator->nameToKey("ControlBar.wnd:StaticTextNumberOfUnitsKilled"));
+	m_observerStaticTextNumberOfUnitsLost = findBarWindowById(TheNameKeyGenerator->nameToKey("ControlBar.wnd:StaticTextNumberOfUnitsLost"));
+	m_observerStaticTextPlayerName = findBarWindowById(TheNameKeyGenerator->nameToKey("ControlBar.wnd:StaticTextPlayerName"));
+	m_observerWinFlag = findBarWindowById(TheNameKeyGenerator->nameToKey("ControlBar.wnd:WinFlag"));
+	m_observerWinGeneralPortrait = findBarWindowById(TheNameKeyGenerator->nameToKey("ControlBar.wnd:WinGeneralPortrait"));
+	m_observerButtonIdleWorker = findBarWindowById(TheNameKeyGenerator->nameToKey("ControlBar.wnd:ButtonIdleWorker"));
 
 	buttonCancelID = TheNameKeyGenerator->nameToKey("ControlBar.wnd:ButtonCancel");
 
@@ -190,30 +182,25 @@ WindowMsgHandledType ControlBarObserverSystem( GameWindow *window, UnsignedInt m
 		case GBM_SELECTED_RIGHT:
 		{
 			GameWindow *control = (GameWindow *)mData1;
+			// Splitscreen: the panel that was clicked, not always the classic bar's.
+			ControlBar *bar = ControlBarInstances::fromWindow( control );
 
 			Int controlID = control->winGetWindowId();
 			if( controlID == buttonCancelID)
 			{
 				rts::changeObservedPlayer(nullptr);
 
-				ObserverPlayerInfoWindow->winHide(TRUE);
-				ObserverPlayerListWindow->winHide(FALSE);
-				buttonIdleWorker->winHide(TRUE);
-				TheControlBar->populateObserverList();
+				bar->showObserverPlayerList();
 			}
 
 			for(Int i = 0; i <MAX_BUTTONS; ++i)
 			{
 				if( controlID == buttonPlayerID[i])
 				{
-					Player* player = static_cast<Player*>(GadgetButtonGetData(buttonPlayer[i]));
+					Player* player = static_cast<Player*>(GadgetButtonGetData(control));
 					rts::changeObservedPlayer(player);
 
-					ObserverPlayerInfoWindow->winHide(FALSE);
-					ObserverPlayerListWindow->winHide(TRUE);
-
-					if(TheControlBar->getObserverLookAtPlayer())
-						TheControlBar->populateObserverInfoWindow();
+					bar->showObserverPlayerInfo();
 
 					return MSG_HANDLED;
 				}
@@ -261,20 +248,20 @@ void ControlBar::populateObserverList()
 				if(p->isPlayerObserver())
 					continue;
 				DEBUG_ASSERTCRASH(currentButton < MAX_BUTTONS, ("ControlBar::populateObserverList trying to populate more buttons then we have"));
-				GadgetButtonSetData(buttonPlayer[currentButton], (void *)p);
-				GadgetButtonSetEnabledImage( buttonPlayer[currentButton], p->getPlayerTemplate()->getEnabledImage() );
-				//GadgetButtonSetHiliteImage( buttonPlayer[currentButton], p->getPlayerTemplate()->getHiliteImage() );
-				//GadgetButtonSetHiliteSelectedImage( buttonPlayer[currentButton], p->getPlayerTemplate()->getPushedImage() );
-				//GadgetButtonSetDisabledImage( buttonPlayer[currentButton], p->getPlayerTemplate()->getDisabledImage() );
-				buttonPlayer[currentButton]->winSetTooltip(p->getPlayerDisplayName());
-				buttonPlayer[currentButton]->winHide(FALSE);
-				buttonPlayer[currentButton]->winSetStatus( WIN_STATUS_USE_OVERLAY_STATES );
+				GadgetButtonSetData(m_observerButtonPlayer[currentButton], (void *)p);
+				GadgetButtonSetEnabledImage( m_observerButtonPlayer[currentButton], p->getPlayerTemplate()->getEnabledImage() );
+				//GadgetButtonSetHiliteImage( m_observerButtonPlayer[currentButton], p->getPlayerTemplate()->getHiliteImage() );
+				//GadgetButtonSetHiliteSelectedImage( m_observerButtonPlayer[currentButton], p->getPlayerTemplate()->getPushedImage() );
+				//GadgetButtonSetDisabledImage( m_observerButtonPlayer[currentButton], p->getPlayerTemplate()->getDisabledImage() );
+				m_observerButtonPlayer[currentButton]->winSetTooltip(p->getPlayerDisplayName());
+				m_observerButtonPlayer[currentButton]->winHide(FALSE);
+				m_observerButtonPlayer[currentButton]->winSetStatus( WIN_STATUS_USE_OVERLAY_STATES );
 
 				const GameSlot *slot = TheGameInfo->getConstSlot(i);
 				Color playerColor = p->getPlayerColor();
 				Color backColor = GameMakeColor(0, 0, 0, 255);
-				staticTextPlayer[currentButton]->winSetEnabledTextColors( playerColor, backColor );
-				staticTextPlayer[currentButton]->winHide(FALSE);
+				m_observerStaticTextPlayer[currentButton]->winSetEnabledTextColors( playerColor, backColor );
+				m_observerStaticTextPlayer[currentButton]->winHide(FALSE);
 				AsciiString teamStr;
 				teamStr.format("Team:%d", slot->getTeamNumber() + 1);
 				if (slot->isAI() && slot->getTeamNumber() == -1)
@@ -284,15 +271,15 @@ void ControlBar::populateObserverList()
 				text.format(TheGameText->fetch("CONTROLBAR:ObsPlayerLabel"), p->getPlayerDisplayName().str(),
 					TheGameText->fetch(teamStr).str());
 
-				GadgetStaticTextSetText(staticTextPlayer[currentButton], text );
+				GadgetStaticTextSetText(m_observerStaticTextPlayer[currentButton], text );
 
 				++currentButton;
 			}
 		}
 		for(currentButton; currentButton<MAX_BUTTONS; ++currentButton)
 		{
-			buttonPlayer[currentButton]->winHide(TRUE);
-			staticTextPlayer[currentButton]->winHide(TRUE);
+			m_observerButtonPlayer[currentButton]->winHide(TRUE);
+			m_observerStaticTextPlayer[currentButton]->winHide(TRUE);
 		}
 	}
 	else
@@ -303,20 +290,20 @@ void ControlBar::populateObserverList()
 			if(p && !p->isPlayerObserver() && p->getPlayerType() == PLAYER_HUMAN)
 			{
 				DEBUG_ASSERTCRASH(currentButton < MAX_BUTTONS, ("ControlBar::populateObserverList trying to populate more buttons then we have"));
-				GadgetButtonSetData(buttonPlayer[currentButton], (void *)p);
-				GadgetButtonSetEnabledImage( buttonPlayer[currentButton], p->getPlayerTemplate()->getEnabledImage() );
-				//GadgetButtonSetHiliteImage( buttonPlayer[currentButton], p->getPlayerTemplate()->getHiliteImage() );
-				//GadgetButtonSetHiliteSelectedImage( buttonPlayer[currentButton], p->getPlayerTemplate()->getPushedImage() );
-				//GadgetButtonSetDisabledImage( buttonPlayer[currentButton], p->getPlayerTemplate()->getDisabledImage() );
-				buttonPlayer[currentButton]->winSetTooltip(p->getPlayerDisplayName());
-				buttonPlayer[currentButton]->winHide(FALSE);
-				buttonPlayer[currentButton]->winSetStatus( WIN_STATUS_USE_OVERLAY_STATES );
+				GadgetButtonSetData(m_observerButtonPlayer[currentButton], (void *)p);
+				GadgetButtonSetEnabledImage( m_observerButtonPlayer[currentButton], p->getPlayerTemplate()->getEnabledImage() );
+				//GadgetButtonSetHiliteImage( m_observerButtonPlayer[currentButton], p->getPlayerTemplate()->getHiliteImage() );
+				//GadgetButtonSetHiliteSelectedImage( m_observerButtonPlayer[currentButton], p->getPlayerTemplate()->getPushedImage() );
+				//GadgetButtonSetDisabledImage( m_observerButtonPlayer[currentButton], p->getPlayerTemplate()->getDisabledImage() );
+				m_observerButtonPlayer[currentButton]->winSetTooltip(p->getPlayerDisplayName());
+				m_observerButtonPlayer[currentButton]->winHide(FALSE);
+				m_observerButtonPlayer[currentButton]->winSetStatus( WIN_STATUS_USE_OVERLAY_STATES );
 
 				Color playerColor = p->getPlayerColor();
 				Color backColor = GameMakeColor(0, 0, 0, 255);
-				staticTextPlayer[currentButton]->winSetEnabledTextColors( playerColor, backColor );
-				staticTextPlayer[currentButton]->winHide(FALSE);
-				GadgetStaticTextSetText(staticTextPlayer[currentButton], p->getPlayerDisplayName());
+				m_observerStaticTextPlayer[currentButton]->winSetEnabledTextColors( playerColor, backColor );
+				m_observerStaticTextPlayer[currentButton]->winHide(FALSE);
+				GadgetStaticTextSetText(m_observerStaticTextPlayer[currentButton], p->getPlayerDisplayName());
 
 				++currentButton;
 				break;
@@ -324,22 +311,22 @@ void ControlBar::populateObserverList()
 		}
 		for(currentButton; currentButton<MAX_BUTTONS; ++currentButton)
 		{
-			buttonPlayer[currentButton]->winHide(TRUE);
-			staticTextPlayer[currentButton]->winHide(TRUE);
+			m_observerButtonPlayer[currentButton]->winHide(TRUE);
+			m_observerStaticTextPlayer[currentButton]->winHide(TRUE);
 		}
 	}
 }
 
 void ControlBar::populateObserverInfoWindow ()
 {
-	if(ObserverPlayerInfoWindow->winIsHidden())
+	if(m_observerPlayerInfoWindow->winIsHidden())
 		return;
 
 	if( !m_observerLookAtPlayer )
 	{
-		ObserverPlayerInfoWindow->winHide(TRUE);
-		ObserverPlayerListWindow->winHide(FALSE);
-		buttonIdleWorker->winHide(TRUE);
+		m_observerPlayerInfoWindow->winHide(TRUE);
+		m_observerPlayerListWindow->winHide(FALSE);
+		m_observerButtonIdleWorker->winHide(TRUE);
 		populateObserverList();
 		return;
 	}
@@ -350,7 +337,7 @@ void ControlBar::populateObserverInfoWindow ()
 	clearmask.set(KINDOF_STRUCTURE);
 
 	uString.format(L"%d",m_observerLookAtPlayer->countObjects(mask,clearmask));
-	GadgetStaticTextSetText(staticTextNumberOfUnits, uString);
+	GadgetStaticTextSetText(m_observerStaticTextNumberOfUnits, uString);
 
 	Int numBuildings = 0;
 	mask.clear();
@@ -367,15 +354,32 @@ void ControlBar::populateObserverInfoWindow ()
 	mask.set(KINDOF_STRUCTURE);
 	numBuildings += m_observerLookAtPlayer->countObjects(mask,clearmask);
 	uString.format(L"%d",numBuildings);
-	GadgetStaticTextSetText(staticTextNumberOfBuildings, uString);
+	GadgetStaticTextSetText(m_observerStaticTextNumberOfBuildings, uString);
 	uString.format(L"%d",m_observerLookAtPlayer->getScoreKeeper()->getTotalUnitsDestroyed());
-	GadgetStaticTextSetText(staticTextNumberOfUnitsKilled, uString);
+	GadgetStaticTextSetText(m_observerStaticTextNumberOfUnitsKilled, uString);
 	uString.format(L"%d",m_observerLookAtPlayer->getScoreKeeper()->getTotalUnitsLost());
-	GadgetStaticTextSetText(staticTextNumberOfUnitsLost, uString);
-	GadgetStaticTextSetText(staticTextPlayerName, m_observerLookAtPlayer->getPlayerDisplayName());
+	GadgetStaticTextSetText(m_observerStaticTextNumberOfUnitsLost, uString);
+	GadgetStaticTextSetText(m_observerStaticTextPlayerName, m_observerLookAtPlayer->getPlayerDisplayName());
 	Color color = m_observerLookAtPlayer->getPlayerColor();
-	staticTextPlayerName->winSetEnabledTextColors(color, GameMakeColor(0,0,0,255));
-	winFlag->winSetEnabledImage(0, m_observerLookAtPlayer->getPlayerTemplate()->getFlagWaterMarkImage());
-	winGeneralPortrait->winHide(FALSE);
-	buttonIdleWorker->winHide(FALSE);
+	m_observerStaticTextPlayerName->winSetEnabledTextColors(color, GameMakeColor(0,0,0,255));
+	m_observerWinFlag->winSetEnabledImage(0, m_observerLookAtPlayer->getPlayerTemplate()->getFlagWaterMarkImage());
+	m_observerWinGeneralPortrait->winHide(FALSE);
+	m_observerButtonIdleWorker->winHide(FALSE);
+}
+
+void ControlBar::showObserverPlayerList()
+{
+	m_observerPlayerInfoWindow->winHide(TRUE);
+	m_observerPlayerListWindow->winHide(FALSE);
+	m_observerButtonIdleWorker->winHide(TRUE);
+	populateObserverList();
+}
+
+void ControlBar::showObserverPlayerInfo()
+{
+	m_observerPlayerInfoWindow->winHide(FALSE);
+	m_observerPlayerListWindow->winHide(TRUE);
+
+	if(getObserverLookAtPlayer())
+		populateObserverInfoWindow();
 }

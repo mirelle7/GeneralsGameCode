@@ -742,10 +742,14 @@ public:
 	void updatePurchaseScience();
 	AnimateWindowManager *m_generalsScreenAnimate; ///< The animate window manager
 
+	enum { MAX_OBSERVER_PLAYER_BUTTONS = 8 };	///< player buttons in the observer list of ControlBar.wnd
+
 	// Initialize the Observer controls Must be called after we've already loaded the window
 	void initObserverControls();
 	void populateObserverInfoWindow ();
 	void populateObserverList();
+	void showObserverPlayerList();	///< observer panel: back to the list of players
+	void showObserverPlayerInfo();	///< observer panel: details of the looked-at player
 	Bool isObserverControlBarOn() { return m_isObserverCommandBar;}
 
 	void setObserverLookAtPlayer (Player *player); ///< Sets the looked at player. Used to present information about the player.
@@ -1195,6 +1199,21 @@ protected:
 	Bool m_isObserverCommandBar;												///< If this is true, the command bar behaves greatly different
 	Player *m_observerLookAtPlayer;											///< The current player we're looking at, Null if we're not looking at anyone.
 	Player *m_observedPlayer;														///< The current player we're observing, Null if we're not observing anyone.
+
+	/// Splitscreen: the observer panel's windows, resolved in this bar's own layout copy by
+	/// initObserverControls. Formerly file statics shared by every bar (see ControlBarObserver.cpp).
+	GameWindow *m_observerPlayerInfoWindow;
+	GameWindow *m_observerPlayerListWindow;
+	GameWindow *m_observerButtonPlayer[ MAX_OBSERVER_PLAYER_BUTTONS ];
+	GameWindow *m_observerStaticTextPlayer[ MAX_OBSERVER_PLAYER_BUTTONS ];
+	GameWindow *m_observerWinFlag;
+	GameWindow *m_observerWinGeneralPortrait;
+	GameWindow *m_observerButtonIdleWorker;							///< TheSuperHackers @tweak Allow idle worker selection for observers.
+	GameWindow *m_observerStaticTextNumberOfUnits;
+	GameWindow *m_observerStaticTextNumberOfBuildings;
+	GameWindow *m_observerStaticTextNumberOfUnitsKilled;
+	GameWindow *m_observerStaticTextNumberOfUnitsLost;
+	GameWindow *m_observerStaticTextPlayerName;
 
 	WindowLayout *m_buildToolTipLayout;										///< The window that will slide on/display tooltips
 	Bool m_showBuildToolTipLayout;											///< every frame we test to see if we are going to continue showing this or not.
