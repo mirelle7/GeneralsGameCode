@@ -61,9 +61,6 @@ public:
 	virtual void regainFocus() override;
 	virtual void syncPositionToSystemCursor() override;
 
-	// SDL3-specific methods
-	void addSDLEvent(SDL_Event* event);
-
 protected:
 	virtual void capture() override;
 	virtual void releaseCapture() override;
@@ -101,9 +98,6 @@ public:
 
 	// Keyboard interface
 	virtual Bool getCapsState() override;
-
-	// SDL3-specific methods
-	void addSDLEvent(SDL_Event* event);
 
 protected:
 	virtual void getKey(KeyboardIO* key) override;
