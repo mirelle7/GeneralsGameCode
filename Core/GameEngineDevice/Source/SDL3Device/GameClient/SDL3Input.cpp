@@ -45,6 +45,8 @@
 
 SDL3InputManager* TheSDL3InputManager = nullptr;
 
+static SDL_Scancode translateKeyValToScanCode(Int keyDef);
+
 // SDL3Mouse implementation
 
 SDL3Mouse::SDL3Mouse(SDL_Window* window)
@@ -991,17 +993,37 @@ void SDL3InputManager::closeAllGamepads()
 		if (state.stickUp) virtualPulseKey(SDL_SCANCODE_UP, false);
 		if (state.stickDown) virtualPulseKey(SDL_SCANCODE_DOWN, false);
 
-		if (state.buttonState[SDL_GAMEPAD_BUTTON_SOUTH]) virtualPulseMouse(SDL_BUTTON_LEFT, false);
-		if (state.buttonState[SDL_GAMEPAD_BUTTON_EAST]) virtualPulseMouse(SDL_BUTTON_RIGHT, false);
-		if (state.buttonState[SDL_GAMEPAD_BUTTON_WEST]) virtualPulseKey(SDL_SCANCODE_A, false);
-		if (state.buttonState[SDL_GAMEPAD_BUTTON_LEFT_SHOULDER]) virtualPulseKey(SDL_SCANCODE_Q, false);
-		if (state.buttonState[SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER]) virtualPulseKey(SDL_SCANCODE_LSHIFT, false);
-		if (state.buttonState[SDL_GAMEPAD_BUTTON_START]) virtualPulseKey(SDL_SCANCODE_ESCAPE, false);
-		if (state.buttonState[SDL_GAMEPAD_BUTTON_BACK]) virtualPulseKey(SDL_SCANCODE_SPACE, false);
-		if (state.buttonState[SDL_GAMEPAD_BUTTON_DPAD_UP]) virtualPulseKey(SDL_SCANCODE_2, false);
-		if (state.buttonState[SDL_GAMEPAD_BUTTON_DPAD_DOWN]) virtualPulseKey(SDL_SCANCODE_4, false);
-		if (state.buttonState[SDL_GAMEPAD_BUTTON_DPAD_LEFT]) virtualPulseKey(SDL_SCANCODE_1, false);
-		if (state.buttonState[SDL_GAMEPAD_BUTTON_DPAD_RIGHT]) virtualPulseKey(SDL_SCANCODE_3, false);
+		// Release any logical button this pad was holding through the shared binding table
+		// (see injectLegacyMouseKeyboard) - GamepadState no longer tracks per-button state
+		// itself now that edges come from the seat layer's SeatInputState.
+		for (Int b = 0; b < SEAT_BUTTON_COUNT; ++b)
+		{
+			if (!it->second.prevLogical[b])
+				continue;
+
+			const SeatButtonBinding& bind = getSeatButtonBinding((SeatButton)b);
+			switch (bind.m_action)
+			{
+				case SEAT_ACT_CLICK_LEFT:
+					virtualPulseMouse(SDL_BUTTON_LEFT, false);
+					break;
+				case SEAT_ACT_CLICK_RIGHT:
+					virtualPulseMouse(SDL_BUTTON_RIGHT, false);
+					break;
+				case SEAT_ACT_KEY:
+				case SEAT_ACT_SHIFT_KEY:
+				{
+					const SDL_Scancode sc = translateKeyValToScanCode(bind.m_key);
+					if (sc != SDL_SCANCODE_UNKNOWN)
+						virtualPulseKey(sc, false);
+					break;
+				}
+				case SEAT_ACT_META:
+				case SEAT_ACT_NONE:
+				default:
+					break;
+			}
+		}
 	}
 
 	for (std::map<SDL_JoystickID, PadEntry>::iterator it = m_pads.begin(); it != m_pads.end(); ++it)
