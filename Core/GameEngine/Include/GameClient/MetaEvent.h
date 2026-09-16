@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include "Common/SeatManager.h"	// for MAX_SEATS
 #include "Common/SubsystemInterface.h"
 #include "GameClient/InGameUI.h"
 

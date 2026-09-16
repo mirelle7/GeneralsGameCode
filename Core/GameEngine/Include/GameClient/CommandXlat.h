@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include "Common/SeatManager.h"	// for MAX_SEATS
 #include "GameClient/InGameUI.h"
 
 enum GUICommandType CPP_11(: Int);
