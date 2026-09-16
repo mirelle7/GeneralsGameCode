@@ -108,12 +108,14 @@ struct VirtualCursor
 	ICoord2D pos;
 	Bool     visible;
 	Int      cursorType;   // mirrors MouseCursor enum values
+	Int      direction;    // which of the cursor's numDirections frames (e.g. 8-way scroll/RMB)
 
 	VirtualCursor()
 	{
 		pos.zero();
 		visible = FALSE;
 		cursorType = 0;
+		direction = 0;
 	}
 };
 

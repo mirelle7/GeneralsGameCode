@@ -39,6 +39,7 @@
 
 #include <stdarg.h>	// splitscreen input log (seatLog)
 #include <stdio.h>
+#include <math.h>	// atan2/M_PI for the per-seat cursor direction bucket
 
 SeatManager* TheSeatManager = nullptr;
 
@@ -364,6 +365,7 @@ void SeatManager::updateSeat0Cursor()
 	LocalSeat& s = m_seats[0];
 	s.m_cursor.pos        = io->pos;
 	s.m_cursor.cursorType = (Int)TheMouse->getMouseCursor();
+	s.m_cursor.direction  = TheMouse->getMouseCursorDirection();
 	s.m_cursor.visible    = TRUE;
 }
 
@@ -1021,6 +1023,24 @@ void SeatManager::createStreamMessages()
 		s.m_cursor.pos.x  = (Int)s.m_cursorFX;
 		s.m_cursor.pos.y  = (Int)s.m_cursorFY;
 		s.m_cursor.visible = TRUE;
+
+		// Splitscreen: this seat's own facing for direction-based cursor art (the 8-way
+		// scroll/RMB-drag cursor). Mirrors SDL3Mouse's bucketing so a pad seat's cursor faces the
+		// way its stick is pushed instead of being pinned to frame 0. Only updates on real
+		// movement, same as the mouse path, so the cursor keeps its last facing while idle rather
+		// than snapping back to "up".
+		{
+			const Int moveDX = s.m_cursor.pos.x - prevX;
+			const Int moveDY = s.m_cursor.pos.y - prevY;
+			if (moveDX != 0 || moveDY != 0)
+			{
+				Real angle = (Real)atan2((double)moveDY, (double)moveDX);
+				if (angle < 0.0f)
+					angle += 2.0f * (Real)M_PI;
+				const Real segmentAngle = 2.0f * (Real)M_PI / (Real)MAX_2D_CURSOR_DIRECTIONS;
+				s.m_cursor.direction = (Int)((angle + (segmentAngle * 0.5f)) / segmentAngle) % MAX_2D_CURSOR_DIRECTIONS;
+			}
+		}
 
 		// WP5: emit seat-tagged raw mouse messages so the translators (run through
 		// the scoped active seat) act on THIS seat's selection and player. Unlike

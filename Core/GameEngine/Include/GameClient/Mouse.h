@@ -313,6 +313,10 @@ public:
 	void getConfineRegion( Int *minX, Int *minY, Int *maxX, Int *maxY ) const	///< splitscreen: read back the confinement (diagnostics)
 		{ *minX = m_minX; *minY = m_minY; *maxX = m_maxX; *maxY = m_maxY; }
 	MouseCursor getMouseCursor() { return m_currentCursor; }	///< get the current mouse cursor image type
+	/// Splitscreen: which of the cursor's numDirections frames is currently showing (e.g. the
+	/// 8-way scroll/RMB-drag cursor). Base implementation has no notion of direction; only a
+	/// backend that actually computes one (SDL3Mouse) overrides it.
+	virtual Int getMouseCursorDirection() const { return 0; }
 	virtual void setRedrawMode(RedrawMode mode)	{m_currentRedrawMode=mode;} ///<set cursor drawing method.
 	virtual RedrawMode getRedrawMode() { return m_currentRedrawMode; } //get cursor drawing method
 	virtual void setVisibility(Bool visible) { m_visible = visible; } // set visibility for load screens, etc

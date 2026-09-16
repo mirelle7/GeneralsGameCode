@@ -360,21 +360,28 @@ static Int s_cursorAnimTick = 0;
 	declares no frame count for any cursor, so numFrames is always 1 and using it here would freeze
 	every animated cursor on frame 0. */
 //-------------------------------------------------------------------------------------------------
-static const Image *findAniCursorImage(Int cursorType, const CursorInfo **infoOut)
+// direction selects WHICH per-direction .ani was loaded (SDL3CursorManager::initResources loads
+// one per direction whenever a cursor's INI declares Directions > 1); it was previously hardcoded
+// to 0, which is harmless while every shipped cursor declares Directions=1 (so index 0 is the only
+// one that ever gets loaded) but silently pins any cursor that DOES declare more than one
+// direction to its first one regardless of which way the seat is actually facing.
+static const Image *findAniCursorImage(Int cursorType, Int direction, const CursorInfo **infoOut)
 {
-	static Image *s_aniCache[Mouse::NUM_MOUSE_CURSORS][MAX_2D_CURSOR_ANIM_FRAMES];
+	static Image *s_aniCache[Mouse::NUM_MOUSE_CURSORS][MAX_2D_CURSOR_DIRECTIONS][MAX_2D_CURSOR_ANIM_FRAMES];
 
 	if (TheMouse == nullptr)
 		return nullptr;
 	if (cursorType < Mouse::FIRST_CURSOR || cursorType >= Mouse::NUM_MOUSE_CURSORS)
 		return nullptr;
+	if (direction < 0 || direction >= MAX_2D_CURSOR_DIRECTIONS)
+		direction = 0;
 
 	const CursorInfo *info = TheMouse->getCursorInfo( cursorType );
 	if (info == nullptr)
 		return nullptr;
 
 	const AnimatedCursor *anim =
-		SDL3CursorManager::getAnimatedCursor( (Mouse::MouseCursor)cursorType, 0 );
+		SDL3CursorManager::getAnimatedCursor( (Mouse::MouseCursor)cursorType, direction );
 	if (anim == nullptr)
 		return nullptr;
 
@@ -389,7 +396,7 @@ static const Image *findAniCursorImage(Int cursorType, const CursorInfo **infoOu
 		? ((s_cursorAnimTick / RENDER_FRAMES_PER_CURSOR_FRAME) % count)
 		: 0;
 
-	if (s_aniCache[cursorType][frame] == nullptr)
+	if (s_aniCache[cursorType][direction][frame] == nullptr)
 	{
 		const CursorFrameRGBA *f = anim->getFrame( frame );
 		if (f == nullptr || f->m_pixels.empty())
@@ -444,7 +451,7 @@ static const Image *findAniCursorImage(Int cursorType, const CursorInfo **infoOu
 		size.y = f->m_height;
 
 		AsciiString name;
-		name.format( "%s.ani[%d]", info->textureName.str(), frame );
+		name.format( "%s.ani[dir%d][%d]", info->textureName.str(), direction, frame );
 
 		Image *image = newInstance(Image);
 		image->setName( name );
@@ -455,11 +462,11 @@ static const Image *findAniCursorImage(Int cursorType, const CursorInfo **infoOu
 		image->setTextureHeight( f->m_height );
 		image->setImageSize( &size );
 
-		s_aniCache[cursorType][frame] = image;
+		s_aniCache[cursorType][direction][frame] = image;
 	}
 
 	*infoOut = info;
-	return s_aniCache[cursorType][frame];
+	return s_aniCache[cursorType][direction][frame];
 }
 #endif // RTS_SDL3_ENABLE
 
@@ -491,8 +498,11 @@ static void drawSeatCursor(const LocalSeat* seat)
 	{
 		// No texture art for this state - true of 27 of the 37. Draw the .ani the OS cursor uses,
 		// which the engine already decoded at startup. This is what lets a seat cursor show
-		// garrison, waypoint, dock and the rest instead of an arrow for all of them.
-		image = findAniCursorImage( seat->m_cursor.cursorType, &info );
+		// garrison, waypoint, dock and the rest instead of an arrow for all of them. Pass this
+		// seat's own facing rather than always direction 0, so a directional cursor (numDirections
+		// > 1) shows the right one for THIS seat instead of every seat sharing whichever direction
+		// happened to be loaded first.
+		image = findAniCursorImage( seat->m_cursor.cursorType, seat->m_cursor.direction, &info );
 	}
 #endif
 

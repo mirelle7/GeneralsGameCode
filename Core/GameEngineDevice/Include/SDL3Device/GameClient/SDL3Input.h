@@ -60,6 +60,7 @@ public:
 	virtual void loseFocus() override;
 	virtual void regainFocus() override;
 	virtual void syncPositionToSystemCursor() override;
+	virtual Int getMouseCursorDirection() const override { return m_directionFrame; }
 
 protected:
 	virtual void capture() override;
