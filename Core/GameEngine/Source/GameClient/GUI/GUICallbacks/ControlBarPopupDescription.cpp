@@ -705,10 +705,22 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		offset.x = curPos.x - basePos.x;
 		offset.y = curPos.y - basePos.y;
 
-		parent->winSetPosition(pos.x, (pos.y - diffSize) + (offset.y - m_tooltipLastOffset.y));
+		// Splitscreen: capture the AUTHORED position exactly once, before any dock transform has
+		// ever touched this window - m_buildToolTipLayout is created once per bar and reused
+		// across many show/populate calls, so the first call here sees the .wnd's own coordinates.
+		if( !m_tooltipAuthoredParentPosKnown )
+		{
+			m_tooltipAuthoredParentPos = pos;
+			m_tooltipAuthoredParentPosKnown = TRUE;
+		}
 
-		m_tooltipLastOffset.x = offset.x;
-		m_tooltipLastOffset.y = offset.y;
+		// Recompute the docked position ABSOLUTELY from that authored baseline every call -
+		// dock offset (offset.y) + authored position scaled by this bar's own dock scale - rather
+		// than accumulating a delta against wherever the window happened to be last time. A delta
+		// cannot be correct across bars at different dock offsets, and silently compounds forward
+		// any single bad frame (e.g. one measured before the marker's texture was resident).
+		const Int absoluteY = offset.y + (Int)(m_tooltipAuthoredParentPos.y * markerScale + 0.5f) - diffSize;
+		parent->winSetPosition(pos.x, absoluteY);
 
 		win->winGetSize(&size.x, &size.y);
  		win->winSetSize(size.x, size.y + diffSize);

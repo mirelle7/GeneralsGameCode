@@ -1026,7 +1026,8 @@ ControlBar::ControlBar()
 	m_tooltipPrevWindow = nullptr;
 	m_tooltipWaitInitialized = FALSE;
 	m_tooltipBeginWaitTime = 0;
-	m_tooltipLastOffset.x = m_tooltipLastOffset.y = 0;
+	m_tooltipAuthoredParentPos.x = m_tooltipAuthoredParentPos.y = 0;
+	m_tooltipAuthoredParentPosKnown = FALSE;
 	m_showBuildToolTipLayout = FALSE;
 
 	m_animateDownWin1Pos.x = m_animateDownWin1Pos.y = 0;

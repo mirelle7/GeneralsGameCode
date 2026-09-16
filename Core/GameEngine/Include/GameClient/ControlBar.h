@@ -1223,7 +1223,13 @@ protected:
 	GameWindow *m_tooltipPrevWindow;
 	Bool m_tooltipWaitInitialized;
 	UnsignedInt m_tooltipBeginWaitTime;
-	ICoord2D m_tooltipLastOffset;
+	/// Splitscreen: the tooltip parent's AUTHORED position, captured once (before any dock
+	/// transform ever touches it) so its docked position can be recomputed absolutely every call
+	/// instead of accumulated as a running delta against wherever it happened to be last time -
+	/// a delta can't be correct across bars at different dock offsets, and compounds any one bad
+	/// frame forever. See populateBuildTooltipLayout.
+	ICoord2D m_tooltipAuthoredParentPos;
+	Bool m_tooltipAuthoredParentPosKnown;
 	/// Resolve an id strictly inside this bar's OWN tooltip layout roots.
 	GameWindow *findTooltipWindowById( NameKeyType id ) const;
 public:
