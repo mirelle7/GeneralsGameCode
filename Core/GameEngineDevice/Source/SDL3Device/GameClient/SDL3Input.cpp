@@ -91,11 +91,20 @@ void SDL3Mouse::update()
 
 	MouseCursor cursor = m_currentCursor;
 
+	// Temporary probe for the "RMB scroll cursor stuck facing one way" report: this whole
+	// direction mechanism is reported broken on the splitscreen branch but not the base SDL3
+	// branch despite being byte-identical code here, so the divergence must be in one of these
+	// INPUTS (isScrolling/getScrollAmount/accumulated deltas), not in the bucketing math itself.
+	// GX_CURSORPROBE=1 logs every frame while the scroll cursor is active so that can be told
+	// apart from a guess. Remove once the real cause is confirmed.
+	const Bool cursorProbe = (getenv("GX_CURSORPROBE") != nullptr) && (cursor == SCROLL);
+
 	if (cursor != NONE && cursor != INVALID_MOUSE_CURSOR && m_cursorInfo[cursor].numDirections > 1)
 	{
 		float dx = 0.0f;
 		float dy = 0.0f;
 		bool hasMovement = false;
+		Bool usedScrollAmount = FALSE;
 
 		if (cursor == SCROLL && TheInGameUI && TheInGameUI->isScrolling())
 		{
@@ -105,6 +114,7 @@ void SDL3Mouse::update()
 				dx = scroll.x;
 				dy = scroll.y;
 				hasMovement = true;
+				usedScrollAmount = TRUE;
 			}
 		}
 
@@ -129,9 +139,18 @@ void SDL3Mouse::update()
 			float segmentAngle = 2.0f * (float)M_PI / (float)m_cursorInfo[cursor].numDirections;
 			m_directionFrame = (int)((angle + (segmentAngle / 2.0f)) / segmentAngle) % m_cursorInfo[cursor].numDirections;
 		}
+
+		if (cursorProbe)
+		{
+			seatLog("[GXCUR] isScrolling=%d viaScrollAmt=%d dx=%.3f dy=%.3f hasMovement=%d accumDX=%.3f accumDY=%.3f dirFrame=%d",
+				(Int)(TheInGameUI && TheInGameUI->isScrolling()), (Int)usedScrollAmount,
+				dx, dy, (Int)hasMovement, m_accumulatedDeltaX, m_accumulatedDeltaY, m_directionFrame);
+		}
 	}
 	else
 	{
+		if (cursorProbe)
+			seatLog("[GXCUR] direction branch NOT taken - numDirections=%d for cursor=%d", m_cursorInfo[cursor].numDirections, (Int)cursor);
 		m_directionFrame = 0;
 	}
 
