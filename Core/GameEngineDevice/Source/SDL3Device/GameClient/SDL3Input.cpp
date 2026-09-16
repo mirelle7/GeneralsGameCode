@@ -32,6 +32,7 @@
 #include "Common/Debug.h"
 #include "Common/file.h"
 #include "Common/FileSystem.h"
+#include "Common/GameAudio.h"
 #include "Common/GameEngine.h"
 #include "Common/MessageStream.h"
 #include "Common/SeatManager.h"
@@ -812,22 +813,26 @@ void SDL3InputManager::update()
 				if (TheGameEngine)
 					TheGameEngine->setIsActive(true);
 				if (TheKeyboard)
-					TheKeyboard->reset();
+					TheKeyboard->resetKeys();
 				if (TheMouse)
 				{
 					TheMouse->regainFocus();
 					TheMouse->refreshCursorCapture();
 					TheMouse->syncPositionToSystemCursor();
 				}
+				if (TheAudio)
+					TheAudio->unmuteAudio(AudioManager::MuteAudioReason_WindowFocus);
 				break;
 
 			case SDL_EVENT_WINDOW_FOCUS_LOST:
 				if (TheGameEngine)
 					TheGameEngine->setIsActive(false);
 				if (TheKeyboard)
-					TheKeyboard->reset();
+					TheKeyboard->resetKeys();
 				if (TheMouse)
 					TheMouse->loseFocus();
+				if (TheAudio)
+					TheAudio->muteAudio(AudioManager::MuteAudioReason_WindowFocus);
 				break;
 
 			case SDL_EVENT_WINDOW_MOUSE_ENTER:
@@ -976,55 +981,61 @@ void SDL3InputManager::openAllGamepads()
 	}
 }
 
+void SDL3InputManager::releasePadVirtualInputs(PadEntry& entry)
+{
+	GamepadState& state = entry.injectState;
+
+	if (state.rtDown)
+		virtualPulseKey(SDL_SCANCODE_LCTRL, false);
+
+	if (state.stickLeft) virtualPulseKey(SDL_SCANCODE_LEFT, false);
+	if (state.stickRight) virtualPulseKey(SDL_SCANCODE_RIGHT, false);
+	if (state.stickUp) virtualPulseKey(SDL_SCANCODE_UP, false);
+	if (state.stickDown) virtualPulseKey(SDL_SCANCODE_DOWN, false);
+
+	// Release any logical button this pad was holding through the shared binding table
+	// (see injectLegacyMouseKeyboard) - GamepadState no longer tracks per-button state
+	// itself now that edges come from the seat layer's SeatInputState.
+	for (Int b = 0; b < SEAT_BUTTON_COUNT; ++b)
+	{
+		if (!entry.prevLogical[b])
+			continue;
+
+		const SeatButtonBinding& bind = getSeatButtonBinding((SeatButton)b);
+		switch (bind.m_action)
+		{
+			case SEAT_ACT_CLICK_LEFT:
+				virtualPulseMouse(SDL_BUTTON_LEFT, false);
+				break;
+			case SEAT_ACT_CLICK_RIGHT:
+				virtualPulseMouse(SDL_BUTTON_RIGHT, false);
+				break;
+			case SEAT_ACT_KEY:
+			case SEAT_ACT_SHIFT_KEY:
+			{
+				const SDL_Scancode sc = translateKeyValToScanCode(bind.m_key);
+				if (sc != SDL_SCANCODE_UNKNOWN)
+					virtualPulseKey(sc, false);
+				break;
+			}
+			case SEAT_ACT_META:
+			case SEAT_ACT_NONE:
+			default:
+				break;
+		}
+	}
+
+	entry.injectState = GamepadState();
+	memset(entry.prevLogical, 0, sizeof(entry.prevLogical));
+}
+
 void SDL3InputManager::closeAllGamepads()
 {
 	// No persistent "primary" pad anymore (the seat layer assigns seat 0 to a pad
 	// per frame), so release virtual input for every pad's inject state; entries that
 	// never drove the OS mouse/keyboard have all-false state and the guards no-op.
 	for (std::map<SDL_JoystickID, PadEntry>::iterator it = m_pads.begin(); it != m_pads.end(); ++it)
-	{
-		GamepadState& state = it->second.injectState;
-
-		if (state.rtDown)
-			virtualPulseKey(SDL_SCANCODE_LCTRL, false);
-
-		if (state.stickLeft) virtualPulseKey(SDL_SCANCODE_LEFT, false);
-		if (state.stickRight) virtualPulseKey(SDL_SCANCODE_RIGHT, false);
-		if (state.stickUp) virtualPulseKey(SDL_SCANCODE_UP, false);
-		if (state.stickDown) virtualPulseKey(SDL_SCANCODE_DOWN, false);
-
-		// Release any logical button this pad was holding through the shared binding table
-		// (see injectLegacyMouseKeyboard) - GamepadState no longer tracks per-button state
-		// itself now that edges come from the seat layer's SeatInputState.
-		for (Int b = 0; b < SEAT_BUTTON_COUNT; ++b)
-		{
-			if (!it->second.prevLogical[b])
-				continue;
-
-			const SeatButtonBinding& bind = getSeatButtonBinding((SeatButton)b);
-			switch (bind.m_action)
-			{
-				case SEAT_ACT_CLICK_LEFT:
-					virtualPulseMouse(SDL_BUTTON_LEFT, false);
-					break;
-				case SEAT_ACT_CLICK_RIGHT:
-					virtualPulseMouse(SDL_BUTTON_RIGHT, false);
-					break;
-				case SEAT_ACT_KEY:
-				case SEAT_ACT_SHIFT_KEY:
-				{
-					const SDL_Scancode sc = translateKeyValToScanCode(bind.m_key);
-					if (sc != SDL_SCANCODE_UNKNOWN)
-						virtualPulseKey(sc, false);
-					break;
-				}
-				case SEAT_ACT_META:
-				case SEAT_ACT_NONE:
-				default:
-					break;
-			}
-		}
-	}
+		releasePadVirtualInputs(it->second);
 
 	for (std::map<SDL_JoystickID, PadEntry>::iterator it = m_pads.begin(); it != m_pads.end(); ++it)
 	{
@@ -1116,7 +1127,7 @@ void SDL3InputManager::processGamepadInput()
 	if (m_window && !(SDL_GetWindowFlags(m_window) & SDL_WINDOW_INPUT_FOCUS))
 	{
 		for (std::map<SDL_JoystickID, PadEntry>::iterator it = m_pads.begin(); it != m_pads.end(); ++it)
-			it->second.injectState = GamepadState();
+			releasePadVirtualInputs(it->second);
 		m_lastUpdateTime = 0;
 		m_cursorSpeed = 0.0f;
 		m_edgeAccelTimer = 0.0f;
@@ -1352,25 +1363,9 @@ void SDL3InputManager::injectLegacyMouseKeyboard(PadEntry& entry, const SeatInpu
 
 		if (cursorDeltaX != 0 || cursorDeltaY != 0)
 		{
-			SDL_Event motionEvent;
-			memset(&motionEvent, 0, sizeof(motionEvent));
-			motionEvent.type = SDL_EVENT_MOUSE_MOTION;
-			motionEvent.common.timestamp = SDL_GetTicksNS();
-			motionEvent.motion.xrel = (float)cursorDeltaX;
-			motionEvent.motion.yrel = (float)cursorDeltaY;
-
 			float mx, my;
 			SDL_GetMouseState(&mx, &my);
-			motionEvent.motion.x = mx + cursorDeltaX;
-			motionEvent.motion.y = my + cursorDeltaY;
-
-			if (m_window)
-			{
-				motionEvent.motion.windowID = SDL_GetWindowID(m_window);
-			}
-
-			addMouseSDLEvent(motionEvent);
-			SDL_WarpMouseInWindow(m_window, motionEvent.motion.x, motionEvent.motion.y);
+			SDL_WarpMouseInWindow(m_window, mx + cursorDeltaX, my + cursorDeltaY);
 		}
 	}
 	else

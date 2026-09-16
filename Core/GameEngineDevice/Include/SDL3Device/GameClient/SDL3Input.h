@@ -180,6 +180,7 @@ private:
 	void closeGamepad(SDL_JoystickID id);
 	void openAllGamepads();
 	void closeAllGamepads();
+	void releasePadVirtualInputs(PadEntry& entry);
 
 	SDL_Window* m_window;
 	std::map<SDL_JoystickID, PadEntry> m_pads;
