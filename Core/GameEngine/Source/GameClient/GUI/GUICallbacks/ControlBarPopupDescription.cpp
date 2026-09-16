@@ -69,6 +69,7 @@
 
 #include "Common/GlobalData.h"
 #include "Common/BuildAssistant.h"
+#include "Common/SeatManager.h"	// seatLog, for the temporary GX_TOOLTIPPROBE
 #include "Common/Player.h"
 #include "Common/PlayerList.h"
 #include "Common/ProductionPrerequisite.h"
@@ -721,6 +722,18 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		// any single bad frame (e.g. one measured before the marker's texture was resident).
 		const Int absoluteY = offset.y + (Int)(m_tooltipAuthoredParentPos.y * markerScale + 0.5f) - diffSize;
 		parent->winSetPosition(pos.x, absoluteY);
+
+		// Temporary probe: reported to still jitter on a single static button after the delta ->
+		// absolute change above, which that fix alone shouldn't produce (offset.y should be
+		// constant while the bar itself isn't moving). Log the inputs instead of guessing further -
+		// either diffSize is not settling to 0 (the win/parent size read-back is still seeing a
+		// value from mid-update elsewhere) or offset.y itself is not constant (the marker's own
+		// screen position is moving, e.g. from an unrelated bar animation). GX_TOOLTIPPROBE=1.
+		if (getenv("GX_TOOLTIPPROBE") != nullptr)
+		{
+			seatLog("[GXTIP] curPosY=%d basePosY=%d offsetY=%d authoredY=%d diffSize=%d absoluteY=%d",
+				curPos.y, basePos.y, offset.y, m_tooltipAuthoredParentPos.y, diffSize, absoluteY);
+		}
 
 		win->winGetSize(&size.x, &size.y);
  		win->winSetSize(size.x, size.y + diffSize);
