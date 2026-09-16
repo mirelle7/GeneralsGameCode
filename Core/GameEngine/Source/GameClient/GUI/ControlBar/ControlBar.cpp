@@ -1696,9 +1696,22 @@ void ControlBar::dockToRect( Int x, Int y, Int width, Int height )
 	// keeps its position RELATIVE to the screen it was designed for - the command bar stays
 	// bottom-centre, the right HUD stays bottom-right - which is what makes the parts stay
 	// together instead of the cameo being left behind in someone else's viewport.
-	const Real targetScale = (Real)width / (Real)displayWidth;
-	const Int  offsetX = x;
-	const Int  offsetY = y + height - (Int)(displayHeight * targetScale + 0.5f);
+	//
+	// A single scale derived from width alone assumes the cell's aspect ratio equals the display's.
+	// That's true for a single 16:9 viewport but false for a grid cell (e.g. an 8-seat 4x2 layout),
+	// and the mismatch showed up two ways: a sub-pixel rounding gap at the bottom edge for every
+	// seat but 0 (whose (0,0) origin happens to hide it), and seat 0's authored-X coordinates
+	// running past the cell's right edge into the next viewport. Fit the whole authored display
+	// into the cell instead (letterbox/pillarbox), so the scaled bar can never exceed the cell in
+	// either axis, and centre the resulting pillarbox/letterbox gap rather than leaving it on one
+	// side only.
+	const Real scaleX = (Real)width  / (Real)displayWidth;
+	const Real scaleY = (Real)height / (Real)displayHeight;
+	const Real targetScale = (scaleX < scaleY) ? scaleX : scaleY;
+	const Int  scaledDisplayWidth  = (Int)(displayWidth  * targetScale + 0.5f);
+	const Int  scaledDisplayHeight = (Int)(displayHeight * targetScale + 0.5f);
+	const Int  offsetX = x + (width - scaledDisplayWidth) / 2;
+	const Int  offsetY = y + height - scaledDisplayHeight;
 
 	// The transform in force until now - needed to recover authored values from windows that
 	// something else re-positioned since the last dock. See the loop below.
