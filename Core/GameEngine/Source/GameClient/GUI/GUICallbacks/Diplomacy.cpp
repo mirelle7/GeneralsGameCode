@@ -342,10 +342,16 @@ void ShowDiplomacy( Bool immediate, Int seat )
 	// "put a layout in a seat's viewport" helper - registering with the bar IS the mechanism,
 	// and it is what the generals screen and the special-power shortcut bar already use. It
 	// buys four things at once: position, per-frame re-dock, paint clipping, AND click
-	// ownership - winSeatOwnsWindow resolves through ControlBar::ownsLayoutWindow, and without
-	// this a seat>0 could see the popup but not press a single button in it, because that
-	// function otherwise keeps diplomacy with seat 0 by design.
-	if (seat > 0)
+	// ownership - winSeatOwnsWindow resolves through ControlBar::ownsLayoutWindow.
+	//
+	// This used to be gated on seat > 0, on the assumption that seat 0 always means "classic
+	// single-view, full display." That's false in splitscreen: seat 0 is TheControlBar, which
+	// ControlBarInstances::get(0) already resolves to, and which InGameUI's viewport layout docks
+	// to seat 0's own quadrant exactly like every other seat's bar. Skipping the adopt for seat 0
+	// left its popup at full-display authored size/position always - so whenever seat 0 opened
+	// diplomacy in splitscreen, it covered every other seat's viewport. Calling this
+	// unconditionally is still correct for true single-view: TheControlBar is docked to the whole
+	// display there too, so adoptPopupLayout resolves to the same full-display placement as before.
 	{
 		ControlBar *bar = ControlBarInstances::get( seat );
 		if (bar != nullptr)
