@@ -739,13 +739,17 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 			// Splitscreen: find the tooltip's OTHER top-level root (the title/name caption) and
 			// capture the AUTHORED gaps that will keep it and the box from overlapping the live
 			// bar once they're re-anchored to the marker's live position below.
+			Int rootCount = 0;
 			for( GameWindow *root = m_buildToolTipLayout->getFirstWindow(); root; root = root->winGetNextInLayout() )
 			{
-				if( root != parent )
-				{
+				++rootCount;
+				if( root != parent && m_tooltipTitleRoot == nullptr )
 					m_tooltipTitleRoot = root;
-					break;
-				}
+			}
+			if( FILE *tf = fopen( "TooltipGapLog.txt", "a" ) )
+			{
+				fprintf(tf, "TOOLTIPGAP rootcount=%d titleRootFound=%d\n", rootCount, m_tooltipTitleRoot != nullptr);
+				fclose(tf);
 			}
 			if( m_tooltipTitleRoot != nullptr )
 			{
@@ -817,16 +821,20 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		}
 
 		// Splitscreen: HARD constraint, independent of the authored-gap math above - the title
-		// must never overlap this bar's own live dock rect, no matter what the authored gap says
-		// (an authored gap captured from a design tool is only ever a best-effort number, and
-		// getting it wrong here means the popup occludes the very button the mouse is over, which
-		// also flickers the tooltip on/off as hit-testing alternates between the button and the
-		// popup sitting on top of it). getBarDockRect() is this bar's real, live, docked rect.
-		const IRegion2D &barRect = getBarDockRect();
-		if( barRect.hi.y > barRect.lo.y )
+		// must never overlap the bar's own visible chrome, no matter what the authored gap says.
+		// getBarDockRect() turned out to be this SEAT'S WHOLE VIEWPORT rect (confirmed via the
+		// TOOLTIPGAP log: barRect=(0,0)-(480,540) for a 480x540 quadrant), not the bar's own thin
+		// strip - using its top (y=0, the top of the entire quadrant) as "top of bar" pinned the
+		// title off the top of the screen. "ControlBar.wnd:ControlBarParent" is the bar's actual
+		// top-level chrome window (already used by showControlBarInstance's animation fix above in
+		// this same file) - its live screen Y is the real top-of-bar edge.
+		GameWindow *barChrome = findBarWindowById( TheNameKeyGenerator->nameToKey( "ControlBar.wnd:ControlBarParent" ) );
+		if( barChrome != nullptr )
 		{
+			ICoord2D barChromePos;
+			barChrome->winGetScreenPosition(&barChromePos.x, &barChromePos.y);
 			const Int hardGap = 4;
-			const Int maxTitleBottom = barRect.lo.y - hardGap;
+			const Int maxTitleBottom = barChromePos.y - hardGap;
 			if( titleY + m_tooltipTitleAuthoredHeight > maxTitleBottom )
 				titleY = maxTitleBottom - m_tooltipTitleAuthoredHeight;
 		}
@@ -840,9 +848,12 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		{
 			if( FILE *tf = fopen( "TooltipGapLog.txt", "a" ) )
 			{
-				fprintf(tf, "TOOLTIPGAP live: marker=(%d,%d) barRect=(%d,%d)-(%d,%d) titleY(afterHardClamp)=%d absoluteY(beforeDisplayClamp)=%d finalParentHeight=%d titleHeight=%d\n",
-					markerPos.x, markerPos.y, barRect.lo.x, barRect.lo.y, barRect.hi.x, barRect.hi.y,
-					titleY, absoluteY, finalParentHeight, m_tooltipTitleAuthoredHeight);
+				ICoord2D barChromeLogPos = { -1, -1 };
+				if( barChrome != nullptr )
+					barChrome->winGetScreenPosition(&barChromeLogPos.x, &barChromeLogPos.y);
+				fprintf(tf, "TOOLTIPGAP live: marker=(%d,%d) barChrome=(%d,%d) titleY(afterHardClamp)=%d absoluteX=%d absoluteY(beforeDisplayClamp)=%d finalParentHeight=%d titleHeight=%d\n",
+					markerPos.x, markerPos.y, barChromeLogPos.x, barChromeLogPos.y,
+					titleY, absoluteX, absoluteY, finalParentHeight, m_tooltipTitleAuthoredHeight);
 				fclose(tf);
 			}
 		}
