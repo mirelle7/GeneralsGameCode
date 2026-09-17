@@ -36,6 +36,7 @@
 #include "Common/Player.h"
 #include "Common/PlayerList.h"
 #include "Common/MessageStream.h"
+#include "Common/SeatManager.h"	// MAX_SEATS (splitscreen: apply show/hide/toggle to every seat's bar)
 #include "Common/ThingFactory.h"
 #include "Common/ThingTemplate.h"
 #include "Common/Radar.h"
@@ -523,7 +524,7 @@ extern void toggleReplayControls();
 //-------------------------------------------------------------------------------------------------
 /** Force the control bar to be shown */
 //-------------------------------------------------------------------------------------------------
-// Splitscreen: which bar a show/hide/toggle applies to.
+// Splitscreen: which bar(s) a show/hide/toggle applies to.
 //
 // These three functions each looked up "the" ControlBarParent with a GLOBAL name walk and then
 // drove TheControlBar's animator. With a bar per viewport there are up to eight identically named
@@ -532,28 +533,18 @@ extern void toggleReplayControls();
 // That is the "player 1 and player 5 flash" report, and it is also why the show/hide animation only
 // ever played on one bar.
 //
-// The right bar is the one belonging to the seat whose input is being translated: 0 for the
-// keyboard/mouse, for replays and for every single-bar game, so this resolves to TheControlBar
-// exactly as before outside splitscreen.
-static ControlBar *actingControlBar()
-{
-	ControlBar *bar = ControlBarInstances::get( getCommandActingSeat() );
-	return (bar != nullptr) ? bar : TheControlBar;
-}
-
+// Resolving a single "acting" bar from the seat whose input is being translated (always seat 0 for
+// keyboard/mouse) was itself the bug: a match-start or hotkey-triggered show/hide/toggle is a global
+// event, not something only one seat's bar should react to. So each of Show/Hide/ToggleControlBar
+// now applies to every live seat's bar - the same shape as ControlBarInstances::updateAll() - with
+// instance 0 (TheControlBar) handled explicitly and seats 1..MAX_SEATS-1 pulled from the registry.
 static GameWindow *actingControlBarParent( ControlBar *bar )
 {
 	return (bar != nullptr) ? bar->findBarWindow( "ControlBar.wnd:ControlBarParent" ) : nullptr;
 }
 
-void ShowControlBar( Bool immediate )
+static void showControlBarInstance( ControlBar *bar, Bool immediate )
 {
-	if (!TheWindowManager || !TheControlBar)
-		return;
-
-	showReplayControls();
-
-	ControlBar *bar = actingControlBar();
 	bar->showSpecialPowerShortcut();
 
 	GameWindow *window = actingControlBarParent( bar );
@@ -577,17 +568,30 @@ void ShowControlBar( Bool immediate )
 	bar->markUIDirty();
 }
 
-//-------------------------------------------------------------------------------------------------
-/** Force the control bar to be hidden */
-//-------------------------------------------------------------------------------------------------
-void HideControlBar( Bool immediate )
+void ShowControlBar( Bool immediate )
 {
 	if (!TheWindowManager || !TheControlBar)
 		return;
 
-	hideReplayControls();
+	showReplayControls();
 
-	ControlBar *bar = actingControlBar();
+	// Splitscreen: apply to every live seat's bar, not just the one seat 0's input resolves to -
+	// same shape as ControlBarInstances::updateAll()/updateMoneyAndPowerAll(): instance 0
+	// (TheControlBar) explicitly, then whatever is registered for seats 1..MAX_SEATS-1.
+	showControlBarInstance( TheControlBar, immediate );
+	for( Int seat = 1; seat < MAX_SEATS; ++seat )
+	{
+		ControlBar *bar = ControlBarInstances::get( seat );
+		if( bar != nullptr && bar != TheControlBar )
+			showControlBarInstance( bar, immediate );
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Force the control bar to be hidden */
+//-------------------------------------------------------------------------------------------------
+static void hideControlBarInstance( ControlBar *bar, Bool immediate )
+{
 	bar->hideSpecialPowerShortcut();
 
 	GameWindow *window = actingControlBarParent( bar );
@@ -615,17 +619,28 @@ void HideControlBar( Bool immediate )
 	bar->hidePurchaseScience();
 }
 
-//-------------------------------------------------------------------------------------------------
-/** Toggle the control bar on or off */
-//-------------------------------------------------------------------------------------------------
-void ToggleControlBar( Bool immediate )
+void HideControlBar( Bool immediate )
 {
 	if (!TheWindowManager || !TheControlBar)
 		return;
 
-	toggleReplayControls();
+	hideReplayControls();
 
-	ControlBar *bar = actingControlBar();
+	// Splitscreen: apply to every live seat's bar - see ShowControlBar.
+	hideControlBarInstance( TheControlBar, immediate );
+	for( Int seat = 1; seat < MAX_SEATS; ++seat )
+	{
+		ControlBar *bar = ControlBarInstances::get( seat );
+		if( bar != nullptr && bar != TheControlBar )
+			hideControlBarInstance( bar, immediate );
+	}
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Toggle the control bar on or off */
+//-------------------------------------------------------------------------------------------------
+static void toggleControlBarInstance( ControlBar *bar, Bool immediate )
+{
 	GameWindow *window = actingControlBarParent( bar );
 
 	if (window)
@@ -652,6 +667,25 @@ void ToggleControlBar( Bool immediate )
 			bar->setFullViewportHeight();
 			window->winHide(TRUE);
 		}
+	}
+}
+
+void ToggleControlBar( Bool immediate )
+{
+	if (!TheWindowManager || !TheControlBar)
+		return;
+
+	toggleReplayControls();
+
+	// Splitscreen: apply to every live seat's bar - see ShowControlBar. Each bar toggles off of its
+	// OWN window's hidden state (mirrors how ShowControlBar/HideControlBar keep every bar in sync),
+	// so this stays correct even if a bar somehow drifted out of sync with the others.
+	toggleControlBarInstance( TheControlBar, immediate );
+	for( Int seat = 1; seat < MAX_SEATS; ++seat )
+	{
+		ControlBar *bar = ControlBarInstances::get( seat );
+		if( bar != nullptr && bar != TheControlBar )
+			toggleControlBarInstance( bar, immediate );
 	}
 }
 
