@@ -775,30 +775,12 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 			// compounding-shrink reason those fixes already document.
 			const Int scaledTitleWidth = (Int)(m_tooltipAuthoredTitleWidth * markerScale + 0.5f);
 			titleWin->winSetSize(scaledTitleWidth, titleH);
-			titleW = scaledTitleWidth;
-
-			ICoord2D titleScreenBefore, parentScreenBefore;
-			titleWin->winGetScreenPosition(&titleScreenBefore.x, &titleScreenBefore.y);
-			parent->winGetScreenPosition(&parentScreenBefore.x, &parentScreenBefore.y);
 
 			const Int topPad = 4;
 			if( titleLocalY < topPad )
 				titleWin->winSetPosition(titleLocalX, topPad);
 			else if( titleLocalY + titleH > finalParentHeight - topPad )
 				titleWin->winSetPosition(titleLocalX, finalParentHeight - topPad - titleH);
-
-			static Int s_titleLogCounter = 0;
-			if( (s_titleLogCounter++ % 30) == 0 )
-			{
-				if( FILE *tf = fopen( "TooltipGapLog.txt", "a" ) )
-				{
-					fprintf(tf, "TOOLTIPTITLE localBefore=(%d,%d) size=%dx%d screenBefore=(%d,%d) parentScreenBefore=(%d,%d) finalParentHeight=%d\n",
-						titleLocalX, titleLocalY, titleW, titleH,
-						titleScreenBefore.x, titleScreenBefore.y, parentScreenBefore.x, parentScreenBefore.y,
-						finalParentHeight);
-					fclose(tf);
-				}
-			}
 		}
 
 		// Splitscreen: anchor to the marker's LIVE on-screen position directly, instead of
@@ -834,18 +816,6 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		}
 		const Int gapAboveBar = 4;
 		Int absoluteY = barTopY - gapAboveBar - finalParentHeight;
-
-		// Throttled (this runs every frame the tooltip is visible) - plain file, see comment above.
-		static Int s_tooltipGapLogCounter = 0;
-		if( (s_tooltipGapLogCounter++ % 30) == 0 )
-		{
-			if( FILE *tf = fopen( "TooltipGapLog.txt", "a" ) )
-			{
-				fprintf(tf, "TOOLTIPGAP live: marker=(%d,%d) barTopY=%d absoluteX=%d absoluteY(beforeDisplayClamp)=%d finalParentHeight=%d\n",
-					markerPos.x, markerPos.y, barTopY, absoluteX, absoluteY, finalParentHeight);
-				fclose(tf);
-			}
-		}
 
 		// Keep the whole popup on the actual rendered display - not clamped to this seat's
 		// viewport (the box is allowed to sit over a neighboring quadrant), just kept from
