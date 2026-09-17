@@ -26,6 +26,7 @@
 #include "Common/Debug.h"
 #include "Common/file.h"
 #include "Common/FileSystem.h"
+#include "Common/SeatManager.h"	// seatLog, for the temporary per-direction load probe
 #include "SDL3Device/GameClient/SDL3Cursor.h"
 
 #include <cstring>   // memcpy, for the retained cursor frames
@@ -87,6 +88,12 @@ void SDL3CursorManager::initResources(Mouse* mouse)
 
 				m_cursorResources[cursor][direction] = loadANI(resourcePath);
 				DEBUG_ASSERTCRASH(m_cursorResources[cursor][direction], ("MissingCursor %s\n", resourcePath));
+				// Temporary probe: one-time report of what actually loaded per cursor/direction,
+				// to settle whether "cursor stuck/not animated" is a load failure (this line) or a
+				// downstream selection bug (see [GXCUR] in SDL3Mouse::update).
+				seatLog("[GXCURLOAD] cursor=%d direction=%d numDirections=%d path=%s loaded=%d",
+					(Int)cursor, direction, mouse->m_cursorInfo[cursor].numDirections, resourcePath,
+					(Int)(m_cursorResources[cursor][direction] != nullptr));
 			}
 		}
 	}
@@ -181,6 +188,15 @@ AnimatedCursor* SDL3CursorManager::loadANI(const char* filepath)
 	{
 		cursor->m_cursor = SDL_CreateColorCursor(anim->frames[0], hot_spot_x, hot_spot_y);
 	}
+
+	// Temporary probe: "some cursors aren't animated" - this is the only place that knows how
+	// many frames the SOURCE .ani actually has and whether SDL's own animated-cursor object was
+	// built successfully from them, as opposed to the software seat-renderer's separate .ani tick
+	// path (W3DSeatCursorRenderer). A cursor with count==1 here was never going to animate; a
+	// cursor with count>1 but a failed SDL_CreateAnimatedCursor falls through to the failure log
+	// below instead.
+	seatLog("[GXCURLOAD] %s frameCount=%d createdAnimated=%d cursorPtr=%p",
+		filepath, anim->count, (Int)(anim->count > 1), (void*)cursor->m_cursor);
 
 	if (!cursor->m_cursor)
 	{

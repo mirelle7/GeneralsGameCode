@@ -179,6 +179,13 @@ void SDL3Mouse::update()
 		}
 	}
 
+	if (cursorProbe)
+	{
+		seatLog("[GXCUR] requestedHandle=%p activeSDLCursor=%p bUseDefaultCursor=%d willSetCursor=%d",
+			(void*)requestedHandle, (void*)m_activeSDLCursor, (Int)bUseDefaultCursor,
+			(Int)(requestedHandle != m_activeSDLCursor));
+	}
+
 	if (requestedHandle != m_activeSDLCursor)
 	{
 		SDL_SetCursor(requestedHandle);
