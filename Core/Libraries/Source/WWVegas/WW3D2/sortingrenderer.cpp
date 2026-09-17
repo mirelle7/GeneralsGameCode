@@ -48,6 +48,7 @@
 #include "d3dx8math.h"
 #include "statistics.h"
 #include <WWDebug/wwprofile.h>
+#include <rts/profile.h>	// splitscreen: Tracy zones for the per-seat render multiplier
 #include <algorithm>
 #include <list>
 
@@ -614,26 +615,44 @@ void SortingRendererClass::Flush()
 	}
 	sorted_list.splice(node, unsorted_list);
 
-	while (!sorted_list.empty()) {
-		SortingNodeStruct* state = sorted_list.front();
-		sorted_list.pop_front();
+	// Splitscreen profiling: this is called once per seat (SS/View/Flush2/SortingRenderer). Two
+	// very different costs hide inside "Flush" today - immediate per-node Draw_Triangles calls
+	// (one DX8 draw call each, with a full Set_Render_State/Release_Render_State pair around it)
+	// versus Insert_To_Sorting_Pool nodes, which Flush_Sorting_Pool below may already be batching
+	// by render state. Plot which bucket most of this seat's sorted nodes landed in, and how many
+	// separate immediate draw calls that turns into - directly relevant if we want to merge draws.
+	int immediateDrawCallCount = 0;
+	int pooledNodeCount = 0;
+	{
+		PROFILER_SECTION_NAMECOLOR("SS/Sort/Immediate", 0xAB47BC);
+		while (!sorted_list.empty()) {
+			SortingNodeStruct* state = sorted_list.front();
+			sorted_list.pop_front();
 
-		if ((state->sorting_state.index_buffer_type==BUFFER_TYPE_SORTING || state->sorting_state.index_buffer_type==BUFFER_TYPE_DYNAMIC_SORTING) &&
-			(state->sorting_state.vertex_buffer_types[0]==BUFFER_TYPE_SORTING || state->sorting_state.vertex_buffer_types[0]==BUFFER_TYPE_DYNAMIC_SORTING)) {
-			Insert_To_Sorting_Pool(state);
-		}
-		else {
-			DX8Wrapper::Set_Render_State(state->sorting_state);
-			DX8Wrapper::Draw_Triangles(state->start_index,state->polygon_count,state->min_vertex_index,state->vertex_count);
-			DX8Wrapper::Release_Render_State();
-			Release_Refs(state);
-			clean_list.push_front(state);
+			if ((state->sorting_state.index_buffer_type==BUFFER_TYPE_SORTING || state->sorting_state.index_buffer_type==BUFFER_TYPE_DYNAMIC_SORTING) &&
+				(state->sorting_state.vertex_buffer_types[0]==BUFFER_TYPE_SORTING || state->sorting_state.vertex_buffer_types[0]==BUFFER_TYPE_DYNAMIC_SORTING)) {
+				Insert_To_Sorting_Pool(state);
+				pooledNodeCount++;
+			}
+			else {
+				DX8Wrapper::Set_Render_State(state->sorting_state);
+				DX8Wrapper::Draw_Triangles(state->start_index,state->polygon_count,state->min_vertex_index,state->vertex_count);
+				DX8Wrapper::Release_Render_State();
+				Release_Refs(state);
+				clean_list.push_front(state);
+				immediateDrawCallCount++;
+			}
 		}
 	}
+	PROFILER_PLOT("SS/Sort/ImmediateDrawCallCount", (double)immediateDrawCallCount);
+	PROFILER_PLOT("SS/Sort/PooledNodeCount", (double)pooledNodeCount);
 
 	bool old_enable=DX8Wrapper::_Is_Triangle_Draw_Enabled();
 	DX8Wrapper::_Enable_Triangle_Draw(_EnableTriangleDraw);
-	Flush_Sorting_Pool();
+	{
+		PROFILER_SECTION_NAMECOLOR("SS/Sort/Pool", 0xAB47BC);
+		Flush_Sorting_Pool();
+	}
 	DX8Wrapper::_Enable_Triangle_Draw(old_enable);
 
 	DX8Wrapper::Set_Index_Buffer(nullptr,0);

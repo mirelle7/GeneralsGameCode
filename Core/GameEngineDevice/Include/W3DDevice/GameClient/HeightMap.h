@@ -90,6 +90,22 @@ protected:
 	Int m_numExtraBlendTiles;		///<number of blend tiles in m_extraBlendTilePositions.
 	Int	m_numVisibleExtraBlendTiles; ///<number rendered last frame.
 	Int m_extraBlendTilePositionsSize; //<total size of array including unused memory.
+	// Splitscreen perf: renderExtraBlendTiles()'s scan result depends only on m_extraBlendTilePositions
+	// (fixed per map) and the draw-window bounds it's scanned against - NOT on which seat/frame is
+	// calling. Cache the extracted vertex/index data keyed on those exact bounds, so two calls that
+	// land on the same window (same seat twice, or two seats whose windows happen to coincide) reuse
+	// the scan, while any call with a different window correctly rebuilds. See splitscreen-perf-tracy
+	// memory: a frame-number-keyed version of this cache was tried and reverted - the window actually
+	// changes every seat, not once per frame, so that key produced wrong-offset geometry.
+	Int m_extraBlendCacheDrawStartX;			///< sentinel -1 means "no cache yet" (valid tile coords are >= 0).
+	Int m_extraBlendCacheDrawStartY;
+	Int m_extraBlendCacheDrawEdgeX;
+	Int m_extraBlendCacheDrawEdgeY;
+	VertexFormatXYZNDUV2 *m_extraBlendCacheVB;		///< cached vertex data, valid up to m_extraBlendCacheVertexCount.
+	UnsignedShort *m_extraBlendCacheIB;			///< cached index data, valid up to m_extraBlendCacheIndexCount.
+	Int m_extraBlendCacheVertexCount;
+	Int m_extraBlendCacheIndexCount;
+	Int m_extraBlendCacheCapacityTiles;			///< allocated size (in tiles) of the two arrays above.
 	DX8VertexBufferClass **m_vertexBufferTiles; ///<collection of smaller vertex buffers that make up 1 heightmap
 	VERTEX_FORMAT *m_vertexBufferBackup; ///< In memory copy of the vertex buffer data for quick update of dynamic lighting.
 	Int m_originX; ///<  Origin point in the grid.  Slides around.

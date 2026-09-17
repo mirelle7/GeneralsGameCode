@@ -1818,27 +1818,39 @@ void RTS3DScene::flushOccludedObjectsIntoStencil(RenderInfoClass & rinfo)
 
 	const Int localPlayerIndex = rts::getObservedOrLocalPlayerIndex_Safe();
 
+	// Splitscreen profiling: this whole function only shows up in a capture as work when a seat
+	// actually has occludees AND occluders in view this frame (behind-building units), which is
+	// why it can appear as a single expensive spike rather than a steady per-seat cost. Plot the
+	// counts alongside the zone breakdown below to tell "expensive because lots of objects" from
+	// "expensive because of the render-state churn regardless of count".
+	PROFILER_PLOT("SS/Occlusion/OccludeeCount", (double)m_numPotentialOccludees);
+	PROFILER_PLOT("SS/Occlusion/OccluderCount", (double)m_numPotentialOccluders);
+	PROFILER_PLOT("SS/Occlusion/NonOccluderOrOccludeeCount", (double)m_numNonOccluderOrOccludee);
+
 	if (m_numPotentialOccludees && m_numPotentialOccluders)
 	{
-		//bucket sort all possibly occluded objects by player index/color.
-		Int k=0;
-		for (; k<m_numPotentialOccludees; k++)
+		Int k;
 		{
-			robj=m_potentialOccludees[k];
-
-			draw = ((DrawableInfo *)robj->Get_User_Data())->m_drawable;
-			Object *object=draw->getObject();
-
-			Int index=object->getControllingPlayer()->getPlayerIndex();
-
-			if ((lastPlayerObject[index]-&playerObjects[index][0]) >= MAX_VISIBLE_OCCLUDED_PLAYER_OBJECTS)
+			PROFILER_SECTION_NAMECOLOR("SS/Occlusion/BucketSort", 0xC2185B);
+			//bucket sort all possibly occluded objects by player index/color.
+			for (k=0; k<m_numPotentialOccludees; k++)
 			{
-				DEBUG_CRASH(("Exceeded Maximum Number of potentially occluded models"));
-				continue;
-			}
+				robj=m_potentialOccludees[k];
 
-			*lastPlayerObject[index] = robj;
-			lastPlayerObject[index]++;	//increment to next object
+				draw = ((DrawableInfo *)robj->Get_User_Data())->m_drawable;
+				Object *object=draw->getObject();
+
+				Int index=object->getControllingPlayer()->getPlayerIndex();
+
+				if ((lastPlayerObject[index]-&playerObjects[index][0]) >= MAX_VISIBLE_OCCLUDED_PLAYER_OBJECTS)
+				{
+					DEBUG_CRASH(("Exceeded Maximum Number of potentially occluded models"));
+					continue;
+				}
+
+				*lastPlayerObject[index] = robj;
+				lastPlayerObject[index]++;	//increment to next object
+			}
 		}
 
 		DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILENABLE, TRUE );
@@ -1856,72 +1868,78 @@ void RTS3DScene::flushOccludedObjectsIntoStencil(RenderInfoClass & rinfo)
 		//a color index.  Render all objects using the same color index at once.
 		//We render potential occludees first because this allows them to z-sort correctly
 		//when they are behind an occluder.
-		for (k=0; k<MAX_PLAYER_COUNT; k++)
 		{
-			if ((numObjects=lastPlayerObject[k]-&playerObjects[k][0]) != 0)
+			PROFILER_SECTION_NAMECOLOR("SS/Occlusion/RenderOccludees", 0xC2185B);
+			for (k=0; k<MAX_PLAYER_COUNT; k++)
 			{
-				//this player has some objects so draw them using his color index.
-				if (playerColorIndex[k]==-1)	//color index not assigned yet?
+				if ((numObjects=lastPlayerObject[k]-&playerObjects[k][0]) != 0)
 				{
-					//assign a new color index to this player
-					playerColorIndex[k]=playerIndexToColorIndex(usedPlayerColorIndex++);
-					//assign a color to this index by copying it from the controlling player
-					//of all objects in this list.
-					draw = ((DrawableInfo *)playerObjects[k][0]->Get_User_Data())->m_drawable;
-					Object *object=draw->getObject();
-
-					Int color=object->getControllingPlayer()->getPlayerColor();
-					RGB_To_HSV(hsv,Vector3(((color>>16)&0xff)/255.0f,((color>>8)&0xff)/255.0f,(color &0xff)/255.0f));
-					hsv.Z*=TheGlobalData->m_occludedLuminanceScale;
-					HSV_To_RGB(rgb,hsv);
-					visiblePlayerColors[numVisiblePlayerColors++]=DX8Wrapper::Convert_Color(rgb,0.5f);
-				}
-
-				Int thisPlayerColorIndex=playerColorIndex[k];
-
-				//Store this object's color index into bits 3-6 of stencil buffer
-				DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILREF, thisPlayerColorIndex<<3);
-
-				//Render all of this player's objects for which we care when they are occluded.
-				RenderObjClass **renderList=&playerObjects[k][0];
-				for (Int j=0; j<numObjects; j++)
-				{
-					DrawableInfo *drawInfo=((DrawableInfo *)(*renderList)->Get_User_Data());
-					if (drawInfo->m_flags & DrawableInfo::ERF_IS_TRANSLUCENT)
+					//this player has some objects so draw them using his color index.
+					if (playerColorIndex[k]==-1)	//color index not assigned yet?
 					{
-						// TheSuperHackers @info This only draws the occlusion of translucent objects.
-						TheDX8MeshRenderer.Flush();	//render all the submitted meshes using current stencil function
-						SHD_FLUSH;
-						//Disable writing to color buffer since translucent objects are rendered at end of frame.
-						DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILFUNC,  D3DCMP_NEVER );	//never allow frame buffer writes.
-						DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILFAIL,  D3DSTENCILOP_REPLACE );	//always replace existing stencil value
-						renderOneObject(rinfo, (*renderList), localPlayerIndex, "stencil");
-						TheDX8MeshRenderer.Flush();	//render all the submitted meshes using current stencil function
-						SHD_FLUSH;
-						DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILFAIL,  D3DSTENCILOP_KEEP );
-						DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILFUNC,  D3DCMP_ALWAYS );
-					}
-					else
-					{
-						renderOneObject(rinfo, (*renderList), localPlayerIndex, "stencil");
-					}
-					renderList++;	//advance to next object
-				}
+						//assign a new color index to this player
+						playerColorIndex[k]=playerIndexToColorIndex(usedPlayerColorIndex++);
+						//assign a color to this index by copying it from the controlling player
+						//of all objects in this list.
+						draw = ((DrawableInfo *)playerObjects[k][0]->Get_User_Data())->m_drawable;
+						Object *object=draw->getObject();
 
-				TheDX8MeshRenderer.Flush();	//render all the submitted meshes using current stencil function
+						Int color=object->getControllingPlayer()->getPlayerColor();
+						RGB_To_HSV(hsv,Vector3(((color>>16)&0xff)/255.0f,((color>>8)&0xff)/255.0f,(color &0xff)/255.0f));
+						hsv.Z*=TheGlobalData->m_occludedLuminanceScale;
+						HSV_To_RGB(rgb,hsv);
+						visiblePlayerColors[numVisiblePlayerColors++]=DX8Wrapper::Convert_Color(rgb,0.5f);
+					}
+
+					Int thisPlayerColorIndex=playerColorIndex[k];
+
+					//Store this object's color index into bits 3-6 of stencil buffer
+					DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILREF, thisPlayerColorIndex<<3);
+
+					//Render all of this player's objects for which we care when they are occluded.
+					RenderObjClass **renderList=&playerObjects[k][0];
+					for (Int j=0; j<numObjects; j++)
+					{
+						DrawableInfo *drawInfo=((DrawableInfo *)(*renderList)->Get_User_Data());
+						if (drawInfo->m_flags & DrawableInfo::ERF_IS_TRANSLUCENT)
+						{
+							// TheSuperHackers @info This only draws the occlusion of translucent objects.
+							TheDX8MeshRenderer.Flush();	//render all the submitted meshes using current stencil function
+							SHD_FLUSH;
+							//Disable writing to color buffer since translucent objects are rendered at end of frame.
+							DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILFUNC,  D3DCMP_NEVER );	//never allow frame buffer writes.
+							DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILFAIL,  D3DSTENCILOP_REPLACE );	//always replace existing stencil value
+							renderOneObject(rinfo, (*renderList), localPlayerIndex, "stencil");
+							TheDX8MeshRenderer.Flush();	//render all the submitted meshes using current stencil function
+							SHD_FLUSH;
+							DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILFAIL,  D3DSTENCILOP_KEEP );
+							DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILFUNC,  D3DCMP_ALWAYS );
+						}
+						else
+						{
+							renderOneObject(rinfo, (*renderList), localPlayerIndex, "stencil");
+						}
+						renderList++;	//advance to next object
+					}
+
+					TheDX8MeshRenderer.Flush();	//render all the submitted meshes using current stencil function
+				}
 			}
 		}
 		//Stencil buffer is now filled with color indices of potentially occluded objects.  We now draw
 		//non-occluder or occludee objects such as small rocks, shrubs, etc. which we don't care about
 		//but need to render here so that they don't interfere with building occlusion.
 		DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILENABLE, FALSE );	//these objects are not stored in stencil
-		RenderObjClass **nonOccluderOrOccludeeList=m_nonOccludersOrOccludees;
-		for (k=0; k<m_numNonOccluderOrOccludee; k++)
 		{
-			renderOneObject(rinfo, (*nonOccluderOrOccludeeList), localPlayerIndex, "nonoccl");
-			nonOccluderOrOccludeeList++;	//advance to next one
+			PROFILER_SECTION_NAMECOLOR("SS/Occlusion/RenderNonOccluders", 0xC2185B);
+			RenderObjClass **nonOccluderOrOccludeeList=m_nonOccludersOrOccludees;
+			for (k=0; k<m_numNonOccluderOrOccludee; k++)
+			{
+				renderOneObject(rinfo, (*nonOccluderOrOccludeeList), localPlayerIndex, "nonoccl");
+				nonOccluderOrOccludeeList++;	//advance to next one
+			}
+			TheDX8MeshRenderer.Flush();	//render all the submitted meshes using current stencil function
 		}
-		TheDX8MeshRenderer.Flush();	//render all the submitted meshes using current stencil function
 
 		//Stencil buffer is now filled with color indices of potentially occluded objects.  We now draw
 		//occluder objects so they cover up and modify stencil MSB wherever they are in front of other objects.
@@ -1935,26 +1953,32 @@ void RTS3DScene::flushOccludedObjectsIntoStencil(RenderInfoClass & rinfo)
 		DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILFAIL,  D3DSTENCILOP_KEEP );
 		DX8Wrapper::Set_DX8_Render_State(D3DRS_STENCILPASS,  D3DSTENCILOP_REPLACE );
 
-		//Render all potential occluders on top of already rendered potential occludees.
-		RenderObjClass **occluderList=m_potentialOccluders;
-		for (k=0; k<m_numPotentialOccluders; k++)
 		{
-			renderOneObject(rinfo, (*occluderList), localPlayerIndex, "occluder");
-			occluderList++;	//advance to next one
-		}
+			PROFILER_SECTION_NAMECOLOR("SS/Occlusion/RenderOccluders", 0xC2185B);
+			//Render all potential occluders on top of already rendered potential occludees.
+			RenderObjClass **occluderList=m_potentialOccluders;
+			for (k=0; k<m_numPotentialOccluders; k++)
+			{
+				renderOneObject(rinfo, (*occluderList), localPlayerIndex, "occluder");
+				occluderList++;	//advance to next one
+			}
 
-		TheDX8MeshRenderer.Flush();	//render all the submitted meshes using current stencil function
+			TheDX8MeshRenderer.Flush();	//render all the submitted meshes using current stencil function
+		}
 
 		//We now have a stencil buffer where pixels that are occluded have a bit pattern of 1INDX000.
 		//INDX contains the occluded player's color index.  We walk through all the player colors and
 		//draw them wherever the stencil matches the color's index.
 		Int usedPlayerColorBits=0;
-		for (k=0; k<numVisiblePlayerColors; k++)
 		{
-			Int color=visiblePlayerColors[k];
-			Int stencilRef=(playerIndexToColorIndex(k+1)<<3)|0x80;
-			renderStenciledPlayerColor(color,stencilRef);
-			usedPlayerColorBits |= stencilRef;	//keep track of all bits used for occlusion/player colors.
+			PROFILER_SECTION_NAMECOLOR("SS/Occlusion/RenderStenciledColors", 0xC2185B);
+			for (k=0; k<numVisiblePlayerColors; k++)
+			{
+				Int color=visiblePlayerColors[k];
+				Int stencilRef=(playerIndexToColorIndex(k+1)<<3)|0x80;
+				renderStenciledPlayerColor(color,stencilRef);
+				usedPlayerColorBits |= stencilRef;	//keep track of all bits used for occlusion/player colors.
+			}
 		}
 
 		TheW3DShadowManager->setStencilShadowMask(usedPlayerColorBits);

@@ -57,6 +57,7 @@
 #include <WW3D2/coltest.h>
 #include <WW3D2/rinfo.h>
 #include <WW3D2/camera.h>
+#include <WW3D2/dx8fvf.h>
 #include <d3dx8core.h>
 #include <rts/profile.h>	// splitscreen: Tracy zones for the per-seat render multiplier
 #include "Common/GlobalData.h"
@@ -1041,6 +1042,11 @@ HeightMapRenderObjClass::~HeightMapRenderObjClass()
 
 	delete [] m_extraBlendTilePositions;
 	m_extraBlendTilePositions = nullptr;
+
+	delete [] m_extraBlendCacheVB;
+	m_extraBlendCacheVB = nullptr;
+	delete [] m_extraBlendCacheIB;
+	m_extraBlendCacheIB = nullptr;
 }
 
 //=============================================================================
@@ -1053,6 +1059,15 @@ m_extraBlendTilePositions(nullptr),
 m_numExtraBlendTiles(0),
 m_numVisibleExtraBlendTiles(0),
 m_extraBlendTilePositionsSize(0),
+m_extraBlendCacheDrawStartX(-1),
+m_extraBlendCacheDrawStartY(-1),
+m_extraBlendCacheDrawEdgeX(-1),
+m_extraBlendCacheDrawEdgeY(-1),
+m_extraBlendCacheVB(nullptr),
+m_extraBlendCacheIB(nullptr),
+m_extraBlendCacheVertexCount(0),
+m_extraBlendCacheIndexCount(0),
+m_extraBlendCacheCapacityTiles(0),
 m_vertexBufferTiles(nullptr),
 m_vertexBufferBackup(nullptr),
 m_originX(0),
@@ -2049,6 +2064,13 @@ void HeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
 		// window, devicePasses times, once per seat. Scoped in its own block: the Tracy zone macro
 		// declares a fixed-name local, and this function already opens one at its own top level.
 		PROFILER_SECTION_NAMECOLOR("SS/Terrain/DrawMainPasses", 0xD32F2F);
+		// Splitscreen profiling: count the individual Draw_Triangles calls this pass issues - one
+		// per visible tile, per device pass. With isTileVisibleToCamera() disabled (see its
+		// definition below) this is currently numVBTilesX*numVBTilesY*devicePasses every time, all
+		// tiny fixed-size draws. Read against SS/Terrain/DrawMainPassesTimeUS to see whether the
+		// cost tracks draw-call *count* (favors batching adjacent tiles into fewer, larger draws)
+		// or bytes moved (favors culling instead).
+		Int mainPassDrawCallCount = 0;
 		for (pass=0; pass<devicePasses; pass++) {
 #ifdef TIMING_TESTS
 #endif
@@ -2093,10 +2115,12 @@ void HeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
 #endif
 					if (Is_Hidden() == 0) {
 						DX8Wrapper::Draw_Triangles(0, HEIGHTMAP_POLYGON_NUM, 0, HEIGHTMAP_VERTEX_NUM);
+						mainPassDrawCallCount++;
 					}
 
 				}
 		}
+		PROFILER_PLOT("SS/Terrain/DrawMainPassesDrawCallCount", (double)mainPassDrawCallCount);
 	}
 
 	if (!doMultiPassWireFrame)
@@ -2105,11 +2129,17 @@ void HeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
  			W3DShaderManager::resetShader(st);
 
 		//Draw feathered shorelines
-		renderShoreLines(&rinfo.Camera);
+		{
+			PROFILER_SECTION_NAMECOLOR("SS/Terrain/ShoreLines", 0xD32F2F);
+			renderShoreLines(&rinfo.Camera);
+		}
 
 		//Do additional pass over any tiles that have 3 textures blended together.
 		if (TheGlobalData->m_use3WayTerrainBlends)
+		{
+			PROFILER_SECTION_NAMECOLOR("SS/Terrain/ExtraBlendTiles", 0xD32F2F);
 			renderExtraBlendTiles();
+		}
 
 		Int yCoordMin = m_map->getDrawOrgY();
 		Int yCoordMax = m_y+m_map->getDrawOrgY()-1;
@@ -2132,13 +2162,17 @@ void HeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
 		}
 	#endif
 	if (m_propBuffer) {
+		PROFILER_SECTION_NAMECOLOR("SS/Terrain/Props", 0xD32F2F);
 		m_propBuffer->drawProps(rinfo);
 	}
 		DX8Wrapper::Set_Texture(0,nullptr);
 		DX8Wrapper::Set_Texture(1,nullptr);
 		m_stageTwoTexture->restore();
 
-		drawScorches();
+		{
+			PROFILER_SECTION_NAMECOLOR("SS/Terrain/Scorches", 0xD32F2F);
+			drawScorches();
+		}
 
 		DX8Wrapper::Set_Texture(0,nullptr);
 		DX8Wrapper::Set_Texture(1,nullptr);
@@ -2146,7 +2180,10 @@ void HeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
 		ShaderClass::Invalidate();
 		DX8Wrapper::Apply_Render_State_Changes();
 
-		m_bridgeBuffer->drawBridges(&rinfo.Camera, m_disableTextures, doCloud?m_stageTwoTexture:nullptr);
+		{
+			PROFILER_SECTION_NAMECOLOR("SS/Terrain/Bridges", 0xD32F2F);
+			m_bridgeBuffer->drawBridges(&rinfo.Camera, m_disableTextures, doCloud?m_stageTwoTexture:nullptr);
+		}
 
 		if (TheTerrainTracksRenderObjClassSystem)
 			TheTerrainTracksRenderObjClassSystem->flush();
@@ -2165,12 +2202,21 @@ void HeightMapRenderObjClass::Render(RenderInfoClass & rinfo)
 		DX8Wrapper::Apply_Render_State_Changes();
 	}
 	else
+	{
+			PROFILER_SECTION_NAMECOLOR("SS/Terrain/Bridges", 0xD32F2F);
 			m_bridgeBuffer->drawBridges(&rinfo.Camera, m_disableTextures, m_stageTwoTexture);
+	}
 
   if ( m_waypointBuffer )
+  {
+	  PROFILER_SECTION_NAMECOLOR("SS/Terrain/Waypoints", 0xD32F2F);
 	  m_waypointBuffer->drawWaypoints(rinfo);
+  }
 
-	m_bibBuffer->renderBibs();
+	{
+		PROFILER_SECTION_NAMECOLOR("SS/Terrain/Bibs", 0xD32F2F);
+		m_bibBuffer->renderBibs();
+	}
 
 	// We do some custom blending, so tell the shader class to reset everything.
 	DX8Wrapper::Set_Texture(0,nullptr);
@@ -2242,6 +2288,10 @@ void HeightMapRenderObjClass::renderTerrainPass(CameraClass *pCamera)
 
 	DX8Wrapper::Set_Index_Buffer(m_indexBuffer,0);
 
+	// Splitscreen profiling: same draw-call count as SS/Terrain/DrawMainPassesDrawCallCount, for
+	// this pass (currently only the shroud/fog-of-war blend calls into renderTerrainPass).
+	Int additionalPassDrawCallCount = 0;
+
 	for (Int j=0; j<m_numVBTilesY; j++)
 		for (Int i=0; i<m_numVBTilesX; i++)
 		{
@@ -2271,8 +2321,10 @@ void HeightMapRenderObjClass::renderTerrainPass(CameraClass *pCamera)
 #endif
 			if (Is_Hidden() == 0) {
 				DX8Wrapper::Draw_Triangles(0, HEIGHTMAP_POLYGON_NUM, 0, HEIGHTMAP_VERTEX_NUM);
+				additionalPassDrawCallCount++;
 			}
 		}
+	PROFILER_PLOT("SS/Terrain/AdditionalPassDrawCallCount", (double)additionalPassDrawCallCount);
 }
 
 //=============================================================================
@@ -2282,8 +2334,6 @@ void HeightMapRenderObjClass::renderTerrainPass(CameraClass *pCamera)
 blended together.  Used primarily for corner cases where 3 different textures meet.*/
 void HeightMapRenderObjClass::renderExtraBlendTiles()
 {
-	Int vertexCount = 0;
-	Int indexCount = 0;
 	Int xExtent = m_map->getXExtent();
 	Int border = m_map->getBorderSizeInline();
 	static Int maxBlendTiles = DEFAULT_MAX_FRAME_EXTRABLEND_TILES;
@@ -2296,28 +2346,48 @@ void HeightMapRenderObjClass::renderExtraBlendTiles()
 	if (maxBlendTiles > 10000)	//we can only fit about 10000 tiles into a single VB.
 		maxBlendTiles = 10000;
 
-	DynamicVBAccessClass vb_access(BUFFER_TYPE_DYNAMIC_DX8,DX8_FVF_XYZNDUV2,maxBlendTiles*4);
-	DynamicIBAccessClass ib_access(BUFFER_TYPE_DYNAMIC_DX8,maxBlendTiles*6);
+	//Loop over visible terrain and extract all the tiles that need extra blend
+	Int drawEdgeY=m_map->getDrawOrgY()+m_map->getDrawHeight()-1;
+	Int drawEdgeX=m_map->getDrawOrgX()+m_map->getDrawWidth()-1;
+	if (drawEdgeX > (m_map->getXExtent()-1))
+		drawEdgeX = m_map->getXExtent()-1;
+	if (drawEdgeY > (m_map->getYExtent()-1))
+		drawEdgeY = m_map->getYExtent()-1;
+	Int drawStartX=m_map->getDrawOrgX();
+	Int drawStartY=m_map->getDrawOrgY();
+
+	// Splitscreen perf: this scan's result depends only on m_extraBlendTilePositions (fixed per
+	// map) and the four window bounds just computed above - nothing else. A per-frame cache here
+	// was tried and reverted (see splitscreen-perf-tracy memory) because the window actually slides
+	// per SEAT, not once per frame, so a frame-keyed cache served stale, wrong-offset geometry.
+	// Keying on the bounds themselves is correct instead of merely convenient: it reuses the scan
+	// only when two calls land on the literal same window (repeat call, or two seats whose windows
+	// happen to coincide) and always rescans otherwise.
+	const bool cacheHit = (m_extraBlendCacheDrawStartX == drawStartX &&
+	                        m_extraBlendCacheDrawStartY == drawStartY &&
+	                        m_extraBlendCacheDrawEdgeX == drawEdgeX &&
+	                        m_extraBlendCacheDrawEdgeY == drawEdgeY &&
+	                        m_extraBlendCacheCapacityTiles >= maxBlendTiles);
+
+	if (!cacheHit)
 	{
+		PROFILER_SECTION_NAMECOLOR("SS/Terrain/ExtraBlendTilesScan", 0xD32F2F);
 
-		DynamicVBAccessClass::WriteLockClass lock(&vb_access);
-		VertexFormatXYZNDUV2* vb= lock.Get_Formatted_Vertex_Array();
-		DynamicIBAccessClass::WriteLockClass lockib(&ib_access);
-		UnsignedShort *ib=lockib.Get_Index_Array();
+		if (m_extraBlendCacheCapacityTiles < maxBlendTiles)
+		{
+			delete [] m_extraBlendCacheVB;
+			delete [] m_extraBlendCacheIB;
+			m_extraBlendCacheVB = NEW VertexFormatXYZNDUV2[maxBlendTiles*4];
+			m_extraBlendCacheIB = NEW UnsignedShort[maxBlendTiles*6];
+			m_extraBlendCacheCapacityTiles = maxBlendTiles;
+		}
 
-		if (!vb || !ib) return;
+		Int vertexCount = 0;
+		Int indexCount = 0;
+		VertexFormatXYZNDUV2* vb = m_extraBlendCacheVB;
+		UnsignedShort *ib = m_extraBlendCacheIB;
 
 		const UnsignedByte* data = m_map->getDataPtr();
-
-		//Loop over visible terrain and extract all the tiles that need extra blend
-		Int drawEdgeY=m_map->getDrawOrgY()+m_map->getDrawHeight()-1;
-		Int drawEdgeX=m_map->getDrawOrgX()+m_map->getDrawWidth()-1;
-		if (drawEdgeX > (m_map->getXExtent()-1))
-			drawEdgeX = m_map->getXExtent()-1;
-		if (drawEdgeY > (m_map->getYExtent()-1))
-			drawEdgeY = m_map->getYExtent()-1;
-		Int drawStartX=m_map->getDrawOrgX();
-		Int drawStartY=m_map->getDrawOrgY();
 
 		for (Int j=0; j<m_numExtraBlendTiles; j++)
 		{
@@ -2419,13 +2489,37 @@ void HeightMapRenderObjClass::renderExtraBlendTiles()
 				indexCount +=6;
 			}
 		}
-	}
 
-	if (vertexCount)
-	{
 		//Check if we couldn't fit all blend tiles into vertex buffer so we can enlarge it for next frame.
 		if (vertexCount == (maxBlendTiles*4))
 			maxBlendTiles += 16;	//enlarge by 16 to reduce trashing.
+
+		m_extraBlendCacheVertexCount = vertexCount;
+		m_extraBlendCacheIndexCount = indexCount;
+		m_extraBlendCacheDrawStartX = drawStartX;
+		m_extraBlendCacheDrawStartY = drawStartY;
+		m_extraBlendCacheDrawEdgeX = drawEdgeX;
+		m_extraBlendCacheDrawEdgeY = drawEdgeY;
+	}
+
+	const Int vertexCount = m_extraBlendCacheVertexCount;
+	const Int indexCount = m_extraBlendCacheIndexCount;
+
+	if (vertexCount)
+	{
+		DynamicVBAccessClass vb_access(BUFFER_TYPE_DYNAMIC_DX8,DX8_FVF_XYZNDUV2,vertexCount);
+		DynamicIBAccessClass ib_access(BUFFER_TYPE_DYNAMIC_DX8,indexCount);
+		{
+			DynamicVBAccessClass::WriteLockClass lock(&vb_access);
+			VertexFormatXYZNDUV2* vb= lock.Get_Formatted_Vertex_Array();
+			DynamicIBAccessClass::WriteLockClass lockib(&ib_access);
+			UnsignedShort *ib=lockib.Get_Index_Array();
+
+			if (!vb || !ib) return;
+
+			memcpy(vb, m_extraBlendCacheVB, sizeof(VertexFormatXYZNDUV2)*vertexCount);
+			memcpy(ib, m_extraBlendCacheIB, sizeof(UnsignedShort)*indexCount);
+		}
 
 		ShaderClass::Invalidate();	//invalidate to force shader to reset since we directly changed states
 		DX8Wrapper::Set_Index_Buffer(ib_access,0);
