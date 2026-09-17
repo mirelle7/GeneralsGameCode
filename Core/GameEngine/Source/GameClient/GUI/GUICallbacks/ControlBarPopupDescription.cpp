@@ -761,6 +761,17 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 				Int parentAuthoredX, parentAuthoredY;
 				parent->winGetPosition(&parentAuthoredX, &parentAuthoredY);
 				m_tooltipBoxGapAboveTitle = titleY - (parentAuthoredY + m_tooltipAuthoredParentHeight);
+
+				// Splitscreen: DEBUG_LOG is compiled out in this build (it defines RTS_RELEASE even
+				// for the "Debug" preset), so write straight to a plain file instead.
+				if( FILE *tf = fopen( "TooltipGapLog.txt", "a" ) )
+				{
+					fprintf(tf, "TOOLTIPGAP authored: marker=(%d,%d) title=(%d,%d,%dx%d) parent=(%d,%d,%dx%d) titleGapAboveMarker=%d boxGapAboveTitle=%d\n",
+						markerAuthoredX, markerAuthoredY, titleX, titleY, titleW, titleH,
+						parentAuthoredX, parentAuthoredY, m_tooltipAuthoredParentWidth, m_tooltipAuthoredParentHeight,
+						m_tooltipTitleGapAboveMarker, m_tooltipBoxGapAboveTitle);
+					fclose(tf);
+				}
 			}
 
 			m_tooltipAuthoredSizeKnown = TRUE;
@@ -822,6 +833,19 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 
 		Int absoluteX = markerPos.x - scaledParentWidth / 2;
 		Int absoluteY = titleY - m_tooltipBoxGapAboveTitle - finalParentHeight;
+
+		// Throttled (this runs every frame the tooltip is visible) - plain file, see comment above.
+		static Int s_tooltipGapLogCounter = 0;
+		if( (s_tooltipGapLogCounter++ % 30) == 0 )
+		{
+			if( FILE *tf = fopen( "TooltipGapLog.txt", "a" ) )
+			{
+				fprintf(tf, "TOOLTIPGAP live: marker=(%d,%d) barRect=(%d,%d)-(%d,%d) titleY(afterHardClamp)=%d absoluteY(beforeDisplayClamp)=%d finalParentHeight=%d titleHeight=%d\n",
+					markerPos.x, markerPos.y, barRect.lo.x, barRect.lo.y, barRect.hi.x, barRect.hi.y,
+					titleY, absoluteY, finalParentHeight, m_tooltipTitleAuthoredHeight);
+				fclose(tf);
+			}
+		}
 
 		// Keep the whole popup on the actual rendered display - not clamped to this seat's
 		// viewport (the box is allowed to sit over a neighboring quadrant), just kept from
