@@ -1722,8 +1722,16 @@ void ControlBarArrowTransition::init( GameWindow *win )
 	m_percent = 1.0f / CONTROLBARARROWTRANSITION_BEGIN_FADE;
 	m_fadePercent = 1.0f/ (CONTROLBARARROWTRANSITION_END - CONTROLBARARROWTRANSITION_BEGIN_FADE);
 
-	m_arrowImage = TheControlBar->getArrowImage();
-	GameWindow *twin = TheWindowManager->winGetWindowFromId(nullptr, TheNameKeyGenerator->nameToKey("ControlBar.wnd:ButtonGeneral"));
+	// Splitscreen: resolve both the button and the arrow image against THIS transition's own
+	// scoped roots/bar instead of the always-seat-0 globals. lookupTransitionWindow uses the same
+	// scope TransitionWindow::init already resolved "win" through (see
+	// GameWindowTransitionsHandler::setWindowLookupScope), so a seat>0 bar's own ButtonGeneral is
+	// found instead of whichever seat's window a bare winGetWindowFromId(nullptr, ...) happened to
+	// resolve to - which is why only one bar ever played this slide-in animation. fromWindow falls
+	// back to TheControlBar for an unscoped/unowned window, so single view is unaffected.
+	GameWindow *twin = GameWindowTransitionsHandler::lookupTransitionWindow( TheNameKeyGenerator->nameToKey("ControlBar.wnd:ButtonGeneral") );
+	ControlBar *bar = ControlBarInstances::fromWindow( twin != nullptr ? twin : win );
+	m_arrowImage = bar ? bar->getArrowImage() : nullptr;
 	if(!twin || !m_arrowImage)
 	{
 		m_isFinished = TRUE;
