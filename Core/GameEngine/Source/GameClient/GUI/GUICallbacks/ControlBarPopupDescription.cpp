@@ -654,10 +654,17 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		ICoord2D size, newSize, pos;
 		Int diffSize;
 
+		// Splitscreen: this tooltip's WindowLayout is never docked/rescaled by dockToRect (it is a
+		// standalone popup, not one of this bar's registered layout roots), so win's raw current
+		// size stays at its AUTHORED width forever. Scale it by this bar's own dock scale - the same
+		// scale the X/Y position fix below uses - so the wrap width and the position it's drawn at
+		// agree every frame instead of disagreeing in an 8-player quarter-width layout.
+		const Real markerScale = getBarDockScale();
+
 		DisplayString *tempDString = TheDisplayStringManager->newDisplayString();
 		win->winGetSize(&size.x, &size.y);
 		tempDString->setFont(win->winGetFont());
-		tempDString->setWordWrap(size.x - 10);
+		tempDString->setWordWrap((Int)(size.x * markerScale) - 10);
 		tempDString->setText(descrip);
 		tempDString->getSize(&newSize.x, &newSize.y);
 		TheDisplayStringManager->freeDisplayString(tempDString);
@@ -715,7 +722,6 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		// winGetScreenPosition is a DOCKED one - so the anchor is wrong for any docked bar even
 		// on its own. Scale the authored side by this bar's dock scale, the same correction
 		// W3DControlBar already carries. Scale is exactly 1 for an undocked bar.
-		const Real markerScale = getBarDockScale();
 		basePos.x = (Int)(basePos.x * markerScale);
 		basePos.y = (Int)(basePos.y * markerScale);
 
@@ -736,8 +742,14 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		// than accumulating a delta against wherever the window happened to be last time. A delta
 		// cannot be correct across bars at different dock offsets, and silently compounds forward
 		// any single bad frame (e.g. one measured before the marker's texture was resident).
+		//
+		// Splitscreen: the X axis needs exactly the same treatment as Y. It was left at the window's
+		// raw, uncorrected pos.x, which - combined with the word-wrap width above now also being
+		// dock-scale-correct - is what produced the visible left/right "warping" in an 8-player
+		// quarter-width layout: X and the wrap width disagreed frame-to-frame.
+		const Int absoluteX = offset.x + (Int)(m_tooltipAuthoredParentPos.x * markerScale + 0.5f);
 		const Int absoluteY = offset.y + (Int)(m_tooltipAuthoredParentPos.y * markerScale + 0.5f) - diffSize;
-		parent->winSetPosition(pos.x, absoluteY);
+		parent->winSetPosition(absoluteX, absoluteY);
 
 		win->winGetSize(&size.x, &size.y);
  		win->winSetSize(size.x, m_tooltipAuthoredWinHeight + diffSize);
