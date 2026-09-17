@@ -1237,6 +1237,15 @@ protected:
 	Int m_tooltipAuthoredWinWidth;
 	Int m_tooltipAuthoredParentWidth;
 	Bool m_tooltipAuthoredSizeKnown;
+	/// Splitscreen: this .wnd has a SECOND top-level root - the title/name caption - separate
+	/// from "parent" (the description box). Found and cached once. populateBuildTooltipLayout
+	/// stacks it and the box above the marker using these AUTHORED gaps (captured once from the
+	/// original, undocked layout) instead of an invented margin: a flat margin between the box
+	/// and the marker left no room for the title, which made it overlap the live bar underneath.
+	GameWindow *m_tooltipTitleRoot;
+	Int m_tooltipTitleAuthoredHeight;
+	Int m_tooltipTitleGapAboveMarker;
+	Int m_tooltipBoxGapAboveTitle;
 	/// Splitscreen: the description text's AUTHORED font, captured once (same pattern as
 	/// captureAuthoredFont/applyScaledFont for docked bar windows) so it can be re-derived at
 	/// this bar's current dock scale every call. This popup isn't a docked bar window (it's a

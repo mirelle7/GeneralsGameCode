@@ -682,7 +682,15 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		GameFont *scaledFont = nullptr;
 		if( m_tooltipAuthoredFontSize > 0 && TheFontLibrary != nullptr )
 		{
-			Int scaledPointSize = (Int)(m_tooltipAuthoredFontSize * markerScale + 0.5f);
+			// Splitscreen: floor the FONT'S scale (only) well above the bar's own dock scale -
+			// linear scaling made the description text unreadable at 5+ players. The box and
+			// wrap width still shrink fully; the text just wraps onto more lines instead of
+			// shrinking past legibility.
+			const Real kMinFontScale = 0.65f;
+			Real fontScale = markerScale;
+			if( fontScale < kMinFontScale )
+				fontScale = kMinFontScale;
+			Int scaledPointSize = (Int)(m_tooltipAuthoredFontSize * fontScale + 0.5f);
 			if( scaledPointSize < 1 )
 				scaledPointSize = 1;
 			scaledFont = TheFontLibrary->getFont( m_tooltipAuthoredFontName, scaledPointSize, m_tooltipAuthoredFontBold );
@@ -727,6 +735,34 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		{
 			m_tooltipAuthoredParentWidth = size.x;
 			m_tooltipAuthoredParentHeight = size.y;
+
+			// Splitscreen: find the tooltip's OTHER top-level root (the title/name caption) and
+			// capture the AUTHORED gaps that will keep it and the box from overlapping the live
+			// bar once they're re-anchored to the marker's live position below.
+			for( GameWindow *root = m_buildToolTipLayout->getFirstWindow(); root; root = root->winGetNextInLayout() )
+			{
+				if( root != parent )
+				{
+					m_tooltipTitleRoot = root;
+					break;
+				}
+			}
+			if( m_tooltipTitleRoot != nullptr )
+			{
+				Int titleX, titleY, titleW, titleH;
+				m_tooltipTitleRoot->winGetPosition(&titleX, &titleY);
+				m_tooltipTitleRoot->winGetSize(&titleW, &titleH);
+				m_tooltipTitleAuthoredHeight = titleH;
+
+				Int markerAuthoredX, markerAuthoredY;
+				getBackgroundMarkerPos(&markerAuthoredX, &markerAuthoredY);
+				m_tooltipTitleGapAboveMarker = markerAuthoredY - (titleY + titleH);
+
+				Int parentAuthoredX, parentAuthoredY;
+				parent->winGetPosition(&parentAuthoredX, &parentAuthoredY);
+				m_tooltipBoxGapAboveTitle = titleY - (parentAuthoredY + m_tooltipAuthoredParentHeight);
+			}
+
 			m_tooltipAuthoredSizeKnown = TRUE;
 		}
  		if(m_tooltipAuthoredParentHeight + diffSize < 102) {
@@ -756,9 +792,21 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		ICoord2D markerPos;
 		marker->winGetScreenPosition(&markerPos.x, &markerPos.y);
 
-		const Int margin = 4;	// small gap between the box's bottom edge and the marker
+		// Splitscreen: reproduce the AUTHORED stack - title sits m_tooltipTitleGapAboveMarker
+		// pixels above the marker, and the box sits m_tooltipBoxGapAboveTitle pixels above the
+		// title's top edge - instead of one invented margin between the box and the marker with
+		// no room reserved for the title, which made the title overlap the live bar underneath.
+		Int titleX = markerPos.x, titleY = markerPos.y - m_tooltipTitleAuthoredHeight;
+		Int titleW = 0, titleHUnused = 0;
+		if( m_tooltipTitleRoot != nullptr )
+		{
+			m_tooltipTitleRoot->winGetSize(&titleW, &titleHUnused);
+			titleX = markerPos.x - titleW / 2;
+			titleY = markerPos.y - m_tooltipTitleGapAboveMarker - m_tooltipTitleAuthoredHeight;
+		}
+
 		Int absoluteX = markerPos.x - scaledParentWidth / 2;
-		Int absoluteY = markerPos.y - margin - finalParentHeight;
+		Int absoluteY = titleY - m_tooltipBoxGapAboveTitle - finalParentHeight;
 
 		// Keep the whole popup on the actual rendered display - not clamped to this seat's
 		// viewport (the box is allowed to sit over a neighboring quadrant), just kept from
@@ -776,28 +824,22 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 				absoluteY = 0;
 			else if( absoluteY + finalParentHeight > dispH )
 				absoluteY = dispH - finalParentHeight;
+
+			if( m_tooltipTitleRoot != nullptr )
+			{
+				if( titleX < 0 )
+					titleX = 0;
+				else if( titleX + titleW > dispW )
+					titleX = dispW - titleW;
+				if( titleY < 0 )
+					titleY = 0;
+				else if( titleY + m_tooltipTitleAuthoredHeight > dispH )
+					titleY = dispH - m_tooltipTitleAuthoredHeight;
+			}
 		}
 
-		// Splitscreen: this .wnd has more than one top-level root - findTooltipWindowById walks
-		// winGetNextInLayout() to find StaticTextName/StaticTextCost, which live in a SEPARATE
-		// root from this one (StaticTextDescription's parent). winSetPosition is parent-relative,
-		// so moving "parent" alone never moved those sibling roots - they stayed at their
-		// authored position while the description box moved to the marker, which is what made
-		// the title look like it "floats at the original place". Move every other root in this
-		// layout by the same delta "parent" is about to move by, so the whole popup travels
-		// together and their authored offsets from each other are preserved.
-		Int oldParentX, oldParentY;
-		parent->winGetPosition(&oldParentX, &oldParentY);
-		const Int deltaX = absoluteX - oldParentX;
-		const Int deltaY = absoluteY - oldParentY;
-		for( GameWindow *root = m_buildToolTipLayout->getFirstWindow(); root; root = root->winGetNextInLayout() )
-		{
-			if( root == parent )
-				continue;
-			Int rx, ry;
-			root->winGetPosition(&rx, &ry);
-			root->winSetPosition(rx + deltaX, ry + deltaY);
-		}
+		if( m_tooltipTitleRoot != nullptr )
+			m_tooltipTitleRoot->winSetPosition(titleX, titleY);
 
 		parent->winSetPosition(absoluteX, absoluteY);
 

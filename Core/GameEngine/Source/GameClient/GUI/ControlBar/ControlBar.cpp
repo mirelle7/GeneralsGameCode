@@ -1031,6 +1031,10 @@ ControlBar::ControlBar()
 	m_tooltipAuthoredWinWidth = 0;
 	m_tooltipAuthoredParentWidth = 0;
 	m_tooltipAuthoredSizeKnown = FALSE;
+	m_tooltipTitleRoot = nullptr;
+	m_tooltipTitleAuthoredHeight = 0;
+	m_tooltipTitleGapAboveMarker = 0;
+	m_tooltipBoxGapAboveTitle = 0;
 	m_tooltipAuthoredFontName.clear();
 	m_tooltipAuthoredFontSize = 0;
 	m_tooltipAuthoredFontBold = FALSE;
