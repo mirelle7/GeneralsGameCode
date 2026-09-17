@@ -195,8 +195,24 @@ AnimatedCursor* SDL3CursorManager::loadANI(const char* filepath)
 	// path (W3DSeatCursorRenderer). A cursor with count==1 here was never going to animate; a
 	// cursor with count>1 but a failed SDL_CreateAnimatedCursor falls through to the failure log
 	// below instead.
-	seatLog("[GXCURLOAD] %s frameCount=%d createdAnimated=%d cursorPtr=%p",
-		filepath, anim->count, (Int)(anim->count > 1), (void*)cursor->m_cursor);
+	//
+	// Also dump the actual per-frame delays: SDL_CursorFrameInfo::duration is documented as
+	// "frame duration in milliseconds - a duration of 0 is infinite," so if IMG_LoadAnimation_IO's
+	// ANI decoder doesn't populate delays (old ANI files sometimes carry timing in a global
+	// rate/seq chunk rather than per-frame), every frame silently gets an infinite duration and
+	// the cursor freezes on frame 0 forever - which looks exactly like "not animated."
+	{
+		AsciiString delayDump;
+		for (int i = 0; i < anim->count && i < 8; ++i)
+		{
+			char buf[16];
+			snprintf(buf, sizeof(buf), "%s%d", (i > 0 ? "," : ""), anim->delays[i]);
+			delayDump.concat(buf);
+		}
+		seatLog("[GXCURLOAD] %s frameCount=%d createdAnimated=%d cursorPtr=%p delays=[%s%s]",
+			filepath, anim->count, (Int)(anim->count > 1), (void*)cursor->m_cursor,
+			delayDump.str(), (anim->count > 8) ? ",..." : "");
+	}
 
 	if (!cursor->m_cursor)
 	{
