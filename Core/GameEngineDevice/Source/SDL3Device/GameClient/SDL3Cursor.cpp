@@ -26,7 +26,6 @@
 #include "Common/Debug.h"
 #include "Common/file.h"
 #include "Common/FileSystem.h"
-#include "Common/SeatManager.h"	// seatLog, for the temporary per-direction load probe
 #include "SDL3Device/GameClient/SDL3Cursor.h"
 
 #include <cstring>   // memcpy, for the retained cursor frames
@@ -88,12 +87,6 @@ void SDL3CursorManager::initResources(Mouse* mouse)
 
 				m_cursorResources[cursor][direction] = loadANI(resourcePath);
 				DEBUG_ASSERTCRASH(m_cursorResources[cursor][direction], ("MissingCursor %s\n", resourcePath));
-				// Temporary probe: one-time report of what actually loaded per cursor/direction,
-				// to settle whether "cursor stuck/not animated" is a load failure (this line) or a
-				// downstream selection bug (see [GXCUR] in SDL3Mouse::update).
-				seatLog("[GXCURLOAD] cursor=%d direction=%d numDirections=%d path=%s loaded=%d",
-					(Int)cursor, direction, mouse->m_cursorInfo[cursor].numDirections, resourcePath,
-					(Int)(m_cursorResources[cursor][direction] != nullptr));
 			}
 		}
 	}
@@ -187,31 +180,6 @@ AnimatedCursor* SDL3CursorManager::loadANI(const char* filepath)
 	else
 	{
 		cursor->m_cursor = SDL_CreateColorCursor(anim->frames[0], hot_spot_x, hot_spot_y);
-	}
-
-	// Temporary probe: "some cursors aren't animated" - this is the only place that knows how
-	// many frames the SOURCE .ani actually has and whether SDL's own animated-cursor object was
-	// built successfully from them, as opposed to the software seat-renderer's separate .ani tick
-	// path (W3DSeatCursorRenderer). A cursor with count==1 here was never going to animate; a
-	// cursor with count>1 but a failed SDL_CreateAnimatedCursor falls through to the failure log
-	// below instead.
-	//
-	// Also dump the actual per-frame delays: SDL_CursorFrameInfo::duration is documented as
-	// "frame duration in milliseconds - a duration of 0 is infinite," so if IMG_LoadAnimation_IO's
-	// ANI decoder doesn't populate delays (old ANI files sometimes carry timing in a global
-	// rate/seq chunk rather than per-frame), every frame silently gets an infinite duration and
-	// the cursor freezes on frame 0 forever - which looks exactly like "not animated."
-	{
-		AsciiString delayDump;
-		for (int i = 0; i < anim->count && i < 8; ++i)
-		{
-			char buf[16];
-			snprintf(buf, sizeof(buf), "%s%d", (i > 0 ? "," : ""), anim->delays[i]);
-			delayDump.concat(buf);
-		}
-		seatLog("[GXCURLOAD] %s frameCount=%d createdAnimated=%d cursorPtr=%p delays=[%s%s]",
-			filepath, anim->count, (Int)(anim->count > 1), (void*)cursor->m_cursor,
-			delayDump.str(), (anim->count > 8) ? ",..." : "");
 	}
 
 	if (!cursor->m_cursor)
