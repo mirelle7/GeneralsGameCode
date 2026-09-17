@@ -627,7 +627,8 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		}
 
 	}
-	GameWindow *win = findTooltipWindowById( TheNameKeyGenerator->nameToKey("ControlBarPopupDescription.wnd:StaticTextName") );
+	GameWindow *titleWin = findTooltipWindowById( TheNameKeyGenerator->nameToKey("ControlBarPopupDescription.wnd:StaticTextName") );
+	GameWindow *win = titleWin;
 	if(win)
 	{
 		GadgetStaticTextSetText(win, name);
@@ -735,49 +736,6 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		{
 			m_tooltipAuthoredParentWidth = size.x;
 			m_tooltipAuthoredParentHeight = size.y;
-
-			// Splitscreen: find the tooltip's OTHER top-level root (the title/name caption) and
-			// capture the AUTHORED gaps that will keep it and the box from overlapping the live
-			// bar once they're re-anchored to the marker's live position below.
-			Int rootCount = 0;
-			for( GameWindow *root = m_buildToolTipLayout->getFirstWindow(); root; root = root->winGetNextInLayout() )
-			{
-				++rootCount;
-				if( root != parent && m_tooltipTitleRoot == nullptr )
-					m_tooltipTitleRoot = root;
-			}
-			if( FILE *tf = fopen( "TooltipGapLog.txt", "a" ) )
-			{
-				fprintf(tf, "TOOLTIPGAP rootcount=%d titleRootFound=%d\n", rootCount, m_tooltipTitleRoot != nullptr);
-				fclose(tf);
-			}
-			if( m_tooltipTitleRoot != nullptr )
-			{
-				Int titleX, titleY, titleW, titleH;
-				m_tooltipTitleRoot->winGetPosition(&titleX, &titleY);
-				m_tooltipTitleRoot->winGetSize(&titleW, &titleH);
-				m_tooltipTitleAuthoredHeight = titleH;
-
-				Int markerAuthoredX, markerAuthoredY;
-				getBackgroundMarkerPos(&markerAuthoredX, &markerAuthoredY);
-				m_tooltipTitleGapAboveMarker = markerAuthoredY - (titleY + titleH);
-
-				Int parentAuthoredX, parentAuthoredY;
-				parent->winGetPosition(&parentAuthoredX, &parentAuthoredY);
-				m_tooltipBoxGapAboveTitle = titleY - (parentAuthoredY + m_tooltipAuthoredParentHeight);
-
-				// Splitscreen: DEBUG_LOG is compiled out in this build (it defines RTS_RELEASE even
-				// for the "Debug" preset), so write straight to a plain file instead.
-				if( FILE *tf = fopen( "TooltipGapLog.txt", "a" ) )
-				{
-					fprintf(tf, "TOOLTIPGAP authored: marker=(%d,%d) title=(%d,%d,%dx%d) parent=(%d,%d,%dx%d) titleGapAboveMarker=%d boxGapAboveTitle=%d\n",
-						markerAuthoredX, markerAuthoredY, titleX, titleY, titleW, titleH,
-						parentAuthoredX, parentAuthoredY, m_tooltipAuthoredParentWidth, m_tooltipAuthoredParentHeight,
-						m_tooltipTitleGapAboveMarker, m_tooltipBoxGapAboveTitle);
-					fclose(tf);
-				}
-			}
-
 			m_tooltipAuthoredSizeKnown = TRUE;
 		}
  		if(m_tooltipAuthoredParentHeight + diffSize < 102) {
@@ -788,17 +746,52 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		const Int finalParentHeight = m_tooltipAuthoredParentHeight + diffSize;
 		parent->winSetSize(scaledParentWidth, finalParentHeight);
 
+		// Splitscreen: this .wnd has exactly ONE top-level root (confirmed via a one-time
+		// TOOLTIPGAP rootcount log - the earlier "second title root" theory was wrong).
+		// StaticTextName is a CHILD of "parent", so winSetPosition(parent, ...) below already
+		// moves it automatically - winGetPosition/winSetPosition are parent-relative for a child,
+		// only winGetScreenPosition is absolute. The one real bug: titleWin's fixed AUTHORED
+		// local position assumed parent's ORIGINAL (usually taller) authored height. Since parent
+		// is resized every call (diffSize above), a short description can shrink the box below
+		// where the title was authored to sit, leaving it poking out above the box's new top
+		// edge ("outside the box"). Clamp its local Y to stay inside whatever height the box
+		// actually has this frame.
+		if( titleWin != nullptr )
+		{
+			Int titleLocalX, titleLocalY, titleW, titleH;
+			titleWin->winGetPosition(&titleLocalX, &titleLocalY);
+			titleWin->winGetSize(&titleW, &titleH);
+
+			ICoord2D titleScreenBefore, parentScreenBefore;
+			titleWin->winGetScreenPosition(&titleScreenBefore.x, &titleScreenBefore.y);
+			parent->winGetScreenPosition(&parentScreenBefore.x, &parentScreenBefore.y);
+
+			const Int topPad = 4;
+			if( titleLocalY < topPad )
+				titleWin->winSetPosition(titleLocalX, topPad);
+			else if( titleLocalY + titleH > finalParentHeight - topPad )
+				titleWin->winSetPosition(titleLocalX, finalParentHeight - topPad - titleH);
+
+			static Int s_titleLogCounter = 0;
+			if( (s_titleLogCounter++ % 30) == 0 )
+			{
+				if( FILE *tf = fopen( "TooltipGapLog.txt", "a" ) )
+				{
+					fprintf(tf, "TOOLTIPTITLE localBefore=(%d,%d) size=%dx%d screenBefore=(%d,%d) parentScreenBefore=(%d,%d) finalParentHeight=%d\n",
+						titleLocalX, titleLocalY, titleW, titleH,
+						titleScreenBefore.x, titleScreenBefore.y, parentScreenBefore.x, parentScreenBefore.y,
+						finalParentHeight);
+					fclose(tf);
+				}
+			}
+		}
+
 		// Splitscreen: anchor to the marker's LIVE on-screen position directly, instead of
 		// reconstructing a position from two separately-cached AUTHORED positions (the marker's
 		// and the box's own) plus a scale correction. That chain needed the box's authored
 		// position captured before any dock transform ever touched it - fragile, and the source
 		// of the scaling/positioning bugs already fixed in this function. winGetScreenPosition
 		// already reflects this bar's real dock offset and scale, so no correction is needed.
-		//
-		// Project the box UPWARD from the marker (bottom edge pinned just above it, growing up as
-		// content grows) rather than down from it: the marker sits at the top of the button row,
-		// and the ControlBar itself is docked at the bottom of this seat's viewport, so growing
-		// downward pushes the box toward - and past - the bottom of the screen/viewport.
 		GameWindow *marker = findBarWindowById(winNamekey);
 		if(!marker)
 		{
@@ -807,40 +800,25 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		ICoord2D markerPos;
 		marker->winGetScreenPosition(&markerPos.x, &markerPos.y);
 
-		// Splitscreen: reproduce the AUTHORED stack - title sits m_tooltipTitleGapAboveMarker
-		// pixels above the marker, and the box sits m_tooltipBoxGapAboveTitle pixels above the
-		// title's top edge - instead of one invented margin between the box and the marker with
-		// no room reserved for the title, which made the title overlap the live bar underneath.
-		Int titleX = markerPos.x, titleY = markerPos.y - m_tooltipTitleAuthoredHeight;
-		Int titleW = 0, titleHUnused = 0;
-		if( m_tooltipTitleRoot != nullptr )
-		{
-			m_tooltipTitleRoot->winGetSize(&titleW, &titleHUnused);
-			titleX = markerPos.x - titleW / 2;
-			titleY = markerPos.y - m_tooltipTitleGapAboveMarker - m_tooltipTitleAuthoredHeight;
-		}
+		Int absoluteX = markerPos.x - scaledParentWidth / 2;
 
-		// Splitscreen: HARD constraint, independent of the authored-gap math above - the title
-		// must never overlap the bar's own visible chrome, no matter what the authored gap says.
-		// getBarDockRect() turned out to be this SEAT'S WHOLE VIEWPORT rect (confirmed via the
-		// TOOLTIPGAP log: barRect=(0,0)-(480,540) for a 480x540 quadrant), not the bar's own thin
-		// strip - using its top (y=0, the top of the entire quadrant) as "top of bar" pinned the
-		// title off the top of the screen. "ControlBar.wnd:ControlBarParent" is the bar's actual
-		// top-level chrome window (already used by showControlBarInstance's animation fix above in
-		// this same file) - its live screen Y is the real top-of-bar edge.
+		// Splitscreen: anchor the box's BOTTOM edge to the bar's real visible top edge, growing
+		// upward as content grows, instead of down from the marker: the marker's own live
+		// position turned out to sit at the BOTTOM of this bar (not the top, as originally
+		// assumed - see the TOOLTIPGAP log), so anchoring off it directly pushed the box down
+		// into the bar. "ControlBar.wnd:ControlBarParent" is the bar's actual top-level chrome
+		// window (already used by showControlBarInstance's animation fix elsewhere in this file);
+		// its live screen Y is the real top-of-bar edge, independent of the marker entirely.
 		GameWindow *barChrome = findBarWindowById( TheNameKeyGenerator->nameToKey( "ControlBar.wnd:ControlBarParent" ) );
+		Int barTopY = markerPos.y;	// fallback if the bar chrome window can't be resolved
 		if( barChrome != nullptr )
 		{
 			ICoord2D barChromePos;
 			barChrome->winGetScreenPosition(&barChromePos.x, &barChromePos.y);
-			const Int hardGap = 4;
-			const Int maxTitleBottom = barChromePos.y - hardGap;
-			if( titleY + m_tooltipTitleAuthoredHeight > maxTitleBottom )
-				titleY = maxTitleBottom - m_tooltipTitleAuthoredHeight;
+			barTopY = barChromePos.y;
 		}
-
-		Int absoluteX = markerPos.x - scaledParentWidth / 2;
-		Int absoluteY = titleY - m_tooltipBoxGapAboveTitle - finalParentHeight;
+		const Int gapAboveBar = 4;
+		Int absoluteY = barTopY - gapAboveBar - finalParentHeight;
 
 		// Throttled (this runs every frame the tooltip is visible) - plain file, see comment above.
 		static Int s_tooltipGapLogCounter = 0;
@@ -848,12 +826,8 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		{
 			if( FILE *tf = fopen( "TooltipGapLog.txt", "a" ) )
 			{
-				ICoord2D barChromeLogPos = { -1, -1 };
-				if( barChrome != nullptr )
-					barChrome->winGetScreenPosition(&barChromeLogPos.x, &barChromeLogPos.y);
-				fprintf(tf, "TOOLTIPGAP live: marker=(%d,%d) barChrome=(%d,%d) titleY(afterHardClamp)=%d absoluteX=%d absoluteY(beforeDisplayClamp)=%d finalParentHeight=%d titleHeight=%d\n",
-					markerPos.x, markerPos.y, barChromeLogPos.x, barChromeLogPos.y,
-					titleY, absoluteX, absoluteY, finalParentHeight, m_tooltipTitleAuthoredHeight);
+				fprintf(tf, "TOOLTIPGAP live: marker=(%d,%d) barTopY=%d absoluteX=%d absoluteY(beforeDisplayClamp)=%d finalParentHeight=%d\n",
+					markerPos.x, markerPos.y, barTopY, absoluteX, absoluteY, finalParentHeight);
 				fclose(tf);
 			}
 		}
@@ -874,22 +848,7 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 				absoluteY = 0;
 			else if( absoluteY + finalParentHeight > dispH )
 				absoluteY = dispH - finalParentHeight;
-
-			if( m_tooltipTitleRoot != nullptr )
-			{
-				if( titleX < 0 )
-					titleX = 0;
-				else if( titleX + titleW > dispW )
-					titleX = dispW - titleW;
-				if( titleY < 0 )
-					titleY = 0;
-				else if( titleY + m_tooltipTitleAuthoredHeight > dispH )
-					titleY = dispH - m_tooltipTitleAuthoredHeight;
-			}
 		}
-
-		if( m_tooltipTitleRoot != nullptr )
-			m_tooltipTitleRoot->winSetPosition(titleX, titleY);
 
 		parent->winSetPosition(absoluteX, absoluteY);
 
