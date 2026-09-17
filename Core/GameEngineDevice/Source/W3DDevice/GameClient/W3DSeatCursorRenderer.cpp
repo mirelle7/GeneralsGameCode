@@ -550,22 +550,31 @@ static void drawSeatCursor(const LocalSeat* seat)
 {
 	const CursorInfo *info = nullptr;
 	const CursorInfo *probe = TheMouse ? TheMouse->getCursorInfo( seat->m_cursor.cursorType ) : nullptr;
-
-	const Image *image = findCursorImage( seat->m_cursor.cursorType,
-		textureCursorFrame( probe, seat->m_cursor.cursorType, seat ), &info );
+	const Image *image = nullptr;
 
 #if RTS_SDL3_ENABLE
+	// .ani first, matching how the real cursor actually works in both the legacy Win32 backend and
+	// SDL3: Win32Mouse::initCursorResources() and SDL3CursorManager::initResources() both load a
+	// .ani for EVERY cursor state unconditionally, and W3DMouse::setCursor's default path
+	// (RM_WINDOWS, what an ordinary player actually runs) hands off straight to the OS-native
+	// animated .ani cursor and returns - it never looks at a texture at all. The D3D-texture path
+	// (RM_DX8 in W3DMouse, findCursorImage here) is a SEPARATE fallback render mode for when the OS
+	// hardware cursor isn't available (e.g. exclusive fullscreen device loss), not a "prefer texture,
+	// fall back to .ani" priority chain within the same mode - and W3DMouse::loadD3DCursorTextures
+	// shows that fallback mode was never going to animate Attack anyway (Mouse.ini declares no
+	// Frames count for it, so RM_DX8 loads exactly one static frame). Preferring the texture here,
+	// as this renderer originally did, is what made Attack look static: findCursorImage succeeded on
+	// its one static "sccattack.tga" and the real 10-frame Attack .ani was never reached.
+	image = findAniCursorImage( seat->m_cursor.cursorType, seat->m_cursor.direction, &info );
+#endif
+
 	if (image == nullptr)
 	{
-		// No texture art for this state - true of 27 of the 37. Draw the .ani the OS cursor uses,
-		// which the engine already decoded at startup. This is what lets a seat cursor show
-		// garrison, waypoint, dock and the rest instead of an arrow for all of them. Pass this
-		// seat's own facing rather than always direction 0, so a directional cursor (numDirections
-		// > 1) shows the right one for THIS seat instead of every seat sharing whichever direction
-		// happened to be loaded first.
-		image = findAniCursorImage( seat->m_cursor.cursorType, seat->m_cursor.direction, &info );
+		// No .ani for this state (or SDL3 disabled) - fall back to the texture, same shape as
+		// RM_DX8's own fallback role.
+		image = findCursorImage( seat->m_cursor.cursorType,
+			textureCursorFrame( probe, seat->m_cursor.cursorType, seat ), &info );
 	}
-#endif
 
 	if (image == nullptr)
 	{
