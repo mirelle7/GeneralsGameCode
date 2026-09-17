@@ -1026,8 +1026,6 @@ ControlBar::ControlBar()
 	m_tooltipPrevWindow = nullptr;
 	m_tooltipWaitInitialized = FALSE;
 	m_tooltipBeginWaitTime = 0;
-	m_tooltipAuthoredParentPos.x = m_tooltipAuthoredParentPos.y = 0;
-	m_tooltipAuthoredParentPosKnown = FALSE;
 	m_tooltipAuthoredWinHeight = 0;
 	m_tooltipAuthoredParentHeight = 0;
 	m_tooltipAuthoredWinWidth = 0;

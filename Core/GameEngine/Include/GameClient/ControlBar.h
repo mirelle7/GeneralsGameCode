@@ -1223,13 +1223,6 @@ protected:
 	GameWindow *m_tooltipPrevWindow;
 	Bool m_tooltipWaitInitialized;
 	UnsignedInt m_tooltipBeginWaitTime;
-	/// Splitscreen: the tooltip parent's AUTHORED position, captured once (before any dock
-	/// transform ever touches it) so its docked position can be recomputed absolutely every call
-	/// instead of accumulated as a running delta against wherever it happened to be last time -
-	/// a delta can't be correct across bars at different dock offsets, and compounds any one bad
-	/// frame forever. See populateBuildTooltipLayout.
-	ICoord2D m_tooltipAuthoredParentPos;
-	Bool m_tooltipAuthoredParentPosKnown;
 	/// Splitscreen: same reasoning, for the tooltip's SIZE. populateBuildTooltipLayout used to
 	/// derive how much to grow the description box from the window's CURRENT (already-grown)
 	/// size, which produced a one-frame overshoot every time the hovered button's text changed

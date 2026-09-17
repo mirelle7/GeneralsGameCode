@@ -652,7 +652,7 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 
 		static NameKeyType winNamekey	= TheNameKeyGenerator->nameToKey( "ControlBar.wnd:BackgroundMarker" );
 
-		ICoord2D size, newSize, pos;
+		ICoord2D size, newSize;
 		Int diffSize;
 
 		// Splitscreen: this tooltip's WindowLayout is never docked/rescaled by dockToRect (it is a
@@ -733,60 +733,31 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		}
 
 		const Int scaledParentWidth = (Int)(m_tooltipAuthoredParentWidth * markerScale + 0.5f);
-		parent->winSetSize(scaledParentWidth, m_tooltipAuthoredParentHeight + diffSize);
- 		parent->winGetPosition(&pos.x, &pos.y);
-//		if(size.y + diffSize < 102)
-//		{
-//
-//			parent->winSetPosition(pos.x, pos.y -  (102 - (newSize.y + size.y + diffSize) ));
-//		}
-//		else
+		const Int finalParentHeight = m_tooltipAuthoredParentHeight + diffSize;
+		parent->winSetSize(scaledParentWidth, finalParentHeight);
 
-//		heightChange = controlBarPos.y - m_defaultControlBarPosition.y;
-
-		// Splitscreen: resolve the marker inside THIS bar, not with a global walk that returns
-		// an arbitrary instance's copy.
+		// Splitscreen: anchor to the marker's LIVE on-screen position directly, instead of
+		// reconstructing a position from two separately-cached AUTHORED positions (the marker's
+		// and the box's own) plus a scale correction. That chain needed the box's authored
+		// position captured before any dock transform ever touched it - fragile, and the source
+		// of the scaling/positioning bugs already fixed in this function. winGetScreenPosition
+		// already reflects this bar's real dock offset and scale, so no correction is needed.
+		//
+		// Project the box UPWARD from the marker (bottom edge pinned just above it, growing up as
+		// content grows) rather than down from it: the marker sits at the top of the button row,
+		// and the ControlBar itself is docked at the bottom of this seat's viewport, so growing
+		// downward pushes the box toward - and past - the bottom of the screen/viewport.
 		GameWindow *marker = findBarWindowById(winNamekey);
-		ICoord2D basePos;		// was a static; nothing carries between bars now
 		if(!marker)
 		{
 			return;
 		}
-		getBackgroundMarkerPos(&basePos.x, &basePos.y);
-		ICoord2D curPos, offset;
-		marker->winGetScreenPosition(&curPos.x,&curPos.y);
+		ICoord2D markerPos;
+		marker->winGetScreenPosition(&markerPos.x, &markerPos.y);
 
-		// getBackgroundMarkerPos returns an AUTHORED coordinate captured once at init, while
-		// winGetScreenPosition is a DOCKED one - so the anchor is wrong for any docked bar even
-		// on its own. Scale the authored side by this bar's dock scale, the same correction
-		// W3DControlBar already carries. Scale is exactly 1 for an undocked bar.
-		basePos.x = (Int)(basePos.x * markerScale);
-		basePos.y = (Int)(basePos.y * markerScale);
-
-		offset.x = curPos.x - basePos.x;
-		offset.y = curPos.y - basePos.y;
-
-		// Splitscreen: capture the AUTHORED position exactly once, before any dock transform has
-		// ever touched this window - m_buildToolTipLayout is created once per bar and reused
-		// across many show/populate calls, so the first call here sees the .wnd's own coordinates.
-		if( !m_tooltipAuthoredParentPosKnown )
-		{
-			m_tooltipAuthoredParentPos = pos;
-			m_tooltipAuthoredParentPosKnown = TRUE;
-		}
-
-		// Recompute the docked position ABSOLUTELY from that authored baseline every call -
-		// dock offset (offset.y) + authored position scaled by this bar's own dock scale - rather
-		// than accumulating a delta against wherever the window happened to be last time. A delta
-		// cannot be correct across bars at different dock offsets, and silently compounds forward
-		// any single bad frame (e.g. one measured before the marker's texture was resident).
-		//
-		// Splitscreen: the X axis needs exactly the same treatment as Y. It was left at the window's
-		// raw, uncorrected pos.x, which - combined with the word-wrap width above now also being
-		// dock-scale-correct - is what produced the visible left/right "warping" in an 8-player
-		// quarter-width layout: X and the wrap width disagreed frame-to-frame.
-		const Int absoluteX = offset.x + (Int)(m_tooltipAuthoredParentPos.x * markerScale + 0.5f);
-		const Int absoluteY = offset.y + (Int)(m_tooltipAuthoredParentPos.y * markerScale + 0.5f) - diffSize;
+		const Int margin = 4;	// small gap between the box's bottom edge and the marker
+		const Int absoluteX = markerPos.x - scaledParentWidth / 2;
+		const Int absoluteY = markerPos.y - margin - finalParentHeight;
 		parent->winSetPosition(absoluteX, absoluteY);
 
 		// Scale win's width from its AUTHORED width too, same reasoning as parent above - reading
