@@ -315,6 +315,34 @@ void ShowDiplomacy( Bool immediate, Int seat )
 				}
 			}
 		}
+
+		// Splitscreen: hand this popup to the seat's own ControlBar - the one mechanism that
+		// buys position, per-frame re-dock, paint clipping, AND click ownership at once (see
+		// ControlBar::adoptPopupLayout's own header comment). Done HERE, once at creation, for
+		// two reasons:
+		//   1. It must run BEFORE the slide-in animation is ever registered below.
+		//      ProcessAnimateWindowSlideFromTop::initAnimateWindow captures the window's CURRENT
+		//      position (via winGetPosition) as the animation's rest position, then snaps it
+		//      there when the slide finishes. If the window is still sitting at its authored
+		//      full-display position when that capture happens, the animation faithfully returns
+		//      it to that same full-display position every time it finishes - outside the seat's
+		//      own docked quadrant - regardless of what adoptPopupLayout did earlier.
+		//   2. It must run only ONCE, not on every show. adoptPopupLayout re-captures whatever
+		//      position/size the window CURRENTLY has as a fresh "authored" baseline and scales
+		//      that. Calling it again on an already-docked window scales an already-scaled-down
+		//      size a second time - a visible shrink on every reopen - and appends a duplicate
+		//      entry to the bar's window list every time, which never gets cleaned up.
+		ControlBar *bar = ControlBarInstances::get( seat );
+		if (bar != nullptr)
+		{
+			bar->adoptPopupLayout( theLayout );
+
+			// So the slide travels a distance proportional to this seat's own viewport instead
+			// of the whole display - see ProcessAnimateWindow::travelWidth/travelHeight.
+			const IRegion2D &d = bar->getBarDockRect();
+			if (d.hi.x > d.lo.x)
+				theAnimateWindowManager->setAnimationBounds( d.hi.x - d.lo.x, d.hi.y - d.lo.y );
+		}
 	}
 	theLayout->hide(FALSE);
 
@@ -337,33 +365,6 @@ void ShowDiplomacy( Bool immediate, Int seat )
 	theAnimateWindowManager->reset();
 	if (!immediate && TheGlobalData->m_animateWindows)
 		theAnimateWindowManager->registerGameWindow( theWindow, WIN_ANIMATION_SLIDE_TOP, TRUE, 200 );
-
-	// Splitscreen: hand this popup to the seat's own ControlBar. There is no general-purpose
-	// "put a layout in a seat's viewport" helper - registering with the bar IS the mechanism,
-	// and it is what the generals screen and the special-power shortcut bar already use. It
-	// buys four things at once: position, per-frame re-dock, paint clipping, AND click
-	// ownership - winSeatOwnsWindow resolves through ControlBar::ownsLayoutWindow.
-	//
-	// This used to be gated on seat > 0, on the assumption that seat 0 always means "classic
-	// single-view, full display." That's false in splitscreen: seat 0 is TheControlBar, which
-	// ControlBarInstances::get(0) already resolves to, and which InGameUI's viewport layout docks
-	// to seat 0's own quadrant exactly like every other seat's bar. Skipping the adopt for seat 0
-	// left its popup at full-display authored size/position always - so whenever seat 0 opened
-	// diplomacy in splitscreen, it covered every other seat's viewport. Calling this
-	// unconditionally is still correct for true single-view: TheControlBar is docked to the whole
-	// display there too, so adoptPopupLayout resolves to the same full-display placement as before.
-	{
-		ControlBar *bar = ControlBarInstances::get( seat );
-		if (bar != nullptr)
-		{
-			bar->adoptPopupLayout( theLayout );
-
-			// keep the slide-in inside this seat's viewport instead of sweeping across others'
-			const IRegion2D &d = bar->getBarDockRect();
-			if (d.hi.x > d.lo.x)
-				theAnimateWindowManager->setAnimationBounds( d.hi.x - d.lo.x, d.hi.y - d.lo.y );
-		}
-	}
 
 	TheInGameUI->registerWindowLayout(theLayout);
 	grabWindowPointers(seat);

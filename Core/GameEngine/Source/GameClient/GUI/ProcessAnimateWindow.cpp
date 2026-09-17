@@ -546,7 +546,11 @@ void ProcessAnimateWindowSlideFromTop::initAnimateWindow( wnd::AnimateWindow *an
 	endPos.y = restPos.y;
 
 	//set the initial positions for the window. In this case, off the Top of the screen
-	Int travelDistance = TheDisplay->getWidth();// / 4 * 3;
+	// Splitscreen: travelWidth() honours setAnimationBounds() when a seat has set one, so a
+	// docked popup's slide distance scales with its own viewport instead of always travelling a
+	// whole (possibly much larger) display-width regardless of how small the seat's quadrant is.
+	// Falls back to the previous TheDisplay->getWidth() behaviour when no bounds are set.
+	Int travelDistance = travelWidth();// / 4 * 3;
 	startPos.x = restPos.x ;
 	startPos.y = restPos.y - travelDistance;
 	curPos.x = (Real)startPos.x;
