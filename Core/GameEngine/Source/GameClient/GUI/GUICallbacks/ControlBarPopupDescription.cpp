@@ -88,6 +88,7 @@
 #include "GameClient/GUICallbacks.h"
 #include "GameClient/InGameUI.h"
 #include "GameClient/ControlBar.h"
+#include "GameClient/Display.h"
 #include "GameClient/DisplayStringManager.h"
 #include "GameLogic/GameLogic.h"
 #include "GameLogic/Module/OverchargeBehavior.h"
@@ -756,8 +757,48 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		marker->winGetScreenPosition(&markerPos.x, &markerPos.y);
 
 		const Int margin = 4;	// small gap between the box's bottom edge and the marker
-		const Int absoluteX = markerPos.x - scaledParentWidth / 2;
-		const Int absoluteY = markerPos.y - margin - finalParentHeight;
+		Int absoluteX = markerPos.x - scaledParentWidth / 2;
+		Int absoluteY = markerPos.y - margin - finalParentHeight;
+
+		// Keep the whole popup on the actual rendered display - not clamped to this seat's
+		// viewport (the box is allowed to sit over a neighboring quadrant), just kept from
+		// rendering off the edge of the window entirely, which an unclamped anchor can do for
+		// buttons near a screen edge.
+		if( TheDisplay != nullptr )
+		{
+			const Int dispW = (Int)TheDisplay->getWidth();
+			const Int dispH = (Int)TheDisplay->getHeight();
+			if( absoluteX < 0 )
+				absoluteX = 0;
+			else if( absoluteX + scaledParentWidth > dispW )
+				absoluteX = dispW - scaledParentWidth;
+			if( absoluteY < 0 )
+				absoluteY = 0;
+			else if( absoluteY + finalParentHeight > dispH )
+				absoluteY = dispH - finalParentHeight;
+		}
+
+		// Splitscreen: this .wnd has more than one top-level root - findTooltipWindowById walks
+		// winGetNextInLayout() to find StaticTextName/StaticTextCost, which live in a SEPARATE
+		// root from this one (StaticTextDescription's parent). winSetPosition is parent-relative,
+		// so moving "parent" alone never moved those sibling roots - they stayed at their
+		// authored position while the description box moved to the marker, which is what made
+		// the title look like it "floats at the original place". Move every other root in this
+		// layout by the same delta "parent" is about to move by, so the whole popup travels
+		// together and their authored offsets from each other are preserved.
+		Int oldParentX, oldParentY;
+		parent->winGetPosition(&oldParentX, &oldParentY);
+		const Int deltaX = absoluteX - oldParentX;
+		const Int deltaY = absoluteY - oldParentY;
+		for( GameWindow *root = m_buildToolTipLayout->getFirstWindow(); root; root = root->winGetNextInLayout() )
+		{
+			if( root == parent )
+				continue;
+			Int rx, ry;
+			root->winGetPosition(&rx, &ry);
+			root->winSetPosition(rx + deltaX, ry + deltaY);
+		}
+
 		parent->winSetPosition(absoluteX, absoluteY);
 
 		// Scale win's width from its AUTHORED width too, same reasoning as parent above - reading
