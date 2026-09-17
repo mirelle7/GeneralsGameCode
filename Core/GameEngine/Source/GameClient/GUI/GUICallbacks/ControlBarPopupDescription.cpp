@@ -83,6 +83,7 @@
 #include "GameClient/GadgetPushButton.h"
 #include "GameClient/GadgetStaticText.h"
 #include "GameClient/GameClient.h"
+#include "GameClient/GameFont.h"
 #include "GameClient/GameText.h"
 #include "GameClient/GUICallbacks.h"
 #include "GameClient/InGameUI.h"
@@ -661,10 +662,49 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		// agree every frame instead of disagreeing in an 8-player quarter-width layout.
 		const Real markerScale = getBarDockScale();
 
-		DisplayString *tempDString = TheDisplayStringManager->newDisplayString();
+		// Splitscreen: capture this window's AUTHORED font once (same pattern ControlBar uses for
+		// its own docked bar windows via captureAuthoredFont/applyScaledFont), then re-derive it at
+		// the current dock scale every call. This tooltip is a standalone layout, not one of the
+		// bar's registered dock windows, so nothing else was ever shrinking its font - the text
+		// stayed full authored size even when the box/wrap were narrowed for 5-8 players.
+		if( !m_tooltipAuthoredFontKnown )
+		{
+			GameFont *authoredFont = win->winGetFont();
+			if( authoredFont != nullptr )
+			{
+				m_tooltipAuthoredFontName = authoredFont->nameString;
+				m_tooltipAuthoredFontSize = authoredFont->pointSize;
+				m_tooltipAuthoredFontBold = authoredFont->bold;
+			}
+			m_tooltipAuthoredFontKnown = TRUE;
+		}
+		GameFont *scaledFont = nullptr;
+		if( m_tooltipAuthoredFontSize > 0 && TheFontLibrary != nullptr )
+		{
+			Int scaledPointSize = (Int)(m_tooltipAuthoredFontSize * markerScale + 0.5f);
+			if( scaledPointSize < 1 )
+				scaledPointSize = 1;
+			scaledFont = TheFontLibrary->getFont( m_tooltipAuthoredFontName, scaledPointSize, m_tooltipAuthoredFontBold );
+		}
+		if( scaledFont == nullptr )
+			scaledFont = win->winGetFont();
+		win->winSetFont( scaledFont );
+
+		// Splitscreen: anchor the wrap width to the AUTHORED win width, captured once, not to
+		// win's CURRENT size.x - win's width is itself rescaled by markerScale below, and this
+		// layout is reused across many calls, so reading "current" width back in as the wrap
+		// basis fed the previous call's shrunk output in as if it were authored, narrowing the
+		// wrap width a little further every call instead of ever settling.
 		win->winGetSize(&size.x, &size.y);
-		tempDString->setFont(win->winGetFont());
-		tempDString->setWordWrap((Int)(size.x * markerScale) - 10);
+		if( !m_tooltipAuthoredSizeKnown )
+		{
+			m_tooltipAuthoredWinWidth = size.x;
+			m_tooltipAuthoredWinHeight = size.y;
+		}
+
+		DisplayString *tempDString = TheDisplayStringManager->newDisplayString();
+		tempDString->setFont(scaledFont);
+		tempDString->setWordWrap((Int)(m_tooltipAuthoredWinWidth * markerScale) - 10);
 		tempDString->setText(descrip);
 		tempDString->getSize(&newSize.x, &newSize.y);
 		TheDisplayStringManager->freeDisplayString(tempDString);
@@ -676,10 +716,6 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		// size here returns last call's answer - which produced a one-frame overshoot every time
 		// the hovered button's description text changed height, before snapping back the next
 		// frame once the stale baseline caught up. Same shape as the position fix above.
-		if( !m_tooltipAuthoredSizeKnown )
-		{
-			m_tooltipAuthoredWinHeight = size.y;
-		}
 		diffSize = newSize.y - m_tooltipAuthoredWinHeight;
  		GameWindow *parent = m_buildToolTipLayout->getFirstWindow();
  		if(!parent)
@@ -688,6 +724,7 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
  		parent->winGetSize(&size.x, &size.y);
 		if( !m_tooltipAuthoredSizeKnown )
 		{
+			m_tooltipAuthoredParentWidth = size.x;
 			m_tooltipAuthoredParentHeight = size.y;
 			m_tooltipAuthoredSizeKnown = TRUE;
 		}
@@ -695,7 +732,8 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 			diffSize = 102 - m_tooltipAuthoredParentHeight;
 		}
 
-		parent->winSetSize(size.x, m_tooltipAuthoredParentHeight + diffSize);
+		const Int scaledParentWidth = (Int)(m_tooltipAuthoredParentWidth * markerScale + 0.5f);
+		parent->winSetSize(scaledParentWidth, m_tooltipAuthoredParentHeight + diffSize);
  		parent->winGetPosition(&pos.x, &pos.y);
 //		if(size.y + diffSize < 102)
 //		{
@@ -751,8 +789,10 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		const Int absoluteY = offset.y + (Int)(m_tooltipAuthoredParentPos.y * markerScale + 0.5f) - diffSize;
 		parent->winSetPosition(absoluteX, absoluteY);
 
-		win->winGetSize(&size.x, &size.y);
- 		win->winSetSize(size.x, m_tooltipAuthoredWinHeight + diffSize);
+		// Scale win's width from its AUTHORED width too, same reasoning as parent above - reading
+		// win's current (already-scaled) size.x back in here would compound the shrink every call.
+		const Int scaledWinWidth = (Int)(m_tooltipAuthoredWinWidth * markerScale + 0.5f);
+ 		win->winSetSize(scaledWinWidth, m_tooltipAuthoredWinHeight + diffSize);
 
 		GadgetStaticTextSetText(win, descrip);
 	}

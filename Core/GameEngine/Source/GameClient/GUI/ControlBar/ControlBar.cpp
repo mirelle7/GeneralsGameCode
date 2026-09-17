@@ -1030,7 +1030,13 @@ ControlBar::ControlBar()
 	m_tooltipAuthoredParentPosKnown = FALSE;
 	m_tooltipAuthoredWinHeight = 0;
 	m_tooltipAuthoredParentHeight = 0;
+	m_tooltipAuthoredWinWidth = 0;
+	m_tooltipAuthoredParentWidth = 0;
 	m_tooltipAuthoredSizeKnown = FALSE;
+	m_tooltipAuthoredFontName.clear();
+	m_tooltipAuthoredFontSize = 0;
+	m_tooltipAuthoredFontBold = FALSE;
+	m_tooltipAuthoredFontKnown = FALSE;
 	m_showBuildToolTipLayout = FALSE;
 
 	m_animateDownWin1Pos.x = m_animateDownWin1Pos.y = 0;

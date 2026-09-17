@@ -1236,7 +1236,23 @@ protected:
 	/// before settling back next frame. Anchor the growth to the authored size instead.
 	Int m_tooltipAuthoredWinHeight;
 	Int m_tooltipAuthoredParentHeight;
+	/// Splitscreen: same reasoning, for WIDTH. The window's current size.x was being read back
+	/// and re-used as the wrap-width basis every call - but since this same layout is reused
+	/// across calls and its width IS actively rescaled below, that made the wrap width shrink a
+	/// little further each call instead of settling (feeding scaled output back in as if it were
+	/// authored), which is what kept the popup visibly resizing/moving instead of stabilizing.
+	Int m_tooltipAuthoredWinWidth;
+	Int m_tooltipAuthoredParentWidth;
 	Bool m_tooltipAuthoredSizeKnown;
+	/// Splitscreen: the description text's AUTHORED font, captured once (same pattern as
+	/// captureAuthoredFont/applyScaledFont for docked bar windows) so it can be re-derived at
+	/// this bar's current dock scale every call. This popup isn't a docked bar window (it's a
+	/// standalone tooltip layout), so nothing was ever scaling its font - the description text
+	/// stayed full-size even when the wrap width and box were shrunk for 5-8 players.
+	AsciiString m_tooltipAuthoredFontName;
+	Int m_tooltipAuthoredFontSize;
+	Bool m_tooltipAuthoredFontBold;
+	Bool m_tooltipAuthoredFontKnown;
 	/// Resolve an id strictly inside this bar's OWN tooltip layout roots.
 	GameWindow *findTooltipWindowById( NameKeyType id ) const;
 public:
