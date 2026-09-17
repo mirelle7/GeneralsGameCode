@@ -1236,6 +1236,11 @@ protected:
 	/// authored), which is what kept the popup visibly resizing/moving instead of stabilizing.
 	Int m_tooltipAuthoredWinWidth;
 	Int m_tooltipAuthoredParentWidth;
+	/// Splitscreen: same reasoning, for the title/name caption's WIDTH - it's authored at the
+	/// box's full, unscaled width (confirmed via TOOLTIPTITLE log: 537px wide against a ~134px
+	/// scaled box), so it was rendering far wider than the box and visibly sticking out past its
+	/// edges instead of clipping/fitting to it.
+	Int m_tooltipAuthoredTitleWidth;
 	Bool m_tooltipAuthoredSizeKnown;
 	/// Splitscreen: the description text's AUTHORED font, captured once (same pattern as
 	/// captureAuthoredFont/applyScaledFont for docked bar windows) so it can be re-derived at

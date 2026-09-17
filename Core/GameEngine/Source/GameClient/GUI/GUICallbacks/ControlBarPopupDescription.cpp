@@ -736,6 +736,12 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		{
 			m_tooltipAuthoredParentWidth = size.x;
 			m_tooltipAuthoredParentHeight = size.y;
+			if( titleWin != nullptr )
+			{
+				Int titleAuthoredW, titleAuthoredH;
+				titleWin->winGetSize(&titleAuthoredW, &titleAuthoredH);
+				m_tooltipAuthoredTitleWidth = titleAuthoredW;
+			}
 			m_tooltipAuthoredSizeKnown = TRUE;
 		}
  		if(m_tooltipAuthoredParentHeight + diffSize < 102) {
@@ -761,6 +767,15 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 			Int titleLocalX, titleLocalY, titleW, titleH;
 			titleWin->winGetPosition(&titleLocalX, &titleLocalY);
 			titleWin->winGetSize(&titleW, &titleH);
+
+			// Splitscreen: scale the title's WIDTH from its AUTHORED width, same reasoning as the
+			// description box/text above - it's authored at the box's full, unscaled width, which
+			// made it render far wider than the (dock-scale-shrunk) box and stick out past its
+			// edges. Anchor to m_tooltipAuthoredTitleWidth, not the current size.x, for the same
+			// compounding-shrink reason those fixes already document.
+			const Int scaledTitleWidth = (Int)(m_tooltipAuthoredTitleWidth * markerScale + 0.5f);
+			titleWin->winSetSize(scaledTitleWidth, titleH);
+			titleW = scaledTitleWidth;
 
 			ICoord2D titleScreenBefore, parentScreenBefore;
 			titleWin->winGetScreenPosition(&titleScreenBefore.x, &titleScreenBefore.y);
