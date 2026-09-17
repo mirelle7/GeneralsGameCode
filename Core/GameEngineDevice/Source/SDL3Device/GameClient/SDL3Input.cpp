@@ -95,9 +95,9 @@ void SDL3Mouse::update()
 	// direction mechanism is reported broken on the splitscreen branch but not the base SDL3
 	// branch despite being byte-identical code here, so the divergence must be in one of these
 	// INPUTS (isScrolling/getScrollAmount/accumulated deltas), not in the bucketing math itself.
-	// GX_CURSORPROBE=1 logs every frame while the scroll cursor is active so that can be told
-	// apart from a guess. Remove once the real cause is confirmed.
-	const Bool cursorProbe = (getenv("GX_CURSORPROBE") != nullptr) && (cursor == SCROLL);
+	// Always on (no env gate) while this is being tracked down; seatLog itself already no-ops
+	// unless splitscreen is enabled. Remove once the real cause is confirmed.
+	const Bool cursorProbe = (cursor == SCROLL);
 
 	if (cursor != NONE && cursor != INVALID_MOUSE_CURSOR && m_cursorInfo[cursor].numDirections > 1)
 	{
