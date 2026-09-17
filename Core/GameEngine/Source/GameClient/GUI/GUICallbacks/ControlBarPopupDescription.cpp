@@ -805,6 +805,21 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 			titleY = markerPos.y - m_tooltipTitleGapAboveMarker - m_tooltipTitleAuthoredHeight;
 		}
 
+		// Splitscreen: HARD constraint, independent of the authored-gap math above - the title
+		// must never overlap this bar's own live dock rect, no matter what the authored gap says
+		// (an authored gap captured from a design tool is only ever a best-effort number, and
+		// getting it wrong here means the popup occludes the very button the mouse is over, which
+		// also flickers the tooltip on/off as hit-testing alternates between the button and the
+		// popup sitting on top of it). getBarDockRect() is this bar's real, live, docked rect.
+		const IRegion2D &barRect = getBarDockRect();
+		if( barRect.hi.y > barRect.lo.y )
+		{
+			const Int hardGap = 4;
+			const Int maxTitleBottom = barRect.lo.y - hardGap;
+			if( titleY + m_tooltipTitleAuthoredHeight > maxTitleBottom )
+				titleY = maxTitleBottom - m_tooltipTitleAuthoredHeight;
+		}
+
 		Int absoluteX = markerPos.x - scaledParentWidth / 2;
 		Int absoluteY = titleY - m_tooltipBoxGapAboveTitle - finalParentHeight;
 
