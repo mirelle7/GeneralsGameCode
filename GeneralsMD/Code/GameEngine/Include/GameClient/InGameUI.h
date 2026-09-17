@@ -623,11 +623,11 @@ public:  // ********************************************************************
 	void setMoveRMBScrollAnchor(Bool b) { m_moveRMBScrollAnchor = b; }
 
 private:
-	virtual Int getIdleWorkerCount();
+	virtual Int getIdleWorkerCount( Int seat );
 	virtual Object *findIdleWorker( Object *obj);
-	virtual void showIdleWorkerLayout();
-	virtual void hideIdleWorkerLayout();
-	virtual void updateIdleWorker();
+	virtual void showIdleWorkerLayout( Int seat );
+	virtual void hideIdleWorkerLayout( Int seat );
+	virtual void updateIdleWorker( Int seat );
 	virtual void resetIdleWorker();
 
 	void updateRenderFpsString();
@@ -770,6 +770,12 @@ public:
 		// text message feed (was a single flat InGameUI member; per-seat so a message
 		// concerning one seat's player draws in that seat's own viewport, not always seat 0's)
 		UIMessage		m_uiMessages[ MAX_UI_MESSAGES ];
+
+		// idle worker button (was a single flat InGameUI member, resolved via a GLOBAL
+		// winGetWindowFromId(nullptr, ...) that bound to whichever seat's bar registered a
+		// window with that decorated name last - so only one seat's button was ever enabled).
+		GameWindow		*m_idleWorkerWin;
+		Int				m_currentIdleWorkerDisplay;
 	};
 
 	// Per-seat UI context accessor (splitscreen WP4). Seat 0 is the primary local player.
@@ -1079,10 +1085,9 @@ protected:
 	// World Animation Data
 	WorldAnimationList					m_worldAnimationList;		///< the list of world animations
 
-	// Idle worker animation
+	// Idle worker animation (m_idleWorkerWin/m_currentIdleWorkerDisplay moved into SeatUIContext -
+	// per-player, not per-seat, so this stays a flat array)
 	ObjectList									m_idleWorkers[MAX_PLAYER_COUNT];
-	GameWindow *								m_idleWorkerWin;
-	Int													m_currentIdleWorkerDisplay;
 
 	// ----------------------------------------------------------------------------------------------
 	// STATIC Protected Data -------------------------------------------------------------------------------

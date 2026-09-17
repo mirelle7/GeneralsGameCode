@@ -1109,6 +1109,9 @@ InGameUI::SeatUIContext::SeatUIContext()
 		m_uiMessages[ i ].timestamp = 0;
 		m_uiMessages[ i ].color = 0;
 	}
+
+	m_idleWorkerWin = nullptr;
+	m_currentIdleWorkerDisplay = -1;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1316,9 +1319,6 @@ InGameUI::InGameUI()
 	m_drawRMBScrollAnchor = FALSE;
 	m_moveRMBScrollAnchor = FALSE;
 	m_displayedMaxWarning = FALSE;
-
-	m_idleWorkerWin = nullptr;
-	m_currentIdleWorkerDisplay = -1;
 
 	m_seatContexts[m_activeSeat].m_waypointMode			= false;
 	m_seatContexts[m_activeSeat].m_forceAttackMode		= false;
@@ -2238,7 +2238,14 @@ void InGameUI::update()
 	// alongside the classic one. No-op when the screen is not split.
 	ControlBarInstances::updateAll();
 
-	updateIdleWorker();
+	// Splitscreen: seat 0 plus every bound seat's bar, same shape as ControlBarInstances::updateAll
+	// just above - each seat's idle-worker button/count is its own state (SeatUIContext), so it
+	// has to be driven once per seat instead of once for whichever bar the old global button
+	// pointer happened to resolve to.
+	updateIdleWorker( 0 );
+	for( Int idleSeat = 1; idleSeat < MAX_SEATS; ++idleSeat )
+		if( ControlBarInstances::get( idleSeat ) != nullptr )
+			updateIdleWorker( idleSeat );
 
 	// update any random window layout that so requests
 	for (std::list<WindowLayout *>::iterator it = m_windowLayouts.begin(); it != m_windowLayouts.end(); ++it)
@@ -7072,62 +7079,97 @@ ObjectPtrVector InGameUI::getUniqueIdleWorkers(const ObjectList& idleWorkers)
 	return uniqueIdleWorkers;
 }
 
-Int InGameUI::getIdleWorkerCount()
+// Splitscreen: which player's idle-worker count seat "seat" should show. Seat 0 keeps the exact
+// pre-splitscreen expression (rts::getObservedOrLocalPlayer(), which also covers observer/replay
+// viewing) so single-seat behavior is unchanged. Seats 1-7 use their own bar's army - the
+// observed-or-local concept is a seat-0/global notion and was never meaningful for another seat.
+static Player* getIdleWorkerPlayerForSeat( Int seat )
 {
-	Player* player = rts::getObservedOrLocalPlayer();
+	if( seat <= 0 )
+		return rts::getObservedOrLocalPlayer();
+
+	ControlBar *bar = ControlBarInstances::get( seat );
+	return bar ? bar->getBarPlayer() : nullptr;
+}
+
+Int InGameUI::getIdleWorkerCount( Int seat )
+{
+	Player* player = getIdleWorkerPlayerForSeat( seat );
+	if( player == nullptr )
+		return 0;
 	Int index = player->getPlayerIndex();
 	return m_idleWorkers[index].size();
 }
 
-void InGameUI::showIdleWorkerLayout()
+void InGameUI::showIdleWorkerLayout( Int seat )
 {
-	if (!m_idleWorkerWin)
+	if( seat < 0 || seat >= MAX_SEATS )
+		return;
+
+	GameWindow *&idleWorkerWin = m_seatContexts[ seat ].m_idleWorkerWin;
+
+	if (!idleWorkerWin)
 	{
-		m_idleWorkerWin = TheWindowManager->winGetWindowFromId(nullptr, TheNameKeyGenerator->nameToKey("ControlBar.wnd:ButtonIdleWorker"));
-		DEBUG_ASSERTCRASH(m_idleWorkerWin, ("InGameUI::showIdleWorkerLayout could not find IdleWorker.wnd to load"));
+		// Splitscreen: resolve strictly inside THIS seat's own bar. The old global
+		// winGetWindowFromId(nullptr, ...) bound to whichever seat's bar registered a window
+		// with this decorated name last - so only one seat's button was ever enabled.
+		ControlBar *bar = ControlBarInstances::get( seat );
+		idleWorkerWin = bar ? bar->findBarWindowById( TheNameKeyGenerator->nameToKey("ControlBar.wnd:ButtonIdleWorker") ) : nullptr;
+		DEBUG_ASSERTCRASH(idleWorkerWin, ("InGameUI::showIdleWorkerLayout could not find IdleWorker.wnd to load"));
 		return;
 	}
 
-	m_idleWorkerWin->winEnable(TRUE);
+	idleWorkerWin->winEnable(TRUE);
 
-	m_currentIdleWorkerDisplay = getIdleWorkerCount();
+	m_seatContexts[ seat ].m_currentIdleWorkerDisplay = getIdleWorkerCount( seat );
 
-//	if(m_currentIdleWorkerDisplay < 1)
-//		GadgetButtonSetText(m_idleWorkerWin, UnicodeString::TheEmptyString);
+//	if(m_seatContexts[ seat ].m_currentIdleWorkerDisplay < 1)
+//		GadgetButtonSetText(idleWorkerWin, UnicodeString::TheEmptyString);
 //	else
 //	{
 //		UnicodeString number;
-//		number.format(L"%d",m_currentIdleWorkerDisplay);
-//		GadgetButtonSetText(m_idleWorkerWin, number);
+//		number.format(L"%d",m_seatContexts[ seat ].m_currentIdleWorkerDisplay);
+//		GadgetButtonSetText(idleWorkerWin, number);
 //	}
 }
-void InGameUI::hideIdleWorkerLayout()
+void InGameUI::hideIdleWorkerLayout( Int seat )
 {
-	if(!m_idleWorkerWin)
+	if( seat < 0 || seat >= MAX_SEATS )
 		return;
-	GadgetButtonSetText(m_idleWorkerWin, UnicodeString::TheEmptyString);
-	m_idleWorkerWin->winEnable(FALSE);
-	m_currentIdleWorkerDisplay = -1;
+
+	GameWindow *&idleWorkerWin = m_seatContexts[ seat ].m_idleWorkerWin;
+	if(!idleWorkerWin)
+		return;
+	GadgetButtonSetText(idleWorkerWin, UnicodeString::TheEmptyString);
+	idleWorkerWin->winEnable(FALSE);
+	m_seatContexts[ seat ].m_currentIdleWorkerDisplay = -1;
 }
 
-void InGameUI::updateIdleWorker()
+void InGameUI::updateIdleWorker( Int seat )
 {
-	Int idleCount = getIdleWorkerCount();
+	if( seat < 0 || seat >= MAX_SEATS )
+		return;
 
-	if(idleCount > 0 && m_currentIdleWorkerDisplay != idleCount)
-		showIdleWorkerLayout();
+	Int idleCount = getIdleWorkerCount( seat );
 
-	if(idleCount <= 0 && m_idleWorkerWin)
-		hideIdleWorkerLayout();
+	if(idleCount > 0 && m_seatContexts[ seat ].m_currentIdleWorkerDisplay != idleCount)
+		showIdleWorkerLayout( seat );
+
+	if(idleCount <= 0 && m_seatContexts[ seat ].m_idleWorkerWin)
+		hideIdleWorkerLayout( seat );
 }
 
 void InGameUI::resetIdleWorker()
 {
-	if(m_idleWorkerWin)
+	for( Int seat = 0; seat < MAX_SEATS; ++seat )
 	{
-		GadgetButtonSetText(m_idleWorkerWin, UnicodeString::TheEmptyString);
+		GameWindow *idleWorkerWin = m_seatContexts[ seat ].m_idleWorkerWin;
+		if(idleWorkerWin)
+		{
+			GadgetButtonSetText(idleWorkerWin, UnicodeString::TheEmptyString);
+		}
+		m_seatContexts[ seat ].m_currentIdleWorkerDisplay = -1;
 	}
-	m_currentIdleWorkerDisplay = -1;
 	for(Int i = 0; i < MAX_PLAYER_COUNT; ++i)
 	{
 		m_idleWorkers[i].clear();
@@ -7140,7 +7182,9 @@ void InGameUI::recreateControlBar()
 	GameWindow *win = TheWindowManager->winGetWindowFromId(nullptr, TheNameKeyGenerator->nameToKey("ControlBar.wnd"));
 	deleteInstance(win);
 
-	m_idleWorkerWin = nullptr;
+	// Only seat 0's bar (TheControlBar) is rebuilt here, so only its cached button needs
+	// forgetting - the stale pointer would otherwise point into the just-deleted window tree.
+	m_seatContexts[ 0 ].m_idleWorkerWin = nullptr;
 
 	createControlBar();
 
