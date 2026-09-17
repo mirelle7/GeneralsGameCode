@@ -766,6 +766,11 @@ public:
 		// its own viewport. Was one file-scope static in ScriptActions, so the popup covered
 		// every viewport at once and only one seat could ever have one.
 		GameWindow		*m_outcomeSplash;
+		/// The WindowLayout m_outcomeSplash's root came from. Needed to hand the popup to this
+		/// seat's ControlBar (adoptPopupLayout/forgetBarLayout both take a WindowLayout, not a
+		/// bare GameWindow) so the bar's own dock transform positions it instead of a hand-rolled
+		/// scale/centre computation that never got the placement right in a split view.
+		WindowLayout	*m_outcomeSplashLayout;
 
 		// text message feed (was a single flat InGameUI member; per-seat so a message
 		// concerning one seat's player draws in that seat's own viewport, not always seat 0's)

@@ -1101,6 +1101,7 @@ InGameUI::SeatUIContext::SeatUIContext()
 
 	m_mousedOverDrawableID = INVALID_DRAWABLE_ID;
 	m_outcomeSplash = nullptr;
+	m_outcomeSplashLayout = nullptr;
 
 	for( i = 0; i < MAX_UI_MESSAGES; ++i )
 	{
@@ -2505,106 +2506,50 @@ void InGameUI::message( AsciiString stringManagerLabel, ... )
 	* to be created into a single file-scope static in ScriptActions - so the popup blanketed
 	* every viewport and only one seat could own one at a time.
 	*
-	* Seat 0 keeps the authored placement untouched: the transform below only runs for a seat
-	* whose view is strictly smaller than the display, which in a single-view game is never true
-	* (seat 0's view IS the full-display tactical view). */
+	* Positioning: a prior version hand-computed a scale/centre transform here and it was never
+	* confirmed correct in a split view (see PatchNotes/DROPOFF_2026-08-06b.md, #2/#3 - "already
+	* tried that and is the one that does not work"). The generals-promotion screen and the
+	* diplomacy popup both already solve exactly this problem - a non-ControlBar.wnd layout that
+	* must live inside one seat's viewport - by handing their WindowLayout to that seat's own
+	* ControlBar via adoptPopupLayout(), which docks it with the SAME authored-display -> cell-rect
+	* mapping ControlBar::dockToRect uses for the bar itself. This is that same, proven mechanism,
+	* not a new one: it also buys per-frame re-dock, paint clipping, and click ownership for free
+	* (see ControlBar::adoptPopupLayout's own header comment). Seat 0's bar is TheControlBar itself
+	* (ControlBarInstances::get(0) - m_seatIndex defaults to 0), so this finally docks seat 0's own
+	* splash too, instead of leaving it at its authored full-display placement. */
 //-------------------------------------------------------------------------------------------------
 void InGameUI::showOutcomeSplashForSeat( Int seat, const AsciiString& wndFile )
 {
 	if( seat < 0 || seat >= MAX_SEATS )
 		return;
 
+	ControlBar *bar = ControlBarInstances::get( seat );
+
 	// one splash per seat; a second outcome replaces the first
-	if( m_seatContexts[ seat ].m_outcomeSplash )
+	if( m_seatContexts[ seat ].m_outcomeSplashLayout )
 	{
-		TheWindowManager->winDestroy( m_seatContexts[ seat ].m_outcomeSplash );
+		// MANDATORY before destroyWindows(): a bar-registered layout torn down without this
+		// leaves ControlBar::dockToRect writing through freed GameWindows next frame (same trap
+		// documented in Diplomacy.cpp's ResetDiplomacy and ControlBar's own superweapon strip).
+		if( bar != nullptr )
+			bar->forgetBarLayout( m_seatContexts[ seat ].m_outcomeSplashLayout );
+		m_seatContexts[ seat ].m_outcomeSplashLayout->destroyWindows();
+		deleteInstance( m_seatContexts[ seat ].m_outcomeSplashLayout );
+		m_seatContexts[ seat ].m_outcomeSplashLayout = nullptr;
 		m_seatContexts[ seat ].m_outcomeSplash = nullptr;
 	}
 
-	// winCreateFromScript returns only the FIRST top-level window; info.windows holds every
-	// root, which is what has to be transformed. (The pre-existing single-root ownership - and
-	// therefore the pre-existing multi-root leak - is deliberately preserved here.)
-	WindowLayoutInfo info;
-	GameWindow *root = TheWindowManager->winCreateFromScript( wndFile, &info );
-	m_seatContexts[ seat ].m_outcomeSplash = root;
-
-	// Probe (#2/#3): the splash is reported centred on the WHOLE display instead of the seat's
-	// viewport. FIVE static hypotheses have been refuted - seat 0 does reach this function
-	// (ScriptActions calls it), it does have a view (InGameUI.cpp sets m_view = TheTacticalView),
-	// the size guard cannot bail at 960x540 of 1920x1080, m_splitscreenEnabled IS set by
-	// -splitscreendev, and info.windows IS populated by winCreateFromScript. So stop reasoning and
-	// measure: this reports every gate and every transform actually applied. GX_SPLASHPROBE=1.
-	const Bool splashProbe = (getenv("GX_SPLASHPROBE") != nullptr);
-	if( splashProbe )
-		seatLog("[GXSPLASH] seat=%d file=%s splitEnabled=%d seatNull=%d viewNull=%d roots=%d",
-						seat, wndFile.str(),
-						(Int)(TheSeatManager != nullptr && TheSeatManager->isSplitscreenEnabled()),
-						(Int)(TheSeatManager == nullptr || TheSeatManager->getSeat( seat ) == nullptr),
-						(Int)(TheSeatManager == nullptr || TheSeatManager->getSeat( seat ) == nullptr
-									|| TheSeatManager->getSeat( seat )->m_view == nullptr),
-						(Int)info.windows.size());
-
-	if( TheSeatManager == nullptr || !TheSeatManager->isSplitscreenEnabled() )
+	// winCreateLayout wraps winCreateFromScript and keeps every root the script defines (not just
+	// the first) in the layout's own window list - exactly what adoptPopupLayout iterates.
+	WindowLayout *layout = TheWindowManager->winCreateLayout( wndFile );
+	if( layout == nullptr )
 		return;
 
-	LocalSeat *localSeat = TheSeatManager->getSeat( seat );
-	if( localSeat == nullptr || localSeat->m_view == nullptr )
-		return;
+	m_seatContexts[ seat ].m_outcomeSplashLayout = layout;
+	m_seatContexts[ seat ].m_outcomeSplash = layout->getFirstWindow();
 
-	const Int viewW = localSeat->m_view->getWidth();
-	const Int viewH = localSeat->m_view->getHeight();
-	const Int dispW = TheDisplay ? TheDisplay->getWidth()  : viewW;
-	const Int dispH = TheDisplay ? TheDisplay->getHeight() : viewH;
-
-	if( splashProbe )
-		seatLog("[GXSPLASH] seat=%d view=%dx%d disp=%dx%d bailFullDisplay=%d",
-						seat, viewW, viewH, dispW, dispH,
-						(Int)(viewW <= 0 || dispW <= 0 || (viewW >= dispW && viewH >= dispH)));
-
-	// full-display view => authored placement is already right, leave it exactly alone
-	if( viewW <= 0 || dispW <= 0 || (viewW >= dispW && viewH >= dispH) )
-		return;
-
-	Int viewX = 0, viewY = 0;
-	localSeat->m_view->getOrigin( &viewX, &viewY );
-
-	// same mapping ControlBar::dockToRect uses: roots take the scale and the translation,
-	// children stay parent-relative and are left untouched.
-	const Real targetScale = (Real)viewW / (Real)dispW;
-
-	for( std::list<GameWindow *>::iterator it = info.windows.begin(); it != info.windows.end(); ++it )
-	{
-		GameWindow *win = *it;
-		if( win == nullptr )
-			continue;
-
-		Int w = 0, h = 0, x = 0, y = 0;
-		win->winGetSize( &w, &h );
-		win->winGetPosition( &x, &y );
-
-		const Int newW = (Int)(w * targetScale);
-		const Int newH = (Int)(h * targetScale);
-
-		// these are centred splashes, not a docked bar - centre the scaled tree in the viewport
-		const Int newX = viewX + (viewW - newW) / 2;
-		const Int newY = viewY + (viewH - newH) / 2;
-
-		win->winSetSize( newW, newH );
-		win->winSetPosition( newX, newY );
-
-		if( splashProbe )
-		{
-			// Read BACK what the window manager actually stored. If these do not match newX/newY
-			// then something re-applies authored geometry after us and the transform is not the
-			// problem - the ordering is.
-			Int gotX = 0, gotY = 0, gotW = 0, gotH = 0;
-			win->winGetPosition( &gotX, &gotY );
-			win->winGetSize( &gotW, &gotH );
-			seatLog("[GXSPLASH] seat=%d root id=%d was=(%d,%d %dx%d) set=(%d,%d %dx%d) readback=(%d,%d %dx%d) scale=%.3f",
-							seat, (Int)win->winGetWindowId(), x, y, w, h,
-							newX, newY, newW, newH, gotX, gotY, gotW, gotH, targetScale);
-		}
-	}
+	if( bar != nullptr )
+		bar->adoptPopupLayout( layout );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2614,11 +2559,18 @@ void InGameUI::closeOutcomeSplashes()
 {
 	for( Int seat = 0; seat < MAX_SEATS; ++seat )
 	{
-		if( m_seatContexts[ seat ].m_outcomeSplash )
+		if( m_seatContexts[ seat ].m_outcomeSplashLayout )
 		{
-			TheWindowManager->winDestroy( m_seatContexts[ seat ].m_outcomeSplash );
+			// See showOutcomeSplashForSeat: must run before destroyWindows().
+			ControlBar *bar = ControlBarInstances::get( seat );
+			if( bar != nullptr )
+				bar->forgetBarLayout( m_seatContexts[ seat ].m_outcomeSplashLayout );
+
+			m_seatContexts[ seat ].m_outcomeSplashLayout->destroyWindows();
+			deleteInstance( m_seatContexts[ seat ].m_outcomeSplashLayout );
 			// null immediately: reset() and ScriptActions::closeWindows can both run on the way
 			// out of a match, and a stale pointer here is a double-destroy.
+			m_seatContexts[ seat ].m_outcomeSplashLayout = nullptr;
 			m_seatContexts[ seat ].m_outcomeSplash = nullptr;
 		}
 	}
