@@ -238,6 +238,41 @@ static Bool cursorUsesNumberedArt(const CursorInfo *info, Int cursorType)
 	return s_naming[cursorType] == NUMBERED;
 }
 
+// How many numbered texture frames actually exist for a NUMBERED cursor (e.g. sccmove0000..0020,
+// 21 real files) - needed because Mouse.ini never declares a Frames count, so info->numFrames is
+// always its default of 1 and using it here is exactly the bug that pinned the numbered-art
+// cursors on frame 0000 forever, same class as cursorUsesNumberedArt's own fix above. Counts
+// contiguously from frame 0; only called once cursorUsesNumberedArt has already confirmed frame 0
+// measures like a cursor, so this always resolves to at least 1. Resolved once per cursor state
+// and cached.
+static Int cursorNumberedFrameCount(const CursorInfo *info, Int cursorType)
+{
+	static Int s_count[Mouse::NUM_MOUSE_CURSORS];
+	static Bool s_resolved[Mouse::NUM_MOUSE_CURSORS];
+
+	if (cursorType < 0 || cursorType >= Mouse::NUM_MOUSE_CURSORS)
+		return 1;
+
+	if (!s_resolved[cursorType])
+	{
+		Int count = 0;
+		ICoord2D size;
+		while (count < MAX_2D_CURSOR_ANIM_FRAMES
+			&& measureCursorTexture( cursorTextureFileName( info, count, TRUE ), &size )
+			&& isPlausibleCursorSize( size.x, size.y ))
+		{
+			++count;
+		}
+		if (count > 0)
+		{
+			s_count[cursorType] = count;
+			s_resolved[cursorType] = TRUE;
+		}
+	}
+
+	return (s_resolved[cursorType] && s_count[cursorType] > 0) ? s_count[cursorType] : 1;
+}
+
 // The file to load for this cursor state and frame, with the naming convention resolved.
 static AsciiString resolvedCursorTextureFileName(const CursorInfo *info, Int cursorType, Int frame)
 {
@@ -482,6 +517,31 @@ static Int currentCursorFrame(const CursorInfo *info)
 	return (s_cursorAnimTick / RENDER_FRAMES_PER_CURSOR_FRAME) % info->numFrames;
 }
 
+// Which frame to request from the NUMBERED-texture path specifically (findCursorImage's "frame"
+// argument). currentCursorFrame() above is dead for these in practice - Mouse.ini never declares
+// Frames, so info->numFrames is always 1 and it always returns 0 - which is why Move (21 numbered
+// animation frames, sccmove0000..0020) and Scroll (Directions=8, one numbered frame per compass
+// direction) both sat frozen on frame 0000 for every seat regardless of movement or facing.
+//
+// A cursor that declares Directions > 1 (Scroll) shows THIS SEAT's own facing, same class of fix
+// as the .ani direction path above - a shared frame 0 meant every seat's scroll cursor showed
+// the same compass direction regardless of which way that seat was actually dragging. Anything
+// else numbered (Move) is a real animation, cycled by tick using the actual file count on disk
+// since numFrames can't be trusted. An unnumbered cursor (Attack: one static sccattack.tga) never
+// asked for a frame at all - texture path is single-frame for it by design, not a bug.
+static Int textureCursorFrame(const CursorInfo *info, Int cursorType, const LocalSeat *seat)
+{
+	if (info == nullptr || !cursorUsesNumberedArt( info, cursorType ))
+		return 0;
+
+	if (info->numDirections > 1)
+		return (seat != nullptr) ? (seat->m_cursor.direction % info->numDirections) : 0;
+
+	static const Int RENDER_FRAMES_PER_CURSOR_FRAME = 4;
+	const Int count = cursorNumberedFrameCount( info, cursorType );
+	return (count > 1) ? ((s_cursorAnimTick / RENDER_FRAMES_PER_CURSOR_FRAME) % count) : 0;
+}
+
 // Draw the game's OWN art for this seat's cursor, so a seat cursor changes shape with context
 // (attack, move, select, ...) exactly as player 1's does. A cursor state with no art defined
 // falls back to the game's DEFAULT cursor rather than to a stand-in shape, so a seat always
@@ -491,7 +551,8 @@ static void drawSeatCursor(const LocalSeat* seat)
 	const CursorInfo *info = nullptr;
 	const CursorInfo *probe = TheMouse ? TheMouse->getCursorInfo( seat->m_cursor.cursorType ) : nullptr;
 
-	const Image *image = findCursorImage( seat->m_cursor.cursorType, currentCursorFrame( probe ), &info );
+	const Image *image = findCursorImage( seat->m_cursor.cursorType,
+		textureCursorFrame( probe, seat->m_cursor.cursorType, seat ), &info );
 
 #if RTS_SDL3_ENABLE
 	if (image == nullptr)
@@ -511,7 +572,7 @@ static void drawSeatCursor(const LocalSeat* seat)
 		// Nothing at all for this state - show the game's DEFAULT cursor rather than a stand-in
 		// shape, so a seat always displays real cursors like player 1 does.
 		probe = TheMouse ? TheMouse->getCursorInfo( Mouse::ARROW ) : nullptr;
-		image = findCursorImage( Mouse::ARROW, currentCursorFrame( probe ), &info );
+		image = findCursorImage( Mouse::ARROW, textureCursorFrame( probe, Mouse::ARROW, seat ), &info );
 	}
 
 	// How big to draw it.
@@ -534,7 +595,7 @@ static void drawSeatCursor(const LocalSeat* seat)
 	if (info != nullptr && !info->textureName.isEmpty())
 	{
 		ICoord2D textureSize;
-		if (measureCursorTexture( resolvedCursorTextureFileName( info, seat->m_cursor.cursorType, currentCursorFrame( info ) ), &textureSize )
+		if (measureCursorTexture( resolvedCursorTextureFileName( info, seat->m_cursor.cursorType, textureCursorFrame( info, seat->m_cursor.cursorType, seat ) ), &textureSize )
 			&& textureSize.x > 0 && textureSize.x <= CURSOR_MAX_REASONABLE_SIZE
 			&& textureSize.y > 0 && textureSize.y <= CURSOR_MAX_REASONABLE_SIZE)
 		{
