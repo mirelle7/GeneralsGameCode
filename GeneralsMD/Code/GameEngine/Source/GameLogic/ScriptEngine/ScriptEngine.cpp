@@ -125,8 +125,7 @@ enum { K_SCRIPTS_DATA_VERSION_1 = 1 };
 enum { MAX_SPIN_COUNT = 20 };
 #define NONE_STRING "<none>"
 
-static const Int FRAMES_TO_SHOW_WIN_LOSE_MESSAGE = 120;
-
+// FRAMES_TO_SHOW_WIN_LOSE_MESSAGE moved to ScriptEngine.h - VictoryConditions.cpp needs it too.
 static const Int FRAMES_TO_FADE_IN_AT_START = 33;
 
 

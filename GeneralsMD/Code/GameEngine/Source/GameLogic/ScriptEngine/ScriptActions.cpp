@@ -152,7 +152,11 @@ void ScriptActions::init()
 void ScriptActions::reset()
 {
 	m_suppressNewWindows = FALSE;
-	closeWindows(FALSE); // Close victory or defeat windows.
+	// Full teardown (match end / engine reset): close every seat's splash, not just seat 0's -
+	// closeWindows() below only touches seat 0 so a defeat/victory event for one seat can't wipe
+	// another seat's still-showing splash during normal play.
+	if (TheInGameUI)
+		TheInGameUI->closeOutcomeSplashes();
 
 }
 
@@ -172,11 +176,15 @@ void ScriptActions::closeWindows( Bool suppressNewWindows )
 {
 	m_suppressNewWindows = suppressNewWindows;
 
-	// Splitscreen: the splash is per seat now (InGameUI::SeatUIContext), not one static here.
+	// Splitscreen: this path (doVictory/doDefeat/doLocalDefeat and the m_closeWindowTimer expiry
+	// in ScriptEngine::update) is the single-player-style script flow, which is attached to side 0
+	// only - so it must only ever close seat 0's splash. Closing every seat here was wiping seats
+	// 1..7's still-showing LocalDefeat/Victorious/Defeat splashes any time seat 0's own outcome
+	// changed. Full-teardown callers (ScriptActions::reset) close every seat directly instead.
 	// Null-checked because this is reachable from ScriptActions::reset during teardown, where
 	// TheInGameUI may already be gone.
 	if (TheInGameUI)
-		TheInGameUI->closeOutcomeSplashes();
+		TheInGameUI->closeOutcomeSplashForSeat( 0 );
 }
 
 //-------------------------------------------------------------------------------------------------

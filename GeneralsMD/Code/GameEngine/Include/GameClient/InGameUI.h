@@ -394,7 +394,18 @@ public:  // ********************************************************************
 	// authored placement untouched and only a seat with a sub-display viewport is scaled and
 	// translated into it - which makes single-view byte-identical.
 	virtual void showOutcomeSplashForSeat( Int seat, const AsciiString& wndFile );
-	virtual void closeOutcomeSplashes();		///< destroy every seat's splash (between matches)
+	virtual void closeOutcomeSplashes();		///< destroy every seat's splash (full teardown, between matches)
+	// Splitscreen: destroy ONE seat's splash, and cancel any pending auto-close timer for it.
+	// Use this (not closeOutcomeSplashes) for anything that only concerns a single seat's own
+	// popup - e.g. the seat-0 script-driven win/lose flow in ScriptActions - so a defeat/victory
+	// event for one seat can never wipe another seat's still-showing splash.
+	virtual void closeOutcomeSplashForSeat( Int seat );
+	// Splitscreen: schedule seat's splash to auto-close 'frames' logic-frames from now. The
+	// scripted seat-0 path times its own close via ScriptEngine's m_closeWindowTimer +
+	// closeWindows(); seats 1..7 have no equivalent script running for them, so
+	// VictoryConditions calls this directly whenever it shows them a splash, or their popup
+	// would otherwise never close.
+	virtual void startOutcomeSplashCloseTimerForSeat( Int seat, Int frames );
 	virtual void toggleMessages() { m_messagesOn = 1 - m_messagesOn; }	///< toggle messages on/off
 	virtual Bool isMessagesOn() { return m_messagesOn; }	///< are the display messages on
 	void freeMessageResources();				///< free resources for the ui messages
@@ -771,6 +782,9 @@ public:
 		/// bare GameWindow) so the bar's own dock transform positions it instead of a hand-rolled
 		/// scale/centre computation that never got the placement right in a split view.
 		WindowLayout	*m_outcomeSplashLayout;
+		/// Logic frame at which this seat's splash should auto-close, or -1 if no timer is
+		/// pending. Set by startOutcomeSplashCloseTimerForSeat, checked in InGameUI::update().
+		Int				m_outcomeSplashCloseFrame;
 
 		// text message feed (was a single flat InGameUI member; per-seat so a message
 		// concerning one seat's player draws in that seat's own viewport, not always seat 0's)

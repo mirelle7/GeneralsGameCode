@@ -43,6 +43,7 @@
 #include "GameClient/InGameUI.h"
 #include "GameClient/Diplomacy.h"
 #include "GameClient/GameText.h"
+#include "GameLogic/ScriptEngine.h"	// for FRAMES_TO_SHOW_WIN_LOSE_MESSAGE
 #include "GameClient/GUICallbacks.h"
 #include "GameClient/MessageBox.h"
 #include "GameClient/GameClient.h"
@@ -205,8 +206,13 @@ void VictoryConditions::update()
 
 					const Int s = rts::getSeatIndexForPlayer( m_players[j]->getPlayerIndex() );
 					if (s > 0)
+					{
 						TheInGameUI->showOutcomeSplashForSeat( s,
 							m_isVictorious[j] ? "Menus/Victorious.wnd" : "Menus/Defeat.wnd" );
+						// Seats 1..7 have no doVictory/doDefeat script attached (side 0 only),
+						// so nothing else will ever close this splash - time it ourselves.
+						TheInGameUI->startOutcomeSplashCloseTimerForSeat( s, FRAMES_TO_SHOW_WIN_LOSE_MESSAGE );
+					}
 				}
 			}
 		}
@@ -247,7 +253,11 @@ void VictoryConditions::update()
 				// MPLocalDefeatWindowShown flag alone keeps seat 0's later victory showing
 				// Victorious.wnd instead of degrading to ObserverQuit.wnd.
 				if( concernedSeat > 0 )
+				{
 					TheInGameUI->showOutcomeSplashForSeat( concernedSeat, "Menus/LocalDefeat.wnd" );
+					// As above: no script is watching this seat to ever close it otherwise.
+					TheInGameUI->startOutcomeSplashCloseTimerForSeat( concernedSeat, FRAMES_TO_SHOW_WIN_LOSE_MESSAGE );
+				}
 				// People are boneheads. Also play a sound
 				static AudioEventRTS leftGameSound("GUIMessageReceived");
 				TheAudio->addAudioEvent(&leftGameSound);

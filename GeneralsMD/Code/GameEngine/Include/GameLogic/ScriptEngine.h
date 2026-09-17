@@ -37,6 +37,11 @@
 #include "Common/SubsystemInterface.h"
 #include "GameLogic/Scripts.h"
 
+// Splitscreen: shared with VictoryConditions, which times seats 1..7's end-of-match splashes
+// itself (they have no doVictory/doDefeat/doLocalDefeat script running for them the way seat 0
+// does) via InGameUI::startOutcomeSplashCloseTimerForSeat. Keep both in sync off this one constant.
+static const Int FRAMES_TO_SHOW_WIN_LOSE_MESSAGE = 120;
+
 class DataChunkInput;
 struct DataChunkInfo;
 class DataChunkOutput;

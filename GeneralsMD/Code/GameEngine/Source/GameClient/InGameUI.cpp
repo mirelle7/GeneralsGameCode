@@ -1102,6 +1102,7 @@ InGameUI::SeatUIContext::SeatUIContext()
 	m_mousedOverDrawableID = INVALID_DRAWABLE_ID;
 	m_outcomeSplash = nullptr;
 	m_outcomeSplashLayout = nullptr;
+	m_outcomeSplashCloseFrame = -1;
 
 	for( i = 0; i < MAX_UI_MESSAGES; ++i )
 	{
@@ -2077,6 +2078,13 @@ void InGameUI::update()
 	Int amount;
 	for( Int seat = 0; seat < MAX_SEATS; ++seat )
 	{
+		// Splitscreen: auto-close this seat's end-of-match splash once its timer expires.
+		// Seat 0's splash is timed by the scripted win/lose flow instead (ScriptEngine's
+		// m_closeWindowTimer -> ScriptActions::closeWindows), so it never sets this field.
+		const Int closeFrame = m_seatContexts[ seat ].m_outcomeSplashCloseFrame;
+		if( closeFrame >= 0 && (Int)currLogicFrame >= closeFrame )
+			closeOutcomeSplashForSeat( seat );
+
 		UIMessage *seatMessages = m_seatContexts[ seat ].m_uiMessages;
 		for( i = MAX_UI_MESSAGES - 1; i >= 0; i-- )
 		{
@@ -2525,19 +2533,10 @@ void InGameUI::showOutcomeSplashForSeat( Int seat, const AsciiString& wndFile )
 
 	ControlBar *bar = ControlBarInstances::get( seat );
 
-	// one splash per seat; a second outcome replaces the first
+	// one splash per seat; a second outcome replaces the first. Also cancels any close timer
+	// left over from the splash being replaced, so it can't fire early and kill the new one.
 	if( m_seatContexts[ seat ].m_outcomeSplashLayout )
-	{
-		// MANDATORY before destroyWindows(): a bar-registered layout torn down without this
-		// leaves ControlBar::dockToRect writing through freed GameWindows next frame (same trap
-		// documented in Diplomacy.cpp's ResetDiplomacy and ControlBar's own superweapon strip).
-		if( bar != nullptr )
-			bar->forgetBarLayout( m_seatContexts[ seat ].m_outcomeSplashLayout );
-		m_seatContexts[ seat ].m_outcomeSplashLayout->destroyWindows();
-		deleteInstance( m_seatContexts[ seat ].m_outcomeSplashLayout );
-		m_seatContexts[ seat ].m_outcomeSplashLayout = nullptr;
-		m_seatContexts[ seat ].m_outcomeSplash = nullptr;
-	}
+		closeOutcomeSplashForSeat( seat );
 
 	// winCreateLayout wraps winCreateFromScript and keeps every root the script defines (not just
 	// the first) in the layout's own window list - exactly what adoptPopupLayout iterates.
@@ -2553,27 +2552,54 @@ void InGameUI::showOutcomeSplashForSeat( Int seat, const AsciiString& wndFile )
 }
 
 //-------------------------------------------------------------------------------------------------
-/** Splitscreen: destroy every seat's end-of-match splash. Called between matches. */
+/** Splitscreen: destroy ONE seat's end-of-match splash and cancel its close timer. Safe to call
+	* on a seat with no splash showing (no-op). */
+//-------------------------------------------------------------------------------------------------
+void InGameUI::closeOutcomeSplashForSeat( Int seat )
+{
+	if( seat < 0 || seat >= MAX_SEATS )
+		return;
+
+	m_seatContexts[ seat ].m_outcomeSplashCloseFrame = -1;
+
+	if( m_seatContexts[ seat ].m_outcomeSplashLayout == nullptr )
+		return;
+
+	// MANDATORY before destroyWindows(): a bar-registered layout torn down without this
+	// leaves ControlBar::dockToRect writing through freed GameWindows next frame (same trap
+	// documented in Diplomacy.cpp's ResetDiplomacy and ControlBar's own superweapon strip).
+	ControlBar *bar = ControlBarInstances::get( seat );
+	if( bar != nullptr )
+		bar->forgetBarLayout( m_seatContexts[ seat ].m_outcomeSplashLayout );
+
+	m_seatContexts[ seat ].m_outcomeSplashLayout->destroyWindows();
+	deleteInstance( m_seatContexts[ seat ].m_outcomeSplashLayout );
+	// null immediately: reset() and ScriptActions::closeWindows can both run on the way
+	// out of a match, and a stale pointer here is a double-destroy.
+	m_seatContexts[ seat ].m_outcomeSplashLayout = nullptr;
+	m_seatContexts[ seat ].m_outcomeSplash = nullptr;
+}
+
+//-------------------------------------------------------------------------------------------------
+/** Splitscreen: destroy every seat's end-of-match splash. Called at full match teardown
+	* (ScriptActions::reset), NOT from the per-seat win/lose flow - see closeOutcomeSplashForSeat. */
 //-------------------------------------------------------------------------------------------------
 void InGameUI::closeOutcomeSplashes()
 {
 	for( Int seat = 0; seat < MAX_SEATS; ++seat )
-	{
-		if( m_seatContexts[ seat ].m_outcomeSplashLayout )
-		{
-			// See showOutcomeSplashForSeat: must run before destroyWindows().
-			ControlBar *bar = ControlBarInstances::get( seat );
-			if( bar != nullptr )
-				bar->forgetBarLayout( m_seatContexts[ seat ].m_outcomeSplashLayout );
+		closeOutcomeSplashForSeat( seat );
+}
 
-			m_seatContexts[ seat ].m_outcomeSplashLayout->destroyWindows();
-			deleteInstance( m_seatContexts[ seat ].m_outcomeSplashLayout );
-			// null immediately: reset() and ScriptActions::closeWindows can both run on the way
-			// out of a match, and a stale pointer here is a double-destroy.
-			m_seatContexts[ seat ].m_outcomeSplashLayout = nullptr;
-			m_seatContexts[ seat ].m_outcomeSplash = nullptr;
-		}
-	}
+//-------------------------------------------------------------------------------------------------
+/** Splitscreen: schedule seat's splash to auto-close 'frames' logic-frames from now. Checked in
+	* InGameUI::update(). Overwrites any previously pending timer for this seat. */
+//-------------------------------------------------------------------------------------------------
+void InGameUI::startOutcomeSplashCloseTimerForSeat( Int seat, Int frames )
+{
+	if( seat < 0 || seat >= MAX_SEATS )
+		return;
+
+	m_seatContexts[ seat ].m_outcomeSplashCloseFrame = (Int)TheGameLogic->getFrame() + frames;
 }
 
 //-------------------------------------------------------------------------------------------------
