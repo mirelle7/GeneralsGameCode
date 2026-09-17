@@ -739,16 +739,6 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		const Int absoluteY = offset.y + (Int)(m_tooltipAuthoredParentPos.y * markerScale + 0.5f) - diffSize;
 		parent->winSetPosition(pos.x, absoluteY);
 
-		// Probe left in place to confirm the fix: a live run showed offsetY/authoredY constant the
-		// entire session (848 for thousands of frames) with diffSize spiking to a nonzero value
-		// for exactly one logged frame every time the hovered description text's height changed,
-		// then snapping back - the one-frame overshoot from reading an already-grown size as the
-		// baseline, now fixed by anchoring diffSize to m_tooltipAuthoredWinHeight/
-		// m_tooltipAuthoredParentHeight instead. Kept on (no env gate) to verify those spikes are
-		// gone; seatLog itself already no-ops unless splitscreen is enabled.
-		seatLog("[GXTIP] curPosY=%d basePosY=%d offsetY=%d authoredY=%d diffSize=%d absoluteY=%d",
-			curPos.y, basePos.y, offset.y, m_tooltipAuthoredParentPos.y, diffSize, absoluteY);
-
 		win->winGetSize(&size.x, &size.y);
  		win->winSetSize(size.x, m_tooltipAuthoredWinHeight + diffSize);
 
