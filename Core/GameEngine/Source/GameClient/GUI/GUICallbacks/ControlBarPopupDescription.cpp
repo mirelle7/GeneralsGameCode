@@ -662,17 +662,33 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		tempDString->getSize(&newSize.x, &newSize.y);
 		TheDisplayStringManager->freeDisplayString(tempDString);
 		tempDString = nullptr;
-		diffSize = newSize.y - size.y;
+
+		// Splitscreen: anchor the growth to the AUTHORED size, captured once, rather than to
+		// whatever size a PREVIOUS call already grew the window to. m_buildToolTipLayout is
+		// created once per bar and reused across many show/populate calls, so reading "current"
+		// size here returns last call's answer - which produced a one-frame overshoot every time
+		// the hovered button's description text changed height, before snapping back the next
+		// frame once the stale baseline caught up. Same shape as the position fix above.
+		if( !m_tooltipAuthoredSizeKnown )
+		{
+			m_tooltipAuthoredWinHeight = size.y;
+		}
+		diffSize = newSize.y - m_tooltipAuthoredWinHeight;
  		GameWindow *parent = m_buildToolTipLayout->getFirstWindow();
  		if(!parent)
  			return;
 
  		parent->winGetSize(&size.x, &size.y);
- 		if(size.y + diffSize < 102) {
-			diffSize = 102 - size.y;
+		if( !m_tooltipAuthoredSizeKnown )
+		{
+			m_tooltipAuthoredParentHeight = size.y;
+			m_tooltipAuthoredSizeKnown = TRUE;
+		}
+ 		if(m_tooltipAuthoredParentHeight + diffSize < 102) {
+			diffSize = 102 - m_tooltipAuthoredParentHeight;
 		}
 
-		parent->winSetSize(size.x, size.y + diffSize);
+		parent->winSetSize(size.x, m_tooltipAuthoredParentHeight + diffSize);
  		parent->winGetPosition(&pos.x, &pos.y);
 //		if(size.y + diffSize < 102)
 //		{
@@ -723,19 +739,18 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		const Int absoluteY = offset.y + (Int)(m_tooltipAuthoredParentPos.y * markerScale + 0.5f) - diffSize;
 		parent->winSetPosition(pos.x, absoluteY);
 
-		// Temporary probe: reported to still jitter on a single static button after the delta ->
-		// absolute change above, which that fix alone shouldn't produce (offset.y should be
-		// constant while the bar itself isn't moving). Log the inputs instead of guessing further -
-		// either diffSize is not settling to 0 (the win/parent size read-back is still seeing a
-		// value from mid-update elsewhere) or offset.y itself is not constant (the marker's own
-		// screen position is moving, e.g. from an unrelated bar animation). Always on (no env
-		// gate) while this is being tracked down; seatLog itself already no-ops unless
-		// splitscreen is enabled.
+		// Probe left in place to confirm the fix: a live run showed offsetY/authoredY constant the
+		// entire session (848 for thousands of frames) with diffSize spiking to a nonzero value
+		// for exactly one logged frame every time the hovered description text's height changed,
+		// then snapping back - the one-frame overshoot from reading an already-grown size as the
+		// baseline, now fixed by anchoring diffSize to m_tooltipAuthoredWinHeight/
+		// m_tooltipAuthoredParentHeight instead. Kept on (no env gate) to verify those spikes are
+		// gone; seatLog itself already no-ops unless splitscreen is enabled.
 		seatLog("[GXTIP] curPosY=%d basePosY=%d offsetY=%d authoredY=%d diffSize=%d absoluteY=%d",
 			curPos.y, basePos.y, offset.y, m_tooltipAuthoredParentPos.y, diffSize, absoluteY);
 
 		win->winGetSize(&size.x, &size.y);
- 		win->winSetSize(size.x, size.y + diffSize);
+ 		win->winSetSize(size.x, m_tooltipAuthoredWinHeight + diffSize);
 
 		GadgetStaticTextSetText(win, descrip);
 	}

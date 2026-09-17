@@ -1230,6 +1230,13 @@ protected:
 	/// frame forever. See populateBuildTooltipLayout.
 	ICoord2D m_tooltipAuthoredParentPos;
 	Bool m_tooltipAuthoredParentPosKnown;
+	/// Splitscreen: same reasoning, for the tooltip's SIZE. populateBuildTooltipLayout used to
+	/// derive how much to grow the description box from the window's CURRENT (already-grown)
+	/// size, which produced a one-frame overshoot every time the hovered button's text changed
+	/// before settling back next frame. Anchor the growth to the authored size instead.
+	Int m_tooltipAuthoredWinHeight;
+	Int m_tooltipAuthoredParentHeight;
+	Bool m_tooltipAuthoredSizeKnown;
 	/// Resolve an id strictly inside this bar's OWN tooltip layout roots.
 	GameWindow *findTooltipWindowById( NameKeyType id ) const;
 public:

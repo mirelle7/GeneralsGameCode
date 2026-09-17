@@ -1028,6 +1028,9 @@ ControlBar::ControlBar()
 	m_tooltipBeginWaitTime = 0;
 	m_tooltipAuthoredParentPos.x = m_tooltipAuthoredParentPos.y = 0;
 	m_tooltipAuthoredParentPosKnown = FALSE;
+	m_tooltipAuthoredWinHeight = 0;
+	m_tooltipAuthoredParentHeight = 0;
+	m_tooltipAuthoredSizeKnown = FALSE;
 	m_showBuildToolTipLayout = FALSE;
 
 	m_animateDownWin1Pos.x = m_animateDownWin1Pos.y = 0;
