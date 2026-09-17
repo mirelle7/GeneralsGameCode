@@ -728,12 +728,11 @@ void ControlBar::populateBuildTooltipLayout( const CommandButton *commandButton,
 		// constant while the bar itself isn't moving). Log the inputs instead of guessing further -
 		// either diffSize is not settling to 0 (the win/parent size read-back is still seeing a
 		// value from mid-update elsewhere) or offset.y itself is not constant (the marker's own
-		// screen position is moving, e.g. from an unrelated bar animation). GX_TOOLTIPPROBE=1.
-		if (getenv("GX_TOOLTIPPROBE") != nullptr)
-		{
-			seatLog("[GXTIP] curPosY=%d basePosY=%d offsetY=%d authoredY=%d diffSize=%d absoluteY=%d",
-				curPos.y, basePos.y, offset.y, m_tooltipAuthoredParentPos.y, diffSize, absoluteY);
-		}
+		// screen position is moving, e.g. from an unrelated bar animation). Always on (no env
+		// gate) while this is being tracked down; seatLog itself already no-ops unless
+		// splitscreen is enabled.
+		seatLog("[GXTIP] curPosY=%d basePosY=%d offsetY=%d authoredY=%d diffSize=%d absoluteY=%d",
+			curPos.y, basePos.y, offset.y, m_tooltipAuthoredParentPos.y, diffSize, absoluteY);
 
 		win->winGetSize(&size.x, &size.y);
  		win->winSetSize(size.x, size.y + diffSize);
