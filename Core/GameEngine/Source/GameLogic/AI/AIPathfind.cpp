@@ -37,6 +37,8 @@
 #include "Common/ThingTemplate.h"
 #include "Common/ThingFactory.h"
 
+#include <vector>
+
 #include "GameClient/Line2D.h"
 
 #include "GameLogic/AI.h"
@@ -2617,6 +2619,10 @@ void PathfindZoneManager::allocateZones()
 		m_zonesAllocated = INITIAL_ZONES;
 	}
 	while (m_zonesAllocated <= m_maxZone) {
+		if (m_zonesAllocated > (UINT_MAX / 2)) {
+			m_zonesAllocated = m_maxZone + 1;
+			break;
+		}
 		m_zonesAllocated *= 2;
 	}
 	DEBUG_LOG(("Allocating zone tables of size %d", m_zonesAllocated));
@@ -2687,11 +2693,11 @@ void PathfindZoneManager::calculateZones( PathfindCell **map, PathfindLayer laye
 #endif
 
 	m_maxZone = 1;	// we start using zone 0 as a flag.
-	const Int maxZones=24000;
-	zoneStorageType zoneEquivalency[maxZones];
+	const Int maxZones=65535;
+	std::vector<zoneStorageType> zoneEquivalency(maxZones);
 	Int i, j;
 	for (i=0; i<maxZones; i++) {
-		zoneEquivalency[i] = i;
+		zoneEquivalency[i] = static_cast<zoneStorageType>(i);
 	}
 	for (i=0; i<=LAYER_LAST; i++) {
 		layers[i].setZone(0);
@@ -2723,23 +2729,21 @@ void PathfindZoneManager::calculateZones( PathfindCell **map, PathfindLayer laye
 
 					if (i>bounds.lo.x) {
 						if (map[i][j].getType() == map[i-1][j].getType()) {
-							applyZone(map[i][j], map[i-1][j], zoneEquivalency, m_maxZone);
+							applyZone(map[i][j], map[i-1][j], zoneEquivalency.data(), m_maxZone);
 						}
 					}
 					if (j>bounds.lo.y) {
 						if (map[i][j].getType() == map[i][j-1].getType()) {
-							applyZone(map[i][j], map[i][j-1], zoneEquivalency, m_maxZone);
+							applyZone(map[i][j], map[i][j-1], zoneEquivalency.data(), m_maxZone);
 						}
 					}
 					if (cell->getZone()==0) {
-						cell->setZone(m_maxZone);
-						m_maxZone++;
-#if RTS_GENERALS && RETAIL_COMPATIBLE_PATHFINDING
-						if (m_maxZone>= maxZones) {
+						if (m_maxZone >= maxZones) {
 							DEBUG_CRASH(("Ran out of pathfind zones.  SERIOUS ERROR! jba."));
 							break;
 						}
-#endif
+						cell->setZone(static_cast<zoneStorageType>(m_maxZone));
+						m_maxZone++;
 					}
 					if (cell->getConnectLayer() > LAYER_GROUND) {
  						m_zoneBlocks[xBlock][yBlock].setInteractsWithBridge(true);
@@ -2754,8 +2758,7 @@ void PathfindZoneManager::calculateZones( PathfindCell **map, PathfindLayer laye
 
 	// Collapse the zones into a 1,2,3... sequence, removing collapsed zones.
 	m_maxZone = 1;
-	Int collapsedZones[maxZones];
-	collapsedZones[0] = 0;
+	std::vector<Int> collapsedZones(totalZones + 1, 0);
 	for (i=1; i<totalZones; i++) {
 		Int zone = zoneEquivalency[i];
 		if (zone == i) {

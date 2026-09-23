@@ -409,19 +409,20 @@ public:
 private:
 	PathfindCellInfo *m_info;
 	ObjectID m_obstacleID;	                  ///< the object ID who overlaps this cell
-	UnsignedInt m_blockedByAlly : 1;          ///< True if this cell is blocked by an allied unit.
-	UnsignedInt m_obstacleIsFence : 1;        ///< True if occupied by a fence.
-	UnsignedInt m_obstacleIsTransparent : 1;  ///< True if obstacle is transparent (undefined if obstacleid is invalid)
-
-	zoneStorageType m_zone : 14;              ///< Zone. Each zone is a set of adjacent terrain type.  If from & to in the same zone, you can successfully pathfind.  If not,
+	zoneStorageType m_zone;                   ///< Zone. Each zone is a set of adjacent terrain type.  If from & to in the same zone, you can successfully pathfind.  If not,
 	                                          /// you still may be able to if you can cross multiple terrain types.
+	UnsignedShort m_blockedByAlly : 1;        ///< True if this cell is blocked by an allied unit.
+	UnsignedShort m_obstacleIsFence : 1;      ///< True if occupied by a fence.
+	UnsignedShort m_obstacleIsTransparent : 1;///< True if obstacle is transparent (undefined if obstacleid is invalid)
 	UnsignedShort m_aircraftGoal : 1;         ///< This is an aircraft goal cell.
 	UnsignedShort m_pinched : 1;              ///< This cell is surrounded by obstacle cells.
 	UnsignedByte m_type : 4;                  ///< what type of cell terrain this is.
 	UnsignedByte m_flags : 4;                 ///< what type of units are in or moving through this cell.
 	UnsignedByte m_connectsToLayer : 4;       ///< This cell can pathfind onto this layer, if > LAYER_TOP.
 	UnsignedByte m_layer : 4;                 ///< Layer of this cell.
+	UnsignedByte m_padding[2];                ///< Padding to keep sizeof(PathfindCell) == 16
 };
+static_assert(sizeof(PathfindCell) == 16, "PathfindCell must be 16 bytes");
 
 typedef PathfindCell *PathfindCellP;
 
@@ -587,9 +588,9 @@ private:
 	ZoneBlock			**m_zoneBlocks;						///< Zone blocks as a matrix - contains matrix indexing into the map.
 	ICoord2D			m_zoneBlockExtent;				///< Zone block extents. Not the same scale as the pathfind extents.
 
-	UnsignedShort m_maxZone;								///< Max zone used.
+	UnsignedInt   m_maxZone;								///< Max zone used.
 	UnsignedInt		m_nextFrameToCalculateZones;		///< When should I recalculate, next?.
-	UnsignedShort m_zonesAllocated;
+	UnsignedInt   m_zonesAllocated;
 	zoneStorageType *m_groundCliffZones;
 	zoneStorageType *m_groundWaterZones;
 	zoneStorageType *m_groundRubbleZones;
