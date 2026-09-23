@@ -690,6 +690,16 @@ static void checkForDuplicateColors( GameInfo *game )
 }
 
 // ------------------------------------------------------------------------------------------------
+static Bool areAllColorsTaken( const GameInfo *game )
+{
+	for (Int c = 0; c < TheMultiplayerSettings->getNumColors(); ++c)
+	{
+		if (!game->isColorTaken(c))
+			return FALSE;
+	}
+	return TRUE;
+}
+
 // ------------------------------------------------------------------------------------------------
 static void populateRandomSideAndColor( GameInfo *game )
 {
@@ -758,7 +768,8 @@ static void populateRandomSideAndColor( GameInfo *game )
 			while (colorIdx == -1)
 			{
 				colorIdx = GameLogicRandomValue(0, TheMultiplayerSettings->getNumColors()-1);
-				if (game->isColorTaken(colorIdx))
+				// With more players than colors, allow colors to be shared once every color is in use.
+				if (game->isColorTaken(colorIdx) && !areAllColorsTaken(game))
 					colorIdx = -1;
 			}
 			DEBUG_LOG(("Setting color %d to %d", i, colorIdx));
