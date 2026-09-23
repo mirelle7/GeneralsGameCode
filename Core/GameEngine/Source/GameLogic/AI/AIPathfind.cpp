@@ -1,4 +1,4 @@
-/*
+﻿/*
 **	Command & Conquer Generals Zero Hour(tm)
 **	Copyright 2025 Electronic Arts Inc.
 **
@@ -2252,70 +2252,63 @@ inline Bool groundCliff(const PathfindCell &targetCell, const PathfindCell &sour
 	return false;
 }
 
+// Union-Find: find the root of a zone with path-halving compression.
+static inline Int __fastcall findZone(Int zone, zoneStorageType *zoneEquivalency)
+{
+	while (zoneEquivalency[zone] != zone) {
+		// Path halving: point to grandparent, halving chain length each traversal.
+		zoneEquivalency[zone] = zoneEquivalency[zoneEquivalency[zone]];
+		zone = zoneEquivalency[zone];
+	}
+	return zone;
+}
+
 static void __fastcall resolveBlockZones(Int srcZone, Int targetZone, zoneStorageType *zoneEquivalency, Int sizeOfZE)
 {
-	Int i;
 	// We have two zones being combined now. Keep the lower zone.
 	DEBUG_ASSERTCRASH(srcZone!=0 && targetZone!=0,  ("Bad resolve zones	."));
-	if (targetZone<srcZone) {
-		for (i=0; i<sizeOfZE; i++) {
-			if (zoneEquivalency[i] == srcZone) {
-				zoneEquivalency[i] = targetZone;
-			}
-		}
+	Int root1 = findZone(srcZone, zoneEquivalency);
+	Int root2 = findZone(targetZone, zoneEquivalency);
+	if (root1 == root2) return; // already same set
+	// Union: lower zone number becomes root (canonical).
+	if (root1 < root2) {
+		zoneEquivalency[root2] = static_cast<zoneStorageType>(root1);
 	} else {
-		for (i=0; i<sizeOfZE; i++) {
-			if (zoneEquivalency[i] == targetZone) {
-				zoneEquivalency[i] = srcZone;
-			}
-		}
+		zoneEquivalency[root1] = static_cast<zoneStorageType>(root2);
 	}
 }
 
 static void __fastcall resolveZones(Int srcZone, Int targetZone, zoneStorageType *zoneEquivalency, Int sizeOfZE)
 {
-	Int i;
 	// We have two zones being combined now. Keep the lower zone.
 	DEBUG_ASSERTCRASH(srcZone!=0 && targetZone!=0,  ("Bad resolve zones	."));
 	DEBUG_ASSERTCRASH(srcZone<sizeOfZE && targetZone<sizeOfZE,  ("Bad resolve zones	."));
-	srcZone = zoneEquivalency[srcZone];
-	targetZone = zoneEquivalency[targetZone];
-	DEBUG_ASSERTCRASH(srcZone<sizeOfZE && targetZone<sizeOfZE,  ("Bad resolve zones	."));
-	zoneStorageType finalZone;
-	if (targetZone<srcZone) {
-		finalZone = zoneEquivalency[targetZone];
+	Int root1 = findZone(srcZone, zoneEquivalency);
+	Int root2 = findZone(targetZone, zoneEquivalency);
+	if (root1 == root2) return; // already same set
+	// Union: lower zone number becomes root (canonical).
+	if (root1 < root2) {
+		zoneEquivalency[root2] = static_cast<zoneStorageType>(root1);
 	} else {
-		finalZone = zoneEquivalency[srcZone];
-	}
-	DEBUG_ASSERTCRASH(finalZone<sizeOfZE ,  ("Bad resolve zones	."));
-	for (i=0; i<sizeOfZE; i++) {
-		zoneStorageType ze = zoneEquivalency[i];
-		if (ze == targetZone || ze == srcZone) {
-			zoneEquivalency[i] = finalZone;
-		}
+		zoneEquivalency[root1] = static_cast<zoneStorageType>(root2);
 	}
 }
 
 static void flattenZones(zoneStorageType *zoneArray, zoneStorageType *zoneHierarchical, Int sizeOfZones)
 {
 	Int i;
-	for (i=0; i<sizeOfZones; i++) {
-		Int zone1 = zoneArray[i];
-		Int zone2 = zoneHierarchical[zone1];
-		zone1 = zoneArray[zone2];
-		zone2 = zoneHierarchical[zone1];
-		zoneArray[i] = zone2;
-	}
-#if 1
-
+	// Apply hierarchical merges via union-find.
 	for (i=0; i<sizeOfZones; i++) {
 		Int zone1 = zoneArray[i];
 		Int zone2 = zoneHierarchical[i];
-		if (zone1!=zone2) {
+		if (zone1 != zone2) {
 			resolveZones(zone1, zone2, zoneArray, sizeOfZones);
 		}
 	}
-#endif
+	// Final O(N) pass: compress all chains to their canonical root.
+	for (i=0; i<sizeOfZones; i++) {
+		zoneArray[i] = static_cast<zoneStorageType>(findZone(i, zoneArray));
+	}
 }
 
 inline void applyZone(PathfindCell &targetCell, const PathfindCell &sourceCell, zoneStorageType *zoneEquivalency, Int sizeOfZE)
@@ -2755,6 +2748,11 @@ void PathfindZoneManager::calculateZones( PathfindCell **map, PathfindLayer laye
 	}
 
 	Int totalZones = m_maxZone;
+
+	// Flatten all union-find chains to their canonical root in a single O(N) pass.
+	for (i=1; i<totalZones; i++) {
+		zoneEquivalency[i] = static_cast<zoneStorageType>(findZone(i, zoneEquivalency.data()));
+	}
 
 	// Collapse the zones into a 1,2,3... sequence, removing collapsed zones.
 	m_maxZone = 1;
