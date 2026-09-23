@@ -118,7 +118,7 @@ void SendStatsToOtherPlayers(const GameInfo *game)
 	req.options = fullStr.str();
 
 	Int localIndex = game->getLocalSlotNum();
-	for (Int i=0; i<MAX_SLOTS; ++i)
+	for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 	{
 		const GameSlot *slot = game->getConstSlot(i);
 		if (slot->isHuman() && i != localIndex)
@@ -142,45 +142,45 @@ static Bool launchGameNext = FALSE;
 // window ids ------------------------------------------------------------------------------
 static NameKeyType parentWOLGameSetupID = NAMEKEY_INVALID;
 
-static NameKeyType comboBoxPlayerID[MAX_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
+static NameKeyType comboBoxPlayerID[MAX_LOBBY_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
 																											NAMEKEY_INVALID,NAMEKEY_INVALID,
 																											NAMEKEY_INVALID,NAMEKEY_INVALID,
 																											NAMEKEY_INVALID,NAMEKEY_INVALID };
 
-static NameKeyType staticTextPlayerID[MAX_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
+static NameKeyType staticTextPlayerID[MAX_LOBBY_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
 																											NAMEKEY_INVALID,NAMEKEY_INVALID,
 																											NAMEKEY_INVALID,NAMEKEY_INVALID,
 																											NAMEKEY_INVALID,NAMEKEY_INVALID };
 
-static NameKeyType buttonAcceptID[MAX_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
+static NameKeyType buttonAcceptID[MAX_LOBBY_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
 																									NAMEKEY_INVALID,NAMEKEY_INVALID,
 																									NAMEKEY_INVALID,NAMEKEY_INVALID,
 																									NAMEKEY_INVALID,NAMEKEY_INVALID };
 
-static NameKeyType comboBoxColorID[MAX_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
+static NameKeyType comboBoxColorID[MAX_LOBBY_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID };
 
-static NameKeyType comboBoxPlayerTemplateID[MAX_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
+static NameKeyType comboBoxPlayerTemplateID[MAX_LOBBY_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID };
 
-static NameKeyType comboBoxTeamID[MAX_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
+static NameKeyType comboBoxTeamID[MAX_LOBBY_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID };
-//static NameKeyType buttonStartPositionID[MAX_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
+//static NameKeyType buttonStartPositionID[MAX_LOBBY_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
 //																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 //																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 //																										NAMEKEY_INVALID,NAMEKEY_INVALID };
 
-static NameKeyType buttonMapStartPositionID[MAX_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
+static NameKeyType buttonMapStartPositionID[MAX_LOBBY_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID };
-static NameKeyType genericPingWindowID[MAX_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
+static NameKeyType genericPingWindowID[MAX_LOBBY_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID };
@@ -213,21 +213,21 @@ static GameWindow *checkBoxLimitSuperweapons = nullptr;
 static GameWindow *comboBoxStartingCash = nullptr;
 static GameWindow *checkBoxLimitArmies = nullptr;
 
-static GameWindow *comboBoxPlayer[MAX_SLOTS] = {0};
-static GameWindow *staticTextPlayer[MAX_SLOTS] = {0};
-static GameWindow *buttonAccept[MAX_SLOTS] = {0};
+static GameWindow *comboBoxPlayer[MAX_LOBBY_SLOTS] = {0};
+static GameWindow *staticTextPlayer[MAX_LOBBY_SLOTS] = {0};
+static GameWindow *buttonAccept[MAX_LOBBY_SLOTS] = {0};
 
-static GameWindow *comboBoxColor[MAX_SLOTS] = {0};
+static GameWindow *comboBoxColor[MAX_LOBBY_SLOTS] = {0};
 
-static GameWindow *comboBoxPlayerTemplate[MAX_SLOTS] = {0};
+static GameWindow *comboBoxPlayerTemplate[MAX_LOBBY_SLOTS] = {0};
 
-static GameWindow *comboBoxTeam[MAX_SLOTS] = {0};
+static GameWindow *comboBoxTeam[MAX_LOBBY_SLOTS] = {0};
 
-//static GameWindow *buttonStartPosition[MAX_SLOTS] = {0};
+//static GameWindow *buttonStartPosition[MAX_LOBBY_SLOTS] = {0};
 //
-static GameWindow *buttonMapStartPosition[MAX_SLOTS] = {0};
+static GameWindow *buttonMapStartPosition[MAX_LOBBY_SLOTS] = {0};
 
-static GameWindow *genericPingWindow[MAX_SLOTS] = {0};
+static GameWindow *genericPingWindow[MAX_LOBBY_SLOTS] = {0};
 
 static const Image *pingImages[3] = { nullptr, nullptr, nullptr };
 
@@ -333,7 +333,7 @@ static void playerTooltip(GameWindow *window,
 													UnsignedInt mouse)
 {
 	Int slotIdx = -1;
-	for (Int i=0; i<MAX_SLOTS; ++i)
+	for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 	{
 		if (window == comboBoxPlayer[i] || window == staticTextPlayer[i])
 		{
@@ -540,7 +540,7 @@ static void handleColorSelection(int index)
 			Bool colorAvailable = TRUE;
 			if(color != -1 )
 			{
-				for(Int i=0; i <MAX_SLOTS; i++)
+				for(Int i=0; i <MAX_LOBBY_SLOTS; i++)
 				{
 					GameSlot *checkSlot = myGame->getSlot(i);
 					if(color == checkSlot->getColor() && slot != checkSlot)
@@ -663,7 +663,7 @@ static void handleStartPositionSelection(Int player, int startPos)
 		if(!skip)
 		{
 			Bool isAvailable = TRUE;
-			for(Int i = 0; i < MAX_SLOTS; ++i)
+			for(Int i = 0; i < MAX_LOBBY_SLOTS; ++i)
 			{
 				if(i != player && myGame->getSlot(i)->getStartPos() == startPos)
 				{
@@ -825,7 +825,7 @@ static void StartPressed()
 		willTransfer = WouldMapTransfer(myGame->getMap());
 	}
 	int i = 0;
-	for( ; i < MAX_SLOTS; i++ )
+	for( ; i < MAX_LOBBY_SLOTS; i++ )
 	{
 		if ((myGame->getSlot(i)->isAccepted() == FALSE) && (myGame->getSlot(i)->isHuman() == TRUE))
 		{
@@ -885,7 +885,7 @@ static void StartPressed()
 	// Check for too few teams
 	int numRandom = 0;
 	std::set<Int> teams;
-	for (i=0; i<MAX_SLOTS; ++i)
+	for (i=0; i<MAX_LOBBY_SLOTS; ++i)
 	{
 		GameSlot *slot = myGame->getSlot(i);
 		if (slot && slot->isOccupied() && slot->getPlayerTemplate() != PLAYERTEMPLATE_OBSERVER)
@@ -995,7 +995,7 @@ void WOLDisplayGameOptions()
   {
     GadgetCheckBoxSetChecked(checkBoxLimitArmies, oldFactionsOnly);
     // Repopulate the lists of available armies, since the old list is now wrong
-    for (Int i = 0; i < MAX_SLOTS; i++)
+    for (Int i = 0; i < MAX_LOBBY_SLOTS; i++)
     {
       PopulatePlayerTemplateComboBox(i, comboBoxPlayerTemplate, theGame, theGame->getAllowObservers() );
 
@@ -1049,7 +1049,7 @@ void WOLDisplaySlotList()
 
 	WOLDisplayGameOptions();
 
-	for (Int i=0; i<MAX_SLOTS; ++i)
+	for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 	{
 		GameSpyGameSlot *slot = game->getGameSpySlot(i);
 		if (slot && slot->isHuman())
@@ -1179,7 +1179,7 @@ void InitWOLGameGadgets()
 		return;
 	}
 
-	for (Int i = 0; i < MAX_SLOTS; i++)
+	for (Int i = 0; i < MAX_LOBBY_SLOTS; i++)
 	{
 		AsciiString tmpString;
 		tmpString.format("GameSpyGameOptionsMenu.wnd:ComboBoxPlayer%d", i);
@@ -1287,7 +1287,7 @@ void DeinitWOLGameGadgets()
   comboBoxStartingCash = nullptr;
 
 //	GameWindow *staticTextTitle = nullptr;
-	for (Int i = 0; i < MAX_SLOTS; i++)
+	for (Int i = 0; i < MAX_LOBBY_SLOTS; i++)
 	{
 		comboBoxPlayer[i] = nullptr;
 		staticTextPlayer[i] = nullptr;
@@ -1393,7 +1393,7 @@ void WOLGameSetupMenuInit( WindowLayout *layout, void *userData )
       }
     }
 
-		for (Int i=1; i<MAX_SLOTS; ++i)
+		for (Int i=1; i<MAX_LOBBY_SLOTS; ++i)
 		{
 			GameSpyGameSlot *slot = game->getGameSpySlot(i);
 			slot->setState( SLOT_OPEN );
@@ -1447,7 +1447,7 @@ void WOLGameSetupMenuInit( WindowLayout *layout, void *userData )
 		game->setMapCRC( game->getMapCRC() );		// force a recheck
 		game->setMapSize( game->getMapSize() ); // of if we have the map
 
-		for (Int i = 0; i < MAX_SLOTS; ++i)
+		for (Int i = 0; i < MAX_LOBBY_SLOTS; ++i)
 		{
 			//I'm a client, disable the controls I can't touch.
 			comboBoxPlayer[i]->winEnable(FALSE);
@@ -1808,7 +1808,7 @@ void WOLGameSetupMenuUpdate( WindowLayout * layout, void *userData)
 							// See if there's room
 							// First get the number of players currently in the room.
 							Int numPlayers = 0;
-							for (Int player = 0; player < MAX_SLOTS; ++player)
+							for (Int player = 0; player < MAX_LOBBY_SLOTS; ++player)
 							{
 								if (game->getSlot(player)->isOccupied() &&
 									game->getSlot(player)->getPlayerTemplate() != PLAYERTEMPLATE_OBSERVER)
@@ -1818,7 +1818,7 @@ void WOLGameSetupMenuUpdate( WindowLayout * layout, void *userData)
 							}
 
 							// now get the number of starting spots on the map.
-							Int numStartingSpots = MAX_SLOTS;
+							Int numStartingSpots = MAX_LOBBY_SLOTS;
 							const MapMetaData *md = TheMapCache->findMap(game->getMap());
 							if (md != nullptr)
 							{
@@ -1826,7 +1826,7 @@ void WOLGameSetupMenuUpdate( WindowLayout * layout, void *userData)
 							}
 
 							Int openSlotIndex = -1;
-							for (Int i=0; i<MAX_SLOTS; ++i)
+							for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 							{
 								const GameSlot *slot = game->getConstSlot(i);
 								if (slot && slot->isOpen())
@@ -1992,10 +1992,10 @@ void WOLGameSetupMenuUpdate( WindowLayout * layout, void *userData)
 
 							AsciiString options = resp.commandOptions.c_str();
 							options.trim();
-							UnsignedShort ports[MAX_SLOTS];
-							UnsignedInt ips[MAX_SLOTS];
+							UnsignedShort ports[MAX_LOBBY_SLOTS];
+							UnsignedInt ips[MAX_LOBBY_SLOTS];
 							Int i;
-							for (i=0; i<MAX_SLOTS; ++i)
+							for (i=0; i<MAX_LOBBY_SLOTS; ++i)
 							{
 								if (game && game->getConstSlot(i))
 								{
@@ -2011,7 +2011,7 @@ void WOLGameSetupMenuUpdate( WindowLayout * layout, void *userData)
 							Bool optionsOK = ParseAsciiStringToGameInfo(game, options.str());
 							if (TheNAT)
 							{
-								for (i=0; i<MAX_SLOTS; ++i)
+								for (i=0; i<MAX_LOBBY_SLOTS; ++i)
 								{
 									if (game && game->getSlot(i))
 									{
@@ -2041,7 +2041,7 @@ void WOLGameSetupMenuUpdate( WindowLayout * layout, void *userData)
 								if (!isInGame)
 								{
 									SLOTLIST_DEBUG_LOG(("Not in game; players are:"));
-									for (Int i=0; i<MAX_SLOTS; ++i)
+									for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 									{
 										const GameSpyGameSlot *slot = game->getGameSpySlot(i);
 										if (slot && slot->isHuman())
@@ -2145,7 +2145,7 @@ void WOLGameSetupMenuUpdate( WindowLayout * layout, void *userData)
 						{
 							AsciiString pings = resp.commandOptions.c_str();
 							AsciiString token;
-							for (Int i=0; i<MAX_SLOTS; ++i)
+							for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 							{
 								GameSpyGameSlot *slot = TheGameSpyInfo->getCurrentStagingRoom()->getGameSpySlot(i);
 								if (pings.nextToken(&token, ","))
@@ -2177,7 +2177,7 @@ void WOLGameSetupMenuUpdate( WindowLayout * layout, void *userData)
 					if (game)
 					{
 						Int slotNum = game->getSlotNum(resp.nick.c_str());
-						if ((slotNum >= 0) && (slotNum < MAX_SLOTS) && (stricmp(resp.command.c_str(), "NAT") == 0)) {
+						if ((slotNum >= 0) && (slotNum < MAX_LOBBY_SLOTS) && (stricmp(resp.command.c_str(), "NAT") == 0)) {
 							// this is a command for NAT negotiations, pass if off to TheNAT
 							if (TheNAT != nullptr) {
 								TheNAT->processGlobalMessage(slotNum, resp.commandOptions.c_str());
@@ -2270,7 +2270,7 @@ void WOLGameSetupMenuUpdate( WindowLayout * layout, void *userData)
 										Bool colorAvailable = TRUE;
 										if(val != -1 )
 										{
-											for(Int i=0; i <MAX_SLOTS; i++)
+											for(Int i=0; i <MAX_LOBBY_SLOTS; i++)
 											{
 												GameSlot *checkSlot = game->getSlot(i);
 												if(val == checkSlot->getColor() && slot != checkSlot)
@@ -2320,12 +2320,12 @@ void WOLGameSetupMenuUpdate( WindowLayout * layout, void *userData)
 								}
 								else if (key == "StartPos")
 								{
-									if (val >= -1 && val < MAX_SLOTS && val != slot->getStartPos() && slot->getPlayerTemplate() != PLAYERTEMPLATE_OBSERVER)
+									if (val >= -1 && val < MAX_LOBBY_SLOTS && val != slot->getStartPos() && slot->getPlayerTemplate() != PLAYERTEMPLATE_OBSERVER)
 									{
 										Bool startPosAvailable = TRUE;
 										if(val != -1)
 										{
-											for(Int i=0; i <MAX_SLOTS; i++)
+											for(Int i=0; i <MAX_LOBBY_SLOTS; i++)
 											{
 												GameSlot *checkSlot = game->getSlot(i);
 												if(val == checkSlot->getStartPos() && slot != checkSlot)
@@ -2347,7 +2347,7 @@ void WOLGameSetupMenuUpdate( WindowLayout * layout, void *userData)
 								}
 								else if (key == "Team")
 								{
-									if (val >= -1 && val < MAX_SLOTS/2 && val != slot->getTeamNumber() && slot->getPlayerTemplate() != PLAYERTEMPLATE_OBSERVER)
+									if (val >= -1 && val < MAX_LOBBY_SLOTS/2 && val != slot->getTeamNumber() && slot->getPlayerTemplate() != PLAYERTEMPLATE_OBSERVER)
 									{
 										slot->setTeamNumber(val);
 										change = true;
@@ -2530,7 +2530,7 @@ static Int getNextSelectablePlayer(Int start)
 	GameSpyStagingRoom *game = TheGameSpyInfo->getCurrentStagingRoom();
 	if (!game->amIHost())
 		return -1;
-	for (Int j=start; j<MAX_SLOTS; ++j)
+	for (Int j=start; j<MAX_LOBBY_SLOTS; ++j)
 	{
 		GameSpyGameSlot *slot = game->getGameSpySlot(j);
 		if (slot && slot->getStartPos() == -1 &&
@@ -2549,7 +2549,7 @@ static Int getFirstSelectablePlayer(const GameInfo *game)
 	if (!game->amIHost() || (slot && slot->getPlayerTemplate() != PLAYERTEMPLATE_OBSERVER))
 		return game->getLocalSlotNum();
 
-	for (Int i=0; i<MAX_SLOTS; ++i)
+	for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 	{
 		slot = game->getConstSlot(i);
 		if (slot && slot->isAI())
@@ -2608,7 +2608,7 @@ WindowMsgHandledType WOLGameSetupMenuSystem( GameWindow *window, UnsignedInt msg
         else
         {
 				  GameSpyStagingRoom *myGame = TheGameSpyInfo->getCurrentStagingRoom();
-				  for (Int i = 0; i < MAX_SLOTS; i++)
+				  for (Int i = 0; i < MAX_LOBBY_SLOTS; i++)
 				  {
 					  if (controlID == comboBoxColorID[i])
 					  {
@@ -2755,13 +2755,13 @@ WindowMsgHandledType WOLGameSetupMenuSystem( GameWindow *window, UnsignedInt msg
         }
 				else
 				{
-					for (Int i = 0; i < MAX_SLOTS; i++)
+					for (Int i = 0; i < MAX_LOBBY_SLOTS; i++)
 					{
 						if (controlID == buttonMapStartPositionID[i])
 						{
 							GameSpyStagingRoom *game = TheGameSpyInfo->getCurrentStagingRoom();
 							Int playerIdxInPos = -1;
-							for (Int j=0; j<MAX_SLOTS; ++j)
+							for (Int j=0; j<MAX_LOBBY_SLOTS; ++j)
 							{
 								GameSpyGameSlot *slot = game->getGameSpySlot(j);
 								if (slot && slot->getStartPos() == i)
@@ -2807,13 +2807,13 @@ WindowMsgHandledType WOLGameSetupMenuSystem( GameWindow *window, UnsignedInt msg
 
    			GameWindow *control = (GameWindow *)mData1;
 				Int controlID = control->winGetWindowId();
-				for (Int i = 0; i < MAX_SLOTS; i++)
+				for (Int i = 0; i < MAX_LOBBY_SLOTS; i++)
 				{
 					if (controlID == buttonMapStartPositionID[i])
 					{
 						GameSpyStagingRoom *game = TheGameSpyInfo->getCurrentStagingRoom();
 						Int playerIdxInPos = -1;
-						for (Int j=0; j<MAX_SLOTS; ++j)
+						for (Int j=0; j<MAX_LOBBY_SLOTS; ++j)
 						{
 							GameSpyGameSlot *slot = game->getGameSpySlot(j);
 							if (slot && slot->getStartPos() == i)

@@ -56,8 +56,8 @@ static GameWindow *winMapPreview = nullptr;
 static NameKeyType radioButtonSystemMapsID = NAMEKEY_INVALID;
 static NameKeyType radioButtonUserMapsID = NAMEKEY_INVALID;
 
-static GameWindow *buttonMapStartPosition[MAX_SLOTS] = {0};
-static NameKeyType buttonMapStartPositionID[MAX_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
+static GameWindow *buttonMapStartPosition[MAX_LOBBY_SLOTS] = {0};
+static NameKeyType buttonMapStartPositionID[MAX_LOBBY_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
 																									NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID };
@@ -107,7 +107,7 @@ static void NullifyControls()
 		winMapPreview->winSetUserData(nullptr);
 		winMapPreview = nullptr;
 	}
-	for (Int i=0; i<MAX_SLOTS; ++i)
+	for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 	{
 		buttonMapStartPosition[i] = nullptr;
 	}
@@ -152,7 +152,7 @@ void LanMapSelectMenuInit( WindowLayout *layout, void *userData )
 		GadgetRadioSetSelection( radioButtonUserMaps, FALSE );
 
 	AsciiString tmpString;
-	for (Int i = 0; i < MAX_SLOTS; i++)
+	for (Int i = 0; i < MAX_LOBBY_SLOTS; i++)
 	{
 		tmpString.format("LanMapSelectMenu.wnd:ButtonMapStartPosition%d", i);
 		buttonMapStartPositionID[i] = TheNameKeyGenerator->nameToKey( tmpString );

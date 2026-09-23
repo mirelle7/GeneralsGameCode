@@ -1234,7 +1234,7 @@ MultiPlayerLoadScreen::MultiPlayerLoadScreen()
 	m_featuresLocalGeneral = nullptr;
 	m_nameLocalGeneral = nullptr;
 
-	for(Int i = 0; i < MAX_SLOTS; ++i)
+	for(Int i = 0; i < MAX_LOBBY_SLOTS; ++i)
 	{
 		m_buttonMapStartPosition[i] = nullptr;
 		m_progressBars[i] = nullptr;
@@ -1323,16 +1323,17 @@ void MultiPlayerLoadScreen::init( GameInfo *game )
 	//DEBUG_ASSERTCRASH(TheNetwork, ("Where the Heck is the Network!!!!"));
 	//DEBUG_LOG(("NumPlayers %d", TheNetwork->getNumPlayers()));
 
-	GameWindow *teamWin[MAX_SLOTS];
+	GameWindow *teamWin[MAX_LOBBY_SLOTS];
 	Int i = 0;
-	for (; i < MAX_SLOTS; ++i)
+	for (; i < MAX_LOBBY_SLOTS; ++i)
 	{
 		teamWin[i] = nullptr;
 	}
 
 	Int netSlot = 0;
 	// Loop through and make the loadscreen look all good.
-	for (i = 0; i < MAX_SLOTS; ++i)
+	// The loadscreen only has rows for the first MAX_LOBBY_SLOTS slots; slots beyond that keep a -1 lookup.
+	for (i = 0; i < MAX_LOBBY_SLOTS; ++i)
 	{
 		// Load the Progress Bar
 		AsciiString winName;
@@ -1402,7 +1403,7 @@ void MultiPlayerLoadScreen::init( GameInfo *game )
 		netSlot++;
 	}
 
-	for(i = netSlot; i < MAX_SLOTS; ++i)
+	for(i = netSlot; i < MAX_LOBBY_SLOTS; ++i)
 	{
 		m_progressBars[i]->winHide(TRUE);
 		m_playerNames[i]->winHide(TRUE);
@@ -1437,7 +1438,7 @@ void MultiPlayerLoadScreen::init( GameInfo *game )
 void MultiPlayerLoadScreen::reset()
 {
 	setLoadScreen(nullptr);
-	for(Int i = 0; i < MAX_SLOTS; ++i)
+	for(Int i = 0; i < MAX_LOBBY_SLOTS; ++i)
 	{
 		m_progressBars[i] = nullptr;
 		m_playerNames[i] = nullptr;
@@ -1470,7 +1471,7 @@ void MultiPlayerLoadScreen::update( Int percent )
 void MultiPlayerLoadScreen::processProgress(Int playerId, Int percentage)
 {
 
-	if( percentage < 0 || percentage > 100 || playerId >= MAX_SLOTS || playerId < 0 || m_playerLookup[playerId] == -1)
+	if( percentage < 0 || percentage > 100 || playerId >= MAX_LOBBY_SLOTS || playerId < 0 || m_playerLookup[playerId] == -1)
 	{
 		DEBUG_CRASH(("Percentage %d was passed in for Player %d", percentage, playerId));
 		return;
@@ -1490,7 +1491,7 @@ GameSpyLoadScreen::GameSpyLoadScreen()
 	m_featuresLocalGeneral = nullptr;
 	m_nameLocalGeneral = nullptr;
 
-	for(Int i = 0; i < MAX_SLOTS; ++i)
+	for(Int i = 0; i < MAX_LOBBY_SLOTS; ++i)
 	{
 
 		m_buttonMapStartPosition[i] = nullptr;
@@ -1573,16 +1574,16 @@ GameSlot *lSlot = game->getSlot(game->getLocalSlotNum());
 	GadgetStaticTextSetText( m_nameLocalGeneral, localName );
 #endif
 
-	GameWindow *teamWin[MAX_SLOTS];
+	GameWindow *teamWin[MAX_LOBBY_SLOTS];
 	Int i = 0;
-	for (; i < MAX_SLOTS; ++i)
+	for (; i < MAX_LOBBY_SLOTS; ++i)
 	{
 		teamWin[i] = nullptr;
 	}
 
 	Int netSlot = 0;
 	// Loop through and make the loadscreen look all good.
-	for (i = 0; i < MAX_SLOTS; ++i)
+	for (i = 0; i < MAX_LOBBY_SLOTS; ++i)
 	{
 		// Load the Progress Bar
 		AsciiString winName;
@@ -1771,7 +1772,7 @@ GameSlot *lSlot = game->getSlot(game->getLocalSlotNum());
 		netSlot++;
 	}
 
-	for(i = netSlot; i < MAX_SLOTS; ++i)
+	for(i = netSlot; i < MAX_LOBBY_SLOTS; ++i)
 	{
 		m_playerWin[i]->winHide(TRUE);
 		//m_playerNames[i]->winHide(TRUE);
@@ -1804,7 +1805,7 @@ GameSlot *lSlot = game->getSlot(game->getLocalSlotNum());
 void GameSpyLoadScreen::reset()
 {
 	setLoadScreen(nullptr);
-	for(Int i = 0; i < MAX_SLOTS; ++i)
+	for(Int i = 0; i < MAX_LOBBY_SLOTS; ++i)
 	{
 		m_progressBars[i] = nullptr;
 		m_playerNames[i] = nullptr;
@@ -1829,7 +1830,7 @@ void GameSpyLoadScreen::update( Int percent )
 void GameSpyLoadScreen::processProgress(Int playerId, Int percentage)
 {
 
-	if( percentage < 0 || percentage > 100 || playerId >= MAX_SLOTS || playerId < 0 || m_playerLookup[playerId] == -1)
+	if( percentage < 0 || percentage > 100 || playerId >= MAX_LOBBY_SLOTS || playerId < 0 || m_playerLookup[playerId] == -1)
 	{
 		DEBUG_CRASH(("Percentage %d was passed in for Player %d", percentage, playerId));
 		return;
@@ -1844,7 +1845,7 @@ void GameSpyLoadScreen::processProgress(Int playerId, Int percentage)
 MapTransferLoadScreen::MapTransferLoadScreen()
 {
 	m_oldTimeout = 0;
-	for(Int i = 0; i < MAX_SLOTS; ++i)
+	for(Int i = 0; i < MAX_LOBBY_SLOTS; ++i)
 	{
 		m_progressBars[i] = nullptr;
 		m_playerNames[i] = nullptr;
@@ -1887,7 +1888,7 @@ void MapTransferLoadScreen::init( GameInfo *game )
 
 	Int netSlot = 0;
 	// Loop through and make the loadscreen look all good.
-	for (i = 0; i < MAX_SLOTS; ++i)
+	for (i = 0; i < MAX_LOBBY_SLOTS; ++i)
 	{
 		// Load the Progress Bar
 		winName.format( "MapTransferScreen.wnd:ProgressLoad%d",i);
@@ -1928,7 +1929,7 @@ void MapTransferLoadScreen::init( GameInfo *game )
 		netSlot++;
 	}
 
-	for(i = netSlot; i < MAX_SLOTS; ++i)
+	for(i = netSlot; i < MAX_LOBBY_SLOTS; ++i)
 	{
 		m_progressBars[i]->winHide(TRUE);
 		m_playerNames[i]->winHide(TRUE);
@@ -1939,7 +1940,7 @@ void MapTransferLoadScreen::init( GameInfo *game )
 void MapTransferLoadScreen::reset()
 {
 	setLoadScreen(nullptr);
-	for(Int i = 0; i < MAX_SLOTS; ++i)
+	for(Int i = 0; i < MAX_LOBBY_SLOTS; ++i)
 	{
 		m_progressBars[i] = nullptr;
 		m_playerNames[i] = nullptr;
@@ -1967,7 +1968,7 @@ void MapTransferLoadScreen::update( Int percent )
 void MapTransferLoadScreen::processProgress(Int playerId, Int percentage, AsciiString stateStr)
 {
 
-	if( percentage < 0 || percentage > 100 || playerId >= MAX_SLOTS || playerId < 0 || m_playerLookup[playerId] == -1)
+	if( percentage < 0 || percentage > 100 || playerId >= MAX_LOBBY_SLOTS || playerId < 0 || m_playerLookup[playerId] == -1)
 	{
 		DEBUG_CRASH(("Percentage %d was passed in for Player %d", percentage, playerId));
 		return;

@@ -515,7 +515,7 @@ WindowMsgHandledType ScoreScreenSystem( GameWindow *window, UnsignedInt msg,
 					}
 					//add the gamespy chat request here
 			}
-			for(Int i = 0; i < MAX_SLOTS; ++i)
+			for(Int i = 0; i < MAX_LOBBY_SLOTS; ++i)
 			{
 				AsciiString name;
 				name.format("ScoreScreen.wnd:ButtonAdd%d", i);
@@ -999,7 +999,7 @@ static void updateSkirmishBattleHonors(SkirmishBattleHonors& stats)
 	Int numMedium = 0;
 	Int numBrutal = 0;
 	Bool anyAlliedAI = FALSE;
-	for (Int i=0; i<MAX_SLOTS; ++i)
+	for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 	{
 		const GameSlot *slot = TheGameInfo->getConstSlot(i);
 		if (slot->isAI() && !isSlotLocalAlly(TheGameInfo, slot))
@@ -1136,7 +1136,7 @@ static void updateChallengeMedals(Int& medals)
 
 	Int numAIs = 0;
 	Int numBrutals = 0;
-	for (Int i=0; i<MAX_SLOTS; ++i)
+	for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 	{
 		const GameSlot *slot = TheGameInfo->getConstSlot(i);
 		if (slot->isAI() && !isSlotLocalAlly(TheGameInfo, slot))
@@ -1186,7 +1186,7 @@ static void updateChallengeMedals(Int& medals)
 //-------------------------------------------------------------------------------------------------
 void populatePlayerInfo( Player *player, Int pos)
 {
-	if(!player || pos < 0 || pos >= MAX_SLOTS)
+	if(!player || pos < 0 || pos >= MAX_LOBBY_SLOTS)
 		return;
 	Color color = player->getPlayerColor();
 	ScoreKeeper *scoreKpr = player->getScoreKeeper();
@@ -1418,7 +1418,7 @@ winName.format("ScoreScreen.wnd:StaticTextScore%d", pos);
 					Bool anyNonAI = FALSE;
 					Bool anyAI = FALSE;
 					Int i=0;
-					for (; i<MAX_SLOTS; ++i)
+					for (; i<MAX_LOBBY_SLOTS; ++i)
 					{
 						const GameSlot *slot = TheGameInfo->getConstSlot(i);
 						if (slot->isOccupied() && i != localSlotNum && !slot->isAI())
@@ -1442,7 +1442,7 @@ winName.format("ScoreScreen.wnd:StaticTextScore%d", pos);
 						}
 					}
 					DEBUG_LOG(("Game ended on frame %d - TheGameLogic->getFrame()=%d", lastFrameOfGame-1, TheGameLogic->getFrame()-1));
-					for (i=0; i<MAX_SLOTS; ++i)
+					for (i=0; i<MAX_LOBBY_SLOTS; ++i)
 					{
 						const GameSlot *slot = TheGameInfo->getConstSlot(i);
 						DEBUG_LOG(("latestHumanInGame=%d, slot->isOccupied()=%d, slot->disconnected()=%d, slot->isAI()=%d, slot->lastFrameInGame()=%d",
@@ -1666,7 +1666,7 @@ winName.format("ScoreScreen.wnd:StaticTextScore%d", pos);
 					stats.lastGeneral = ptIdx;
 
 					Int gameSize = 0;
-					for (i=0; i<MAX_SLOTS; ++i)
+					for (i=0; i<MAX_LOBBY_SLOTS; ++i)
 					{
 						if (TheGameSpyGame->getConstSlot(i)->isOccupied() && TheGameSpyGame->getConstSlot(i)->getPlayerTemplate() != PLAYERTEMPLATE_OBSERVER)
 							++gameSize;
@@ -1793,7 +1793,7 @@ void grabMultiPlayerInfo()
 	}
 
 	// Add each player and score to the map. THis allows us to sort the players based on score.
-	for( Int i = 0; i < MAX_SLOTS; ++i)
+	for( Int i = 0; i < MAX_LOBBY_SLOTS; ++i)
 	{
 		Player *player = ThePlayerList->getPlayerFromSlotIndex(i);
 		if(player)
@@ -1965,11 +1965,11 @@ void grabSinglePlayerInfo()
 //-------------------------------------------------------------------------------------------------
 void hideWindows( Int pos )
 {
-	if(pos < 0 || pos >= MAX_SLOTS)
+	if(pos < 0 || pos >= MAX_LOBBY_SLOTS)
 		return;
 	AsciiString winName;
 	GameWindow *win;
-	for( Int i = pos; i < MAX_SLOTS; ++i)
+	for( Int i = pos; i < MAX_LOBBY_SLOTS; ++i)
 	{
 
 		// set the player name
@@ -2053,7 +2053,7 @@ winName.format("ScoreScreen.wnd:StaticTextScore%d", i);
 //-------------------------------------------------------------------------------------------------
 void setObserverWindows( Player *player, Int i )
 {
-	if(!player || i < 0 || i >= MAX_SLOTS)
+	if(!player || i < 0 || i >= MAX_LOBBY_SLOTS)
 		return;
 	AsciiString winName;
 	GameWindow *win;
@@ -2186,7 +2186,7 @@ winName.format("ScoreScreen.wnd:StaticTextScore%d", i);
 //-------------------------------------------------------------------------------------------------
 void populateSideInfo( UnicodeString side,ScoreGather *sg, Int pos, Color color)
 {
-	if(pos < 0 || pos > MAX_SLOTS)
+	if(pos < 0 || pos > MAX_LOBBY_SLOTS)
 		return;
 
 	AsciiString winName;

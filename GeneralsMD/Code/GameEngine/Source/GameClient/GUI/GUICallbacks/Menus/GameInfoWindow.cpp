@@ -138,7 +138,7 @@ void RefreshGameInfoWindow(GameInfo *gameInfo, UnicodeString gameName)
 	Int numColors = TheMultiplayerSettings->getNumColors();
 	Color white = GameMakeColor(255,255,255,255);
 //	Color grey =  GameMakeColor(188,188,188,255);
-	for (Int i = 0; i < MAX_SLOTS; i ++)
+	for (Int i = 0; i < MAX_LOBBY_SLOTS; i ++)
 	{
 		Color playerColor = white;
 		Int color = -1;

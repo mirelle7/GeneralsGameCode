@@ -212,7 +212,7 @@ static UnicodeString buildReplayTooltip(RecorderClass::ReplayHeader header, Repl
 	if (header.localPlayerIndex >= 0)
 	{
 		// MP game
-		for (Int i = 0; i < MAX_SLOTS; ++i)
+		for (Int i = 0; i < MAX_LOBBY_SLOTS; ++i)
 		{
 			const GameSlot* slot = info.getConstSlot(i);
 			if (slot && slot->isHuman())

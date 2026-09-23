@@ -55,8 +55,8 @@ static GameWindow *mapList = nullptr;
 static NameKeyType radioButtonSystemMapsID = NAMEKEY_INVALID;
 static NameKeyType radioButtonUserMapsID = NAMEKEY_INVALID;
 
-static GameWindow *buttonMapStartPosition[MAX_SLOTS] = {0};
-static NameKeyType buttonMapStartPositionID[MAX_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
+static GameWindow *buttonMapStartPosition[MAX_LOBBY_SLOTS] = {0};
+static NameKeyType buttonMapStartPositionID[MAX_LOBBY_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
 																									NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID };
@@ -73,7 +73,7 @@ static void NullifyControls()
 		winMapPreview->winSetUserData(nullptr);
 		winMapPreview = nullptr;
 	}
-	for (Int i=0; i<MAX_SLOTS; ++i)
+	for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 	{
 		buttonMapStartPosition[i] = nullptr;
 	}
@@ -279,7 +279,7 @@ void SkirmishMapSelectMenuInit( WindowLayout *layout, void *userData )
 		GadgetRadioSetSelection( radioButtonUserMaps, FALSE );
 
 	AsciiString tmpString;
-	for (Int i = 0; i < MAX_SLOTS; i++)
+	for (Int i = 0; i < MAX_LOBBY_SLOTS; i++)
 	{
 		tmpString.format("SkirmishMapSelectMenu.wnd:ButtonMapStartPosition%d", i);
 		buttonMapStartPositionID[i] = TheNameKeyGenerator->nameToKey( tmpString );
@@ -568,7 +568,7 @@ WindowMsgHandledType SkirmishMapSelectMenuSystem( GameWindow *window, UnsignedIn
 					}
 
 					// reset the start positions
-					for(Int i = 0; i < MAX_SLOTS; ++i)
+					for(Int i = 0; i < MAX_LOBBY_SLOTS; ++i)
 						TheSkirmishGameInfo->getSlot(i)->setStartPos(-1);
 					GameWindow *win;
 					win	= TheWindowManager->winGetWindowFromId( parent, TheNameKeyGenerator->nameToKey("SkirmishGameOptionsMenu.wnd:TextEntryMapDisplay") );

@@ -66,7 +66,7 @@ void EnableAcceptControls(Bool Enabled, GameInfo *myGame, GameWindow *comboPlaye
 										GameWindow *comboTeam[], GameWindow *buttonAccept[], GameWindow *buttonStart,
 										GameWindow *buttonMapStartPosition[], Int slotNum)
 {
-	if(slotNum == -1 || slotNum >= MAX_SLOTS )
+	if(slotNum == -1 || slotNum >= MAX_LOBBY_SLOTS )
 		slotNum = myGame->getLocalSlotNum();
 
 	Bool isObserver = myGame->getConstSlot(slotNum)->getPlayerTemplate() == PLAYERTEMPLATE_OBSERVER;
@@ -95,7 +95,7 @@ void EnableAcceptControls(Bool Enabled, GameInfo *myGame, GameWindow *comboPlaye
 	Bool canChooseStartSpot = FALSE;
 	if (!isObserver)
 		canChooseStartSpot = TRUE;
-	for (Int i=0; i<MAX_SLOTS && !canChooseStartSpot && myGame->amIHost(); ++i)
+	for (Int i=0; i<MAX_LOBBY_SLOTS && !canChooseStartSpot && myGame->amIHost(); ++i)
 	{
 		if (myGame->getConstSlot(i) && myGame->getConstSlot(i)->isAI())
 			canChooseStartSpot = TRUE;
@@ -105,7 +105,7 @@ void EnableAcceptControls(Bool Enabled, GameInfo *myGame, GameWindow *comboPlaye
 	{
 		if (myGame->getConstSlot(myGame->getLocalSlotNum())->hasMap())
 		{
-			for (Int i=0; i<MAX_SLOTS; ++i)
+			for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 			{
 				if (buttonMapStartPosition[i])
 				{
@@ -115,7 +115,7 @@ void EnableAcceptControls(Bool Enabled, GameInfo *myGame, GameWindow *comboPlaye
 		}
 		else
 		{
-			for (Int i=0; i<MAX_SLOTS; ++i)
+			for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 			{
 				if (buttonMapStartPosition[i])
 					buttonMapStartPosition[i]->winEnable(FALSE);
@@ -162,7 +162,7 @@ void ShowUnderlyingGUIElements( Bool show, const char *layoutFilename, const cha
 	text = perPlayerGadgetsToHide;
 	while (*text)
 	{
-		for (player = 0; player < MAX_SLOTS; ++player)
+		for (player = 0; player < MAX_LOBBY_SLOTS; ++player)
 		{
 			AsciiString gadgetName;
 			gadgetName.format("%s:%s%d", layoutFilename, *text, player);
@@ -189,7 +189,7 @@ void PopulateColorComboBox(Int comboBox, GameWindow *comboArray[], GameInfo *myG
 	for (; i < numColors; i++)
 		availableColors.push_back(true);
 
-	for (i = 0; i < MAX_SLOTS; i++)
+	for (i = 0; i < MAX_LOBBY_SLOTS; i++)
 	{
 		GameSlot *slot = myGame->getSlot(i);
 		if( slot && (i != comboBox) && (slot->getColor() >= 0 )&& (slot->getColor() < numColors))
@@ -278,7 +278,7 @@ void PopulatePlayerTemplateComboBox(Int comboBox, GameWindow *comboArray[], Game
 
 void PopulateTeamComboBox(Int comboBox, GameWindow *comboArray[], GameInfo *myGame, Bool isObserver)
 {
-	Int numTeams = MAX_SLOTS/2;
+	Int numTeams = MAX_LOBBY_SLOTS/2;
 	UnicodeString teamName;
 
 	GadgetComboBoxReset(comboArray[comboBox]);
@@ -331,7 +331,7 @@ void UpdateSlotList( GameInfo *myGame, GameWindow *comboPlayer[],
 
 	if (myGame)
 	{
-		for( int i =0; i < MAX_SLOTS; i++ )
+		for( int i =0; i < MAX_LOBBY_SLOTS; i++ )
 		{
 			GameSlot * slot = myGame->getSlot(i);
 

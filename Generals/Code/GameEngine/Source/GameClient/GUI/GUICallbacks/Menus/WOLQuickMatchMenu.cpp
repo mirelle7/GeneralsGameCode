@@ -1152,7 +1152,7 @@ void WOLQuickMatchMenuUpdate( WindowLayout * layout, void *userData)
 
 						// now fill in the profileID in the game slot
 						AsciiString nick = resp.nick.c_str();
-						for (Int i=0; i<MAX_SLOTS; ++i)
+						for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 						{
 							GameSpyGameSlot *slot = TheGameSpyGame->getGameSpySlot(i);
 							if (slot && slot->isHuman() && (slot->getLoginName().compareNoCase(nick) == 0))
@@ -1163,7 +1163,7 @@ void WOLQuickMatchMenuUpdate( WindowLayout * layout, void *userData)
 						}
 					}
 					Int slotNum = TheGameSpyGame->getSlotNum(resp.nick.c_str());
-					if ((slotNum >= 0) && (slotNum < MAX_SLOTS) && (stricmp(resp.command.c_str(), "NAT") == 0)) {
+					if ((slotNum >= 0) && (slotNum < MAX_LOBBY_SLOTS) && (stricmp(resp.command.c_str(), "NAT") == 0)) {
 						// this is a command for NAT negotiations, pass if off to TheNAT
 						sawImportantMessage = TRUE;
 						if (TheNAT != nullptr) {
@@ -1262,7 +1262,7 @@ void WOLQuickMatchMenuUpdate( WindowLayout * layout, void *userData)
 
 							Int i;
 							Int numPlayers = 0;
-							for (i=0; i<MAX_SLOTS; ++i)
+							for (i=0; i<MAX_LOBBY_SLOTS; ++i)
 							{
 								if (!resp.stagingRoomPlayerNames[i].empty())
 									++numPlayers;
@@ -1299,7 +1299,7 @@ void WOLQuickMatchMenuUpdate( WindowLayout * layout, void *userData)
 							if (!numPlayersPerTeam)
 								numPlayersPerTeam = 1;
 
-							for (i=0; i<MAX_SLOTS; ++i)
+							for (i=0; i<MAX_LOBBY_SLOTS; ++i)
 							{
 								GameSpyGameSlot *slot = TheGameSpyGame->getGameSpySlot(i);
 								if (resp.stagingRoomPlayerNames[i].empty())

@@ -278,7 +278,7 @@ WindowMsgHandledType BuddyControlSystem( GameWindow *window, UnsignedInt msg,
 						!ThePlayerList->getLocalPlayer()->isPlayerActive())
 					{
 						DEBUG_LOG(("I'm dead - gotta look for cheats."));
-						for (Int i=0; i<MAX_SLOTS; ++i)
+						for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 						{
 							DEBUG_LOG(("Slot[%d] profile is %d", i, TheGameSpyGame->getGameSpySlot(i)->getProfileID()));
 							if (TheGameSpyGame->getGameSpySlot(i)->getProfileID() == selectedProfile)

@@ -71,37 +71,37 @@ static bool s_isIniting = FALSE;
 // window ids ------------------------------------------------------------------------------
 static NameKeyType parentLanGameOptionsID = NAMEKEY_INVALID;
 
-static NameKeyType comboBoxPlayerID[MAX_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
+static NameKeyType comboBoxPlayerID[MAX_LOBBY_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
 																											NAMEKEY_INVALID,NAMEKEY_INVALID,
 																											NAMEKEY_INVALID,NAMEKEY_INVALID,
 																											NAMEKEY_INVALID,NAMEKEY_INVALID };
 
-static NameKeyType buttonAcceptID[MAX_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
+static NameKeyType buttonAcceptID[MAX_LOBBY_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
 																									NAMEKEY_INVALID,NAMEKEY_INVALID,
 																									NAMEKEY_INVALID,NAMEKEY_INVALID,
 																									NAMEKEY_INVALID,NAMEKEY_INVALID };
 
-static NameKeyType comboBoxColorID[MAX_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
+static NameKeyType comboBoxColorID[MAX_LOBBY_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID };
 
-static NameKeyType comboBoxPlayerTemplateID[MAX_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
+static NameKeyType comboBoxPlayerTemplateID[MAX_LOBBY_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID };
 
-static NameKeyType comboBoxTeamID[MAX_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
+static NameKeyType comboBoxTeamID[MAX_LOBBY_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID };
 
-//static NameKeyType buttonStartPositionID[MAX_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
+//static NameKeyType buttonStartPositionID[MAX_LOBBY_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
 //																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 //																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 //																										NAMEKEY_INVALID,NAMEKEY_INVALID };
 
-static NameKeyType buttonMapStartPositionID[MAX_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
+static NameKeyType buttonMapStartPositionID[MAX_LOBBY_SLOTS] = { NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID,
 																										NAMEKEY_INVALID,NAMEKEY_INVALID };
@@ -127,18 +127,18 @@ static GameWindow *checkboxLimitSuperweapons = nullptr;
 static GameWindow *comboBoxStartingCash = nullptr;
 static GameWindow *windowMap = nullptr;
 
-static GameWindow *comboBoxPlayer[MAX_SLOTS] = {0};
-static GameWindow *buttonAccept[MAX_SLOTS] = {0};
+static GameWindow *comboBoxPlayer[MAX_LOBBY_SLOTS] = {0};
+static GameWindow *buttonAccept[MAX_LOBBY_SLOTS] = {0};
 
-static GameWindow *comboBoxColor[MAX_SLOTS] = {0};
+static GameWindow *comboBoxColor[MAX_LOBBY_SLOTS] = {0};
 
-static GameWindow *comboBoxPlayerTemplate[MAX_SLOTS] = {0};
+static GameWindow *comboBoxPlayerTemplate[MAX_LOBBY_SLOTS] = {0};
 
-static GameWindow *comboBoxTeam[MAX_SLOTS] = {0};
+static GameWindow *comboBoxTeam[MAX_LOBBY_SLOTS] = {0};
 
-//static GameWindow *buttonStartPosition[MAX_SLOTS] = {0};
+//static GameWindow *buttonStartPosition[MAX_LOBBY_SLOTS] = {0};
 //
-static GameWindow *buttonMapStartPosition[MAX_SLOTS] = {0};
+static GameWindow *buttonMapStartPosition[MAX_LOBBY_SLOTS] = {0};
 
 //external declarations of the Gadgets the callbacks can use
 GameWindow *listboxChatWindowLanGame = nullptr;
@@ -150,7 +150,7 @@ static Int getNextSelectablePlayer(Int start)
 	LANGameInfo *game = TheLAN->GetMyGame();
 	if (!game->amIHost())
 		return -1;
-	for (Int j=start; j<MAX_SLOTS; ++j)
+	for (Int j=start; j<MAX_LOBBY_SLOTS; ++j)
 	{
 		LANGameSlot *slot = game->getLANSlot(j);
 		if (slot && slot->getStartPos() == -1 &&
@@ -169,7 +169,7 @@ static Int getFirstSelectablePlayer(const GameInfo *game)
 	if (!game->amIHost() || (slot && slot->getPlayerTemplate() != PLAYERTEMPLATE_OBSERVER))
 		return game->getLocalSlotNum();
 
-	for (Int i=0; i<MAX_SLOTS; ++i)
+	for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 	{
 		slot = game->getConstSlot(i);
 		if (slot && slot->isAI())
@@ -192,7 +192,7 @@ static void playerTooltip(GameWindow *window,
 {
 	Int idx = -1;
 	Int i=0;
-	for (; i<MAX_SLOTS; ++i)
+	for (; i<MAX_LOBBY_SLOTS; ++i)
 	{
 		if (window && window == GadgetComboBoxGetEditBox(comboBoxPlayer[i]))
 		{
@@ -235,7 +235,7 @@ void StartPressed()
 
 	int numUsers = 0;
 	int numHumans = 0;
-	for (i=0; i<MAX_SLOTS; ++i)
+	for (i=0; i<MAX_LOBBY_SLOTS; ++i)
 	{
 		GameSlot *slot = myGame->getSlot(i);
 		if (slot && slot->isOccupied() && slot->getPlayerTemplate() != PLAYERTEMPLATE_OBSERVER)
@@ -285,7 +285,7 @@ void StartPressed()
 	// Check for too few teams
 	int numRandom = 0;
 	std::set<Int> teams;
-	for (i=0; i<MAX_SLOTS; ++i)
+	for (i=0; i<MAX_LOBBY_SLOTS; ++i)
 	{
 		GameSlot *slot = myGame->getSlot(i);
 		if (slot && slot->isOccupied() && slot->getPlayerTemplate() != PLAYERTEMPLATE_OBSERVER)
@@ -332,7 +332,7 @@ void StartPressed()
 		mapDisplayName.format(L"%hs", myGame->getMap().str());
 		willTransfer = WouldMapTransfer(myGame->getMap());
 	}
-	for( i = 0; i < MAX_SLOTS; i++ )
+	for( i = 0; i < MAX_LOBBY_SLOTS; i++ )
 	{
 		LANGameSlot *slot = myGame->getLANSlot(i);
 		if( slot->isHuman() && !slot->isAccepted())
@@ -355,7 +355,7 @@ void StartPressed()
 
 	if(isReady)
 	{
-		for( i = 0; i < MAX_SLOTS; i++ )
+		for( i = 0; i < MAX_LOBBY_SLOTS; i++ )
 		{
 			LANGameSlot *slot = myGame->getLANSlot(i);
 			if (slot && slot->isOpen())
@@ -409,7 +409,7 @@ static void handleColorSelection(int index)
 			Bool colorAvailable = TRUE;
 			if(color != -1 )
 			{
-				for(Int i=0; i <MAX_SLOTS; i++)
+				for(Int i=0; i <MAX_LOBBY_SLOTS; i++)
 				{
 					LANGameSlot *checkSlot = myGame->getLANSlot(i);
 					if(color == checkSlot->getColor() && slot != checkSlot)
@@ -521,7 +521,7 @@ static void handleStartPositionSelection(Int player, int startPos)
 		if(!skip)
 		{
 			Bool isAvailable = TRUE;
-			for(Int i = 0; i < MAX_SLOTS; ++i)
+			for(Int i = 0; i < MAX_LOBBY_SLOTS; ++i)
 			{
 				if(i != player && myGame->getSlot(i)->getStartPos() == startPos)
 				{
@@ -715,7 +715,7 @@ void InitLanGameGadgets()
 	//Tooltip function is being set for techBuildings, and supplyDocks
 	windowMap->winSetTooltipFunc(MapSelectorTooltip);
 
-	for (Int i = 0; i < MAX_SLOTS; i++)
+	for (Int i = 0; i < MAX_LOBBY_SLOTS; i++)
 	{
 		AsciiString tmpString;
 		tmpString.format("LanGameOptionsMenu.wnd:ComboBoxPlayer%d", i);
@@ -805,7 +805,7 @@ void DeinitLanGameGadgets()
 		windowMap->winSetUserData(nullptr);
 		windowMap = nullptr;
 	}
-	for (Int i = 0; i < MAX_SLOTS; i++)
+	for (Int i = 0; i < MAX_LOBBY_SLOTS; i++)
 	{
 		comboBoxPlayer[i] = nullptr;
 		comboBoxColor[i] = nullptr;
@@ -893,7 +893,7 @@ void LanGameOptionsMenuInit( WindowLayout *layout, void *userData )
 		lanUpdateSlotList();
 		updateGameOptions();
 	}
-	for (Int i = start; i < MAX_SLOTS; ++i)
+	for (Int i = start; i < MAX_LOBBY_SLOTS; ++i)
 	{
 		//I'm a client, disable the controls I can't touch.
 		if (!TheLAN->AmIHost())
@@ -905,7 +905,7 @@ void LanGameOptionsMenuInit( WindowLayout *layout, void *userData )
 //		buttonStartPosition[i]->winEnable(FALSE);
 	}
 
-//	for (i = 0; i < MAX_SLOTS; ++i)
+//	for (i = 0; i < MAX_LOBBY_SLOTS; ++i)
 //	{
 //		if (buttonStartPosition[i])
 //			buttonStartPosition[i]->winHide(TRUE); // not picking start spots this way any more
@@ -1162,7 +1162,7 @@ WindowMsgHandledType LanGameOptionsMenuSystem( GameWindow *window, UnsignedInt m
         }
         else
         {
-				  for (Int i = 0; i < MAX_SLOTS; i++)
+				  for (Int i = 0; i < MAX_LOBBY_SLOTS; i++)
 				  {
 					  if (controlID == comboBoxColorID[i])
 					  {
@@ -1283,13 +1283,13 @@ WindowMsgHandledType LanGameOptionsMenuSystem( GameWindow *window, UnsignedInt m
         }
 				else
 				{
-					for (Int i = 0; i < MAX_SLOTS; i++)
+					for (Int i = 0; i < MAX_LOBBY_SLOTS; i++)
 					{
 						if (controlID == buttonMapStartPositionID[i])
 						{
 							LANGameInfo *game = TheLAN->GetMyGame();
 							Int playerIdxInPos = -1;
-							for (Int j=0; j<MAX_SLOTS; ++j)
+							for (Int j=0; j<MAX_LOBBY_SLOTS; ++j)
 							{
 								LANGameSlot *slot = game->getLANSlot(j);
 								if (slot && slot->getStartPos() == i)
@@ -1334,13 +1334,13 @@ WindowMsgHandledType LanGameOptionsMenuSystem( GameWindow *window, UnsignedInt m
 
 			GameWindow *control = (GameWindow *)mData1;
 			Int controlID = control->winGetWindowId();
-			for (Int i = 0; i < MAX_SLOTS; i++)
+			for (Int i = 0; i < MAX_LOBBY_SLOTS; i++)
 			{
 				if (controlID == buttonMapStartPositionID[i])
 				{
 					LANGameInfo *game = TheLAN->GetMyGame();
 					Int playerIdxInPos = -1;
-					for (Int j=0; j<MAX_SLOTS; ++j)
+					for (Int j=0; j<MAX_LOBBY_SLOTS; ++j)
 					{
 						LANGameSlot *slot = game->getLANSlot(j);
 						if (slot && slot->getStartPos() == i)
@@ -1417,7 +1417,7 @@ void PostToLanGameOptions( PostToLanGameType post )
 
 			//buttonBack->winEnable( true );
 
-			for(Int i = 0; i < MAX_SLOTS; ++i)
+			for(Int i = 0; i < MAX_LOBBY_SLOTS; ++i)
 			{
 				game->getSlot(i)->setStartPos(-1);
 			}

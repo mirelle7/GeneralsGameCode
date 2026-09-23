@@ -60,12 +60,12 @@
 
 //-------------------------------------------------------------------------------------------------
 
-static NameKeyType staticTextPlayerID[MAX_SLOTS];
-static NameKeyType staticTextSideID[MAX_SLOTS];
-static NameKeyType staticTextTeamID[MAX_SLOTS];
-static NameKeyType staticTextStatusID[MAX_SLOTS];
-static NameKeyType buttonMuteID[MAX_SLOTS];
-static NameKeyType buttonUnMuteID[MAX_SLOTS];
+static NameKeyType staticTextPlayerID[MAX_LOBBY_SLOTS];
+static NameKeyType staticTextSideID[MAX_LOBBY_SLOTS];
+static NameKeyType staticTextTeamID[MAX_LOBBY_SLOTS];
+static NameKeyType staticTextStatusID[MAX_LOBBY_SLOTS];
+static NameKeyType buttonMuteID[MAX_LOBBY_SLOTS];
+static NameKeyType buttonUnMuteID[MAX_LOBBY_SLOTS];
 static NameKeyType radioButtonInGameID = NAMEKEY_INVALID;
 static NameKeyType radioButtonBuddiesID = NAMEKEY_INVALID;
 static GameWindow *radioButtonInGame = nullptr;
@@ -76,13 +76,13 @@ static NameKeyType winSoloID = NAMEKEY_INVALID;
 static GameWindow *winInGame = nullptr;
 static GameWindow *winBuddies = nullptr;
 static GameWindow *winSolo = nullptr;
-static GameWindow *staticTextPlayer[MAX_SLOTS] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
-static GameWindow *staticTextSide[MAX_SLOTS] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
-static GameWindow *staticTextTeam[MAX_SLOTS] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
-static GameWindow *staticTextStatus[MAX_SLOTS] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
-static GameWindow *buttonMute[MAX_SLOTS] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
-static GameWindow *buttonUnMute[MAX_SLOTS] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
-static Int slotNumInRow[MAX_SLOTS];
+static GameWindow *staticTextPlayer[MAX_LOBBY_SLOTS] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+static GameWindow *staticTextSide[MAX_LOBBY_SLOTS] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+static GameWindow *staticTextTeam[MAX_LOBBY_SLOTS] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+static GameWindow *staticTextStatus[MAX_LOBBY_SLOTS] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+static GameWindow *buttonMute[MAX_LOBBY_SLOTS] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+static GameWindow *buttonUnMute[MAX_LOBBY_SLOTS] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+static Int slotNumInRow[MAX_LOBBY_SLOTS];
 
 //-------------------------------------------------------------------------------------------------
 
@@ -95,7 +95,7 @@ void InitBuddyControls(Int type);
 void updateBuddyInfo();
 static void grabWindowPointers()
 {
-	for (Int i=0; i<MAX_SLOTS; ++i)
+	for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 	{
 		AsciiString temp;
 		temp.format("Diplomacy.wnd:StaticTextPlayer%d", i);
@@ -124,7 +124,7 @@ static void grabWindowPointers()
 
 static void releaseWindowPointers()
 {
-	for (Int i=0; i<MAX_SLOTS; ++i)
+	for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 	{
 		staticTextPlayer[i] = nullptr;
 		staticTextSide[i] = nullptr;
@@ -425,7 +425,7 @@ WindowMsgHandledType DiplomacySystem( GameWindow *window, UnsignedInt msg,
 				winBuddies->winHide(FALSE);
 			}
 
-			for (Int i=0; i<MAX_SLOTS; ++i)
+			for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 			{
 				if (controlID == buttonMuteID[i] && slotNumInRow[i] >= 0)
 				{
@@ -460,7 +460,7 @@ void PopulateInGameDiplomacyPopup()
 		return;
 
 	Int rowNum = 0;
-	for (Int slotNum=0; slotNum<MAX_SLOTS; ++slotNum)
+	for (Int slotNum=0; slotNum<MAX_LOBBY_SLOTS; ++slotNum)
 	{
 		const GameSlot *slot = TheGameInfo->getConstSlot(slotNum);
 		if (slot && slot->isOccupied())
@@ -571,7 +571,7 @@ void PopulateInGameDiplomacyPopup()
 		}
 	}
 
-	while (rowNum < MAX_SLOTS)
+	while (rowNum < MAX_LOBBY_SLOTS)
 	{
 		slotNumInRow[rowNum] = -1;
 		if (staticTextPlayer[rowNum])

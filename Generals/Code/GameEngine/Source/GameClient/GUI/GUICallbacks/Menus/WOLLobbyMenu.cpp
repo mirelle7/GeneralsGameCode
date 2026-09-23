@@ -1062,7 +1062,7 @@ void WOLLobbyMenuUpdate( WindowLayout * layout, void *userData)
 						else
 						{
 							isHostPresent = FALSE;
-							for (Int i=0; i<MAX_SLOTS; ++i)
+							for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 							{
 								AsciiString hostName;
 								hostName.translate(room->getConstSlot(0)->getName());
@@ -1154,7 +1154,7 @@ void WOLLobbyMenuUpdate( WindowLayout * layout, void *userData)
 						}
 						// fix for ghost game problem - need to iterate over all resp.stagingRoomPlayerNames[i]
 						Bool sawSelf = FALSE;
-						//for (Int i=0; i<MAX_SLOTS; ++i)
+						//for (Int i=0; i<MAX_LOBBY_SLOTS; ++i)
 						//{
 							if (TheGameSpyInfo->getLocalName() == resp.stagingRoomPlayerNames[0].c_str())
 							{
@@ -1195,7 +1195,7 @@ void WOLLobbyMenuUpdate( WindowLayout * layout, void *userData)
 							room.setMap(TheGameState->portableMapPathToRealMapPath(mapName));
 
 							Int numPlayers = 0;
-							for (i=0; i<MAX_SLOTS; ++i)
+							for (i=0; i<MAX_LOBBY_SLOTS; ++i)
 							{
 								GameSpyGameSlot *slot = room.getGameSpySlot(i);
 								if (slot)
@@ -1577,7 +1577,7 @@ WindowMsgHandledType WOLLobbyMenuSystem( GameWindow *window, UnsignedInt msg,
 									GSMessageBoxOk(TheGameText->fetch("GUI:JoinFailedDefault"), TheGameText->fetch("GUI:JoinFailedUnknownLadder"));
 									break;
 								}
-								if (roomToJoin->getNumPlayers() == MAX_SLOTS)
+								if (roomToJoin->getNumPlayers() == MAX_LOBBY_SLOTS)
 								{
 									GSMessageBoxOk(TheGameText->fetch("GUI:JoinFailedDefault"), TheGameText->fetch("GUI:JoinFailedRoomFull"));
 									break;
