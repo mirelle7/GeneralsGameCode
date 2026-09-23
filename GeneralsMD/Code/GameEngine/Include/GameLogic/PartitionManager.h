@@ -298,8 +298,7 @@ private:
 	Real													m_loTerrainZ;			///< lowest terrain-pt in this cell
 	Real													m_hiTerrainZ;			///< highest terrain-pt in this cell
 #endif
-	Int														m_threatValue[MAX_PLAYER_COUNT];
-	Int														m_cashValue[MAX_PLAYER_COUNT];
+	Int															*m_playerValues;			///< threat values for each player followed by cash values for each player. Allocated on first use, so the many cells that never hold any stay small on big maps.
 	Short													m_coiCount;					///< number of COIs in this cell.
 	Short													m_cellX;						///< x-coord of this cell within the Partition Mgr coords (NOT in world coords)
 	Short													m_cellY;						///< y-coord of this cell within the Partition Mgr coords (NOT in world coords)
@@ -338,6 +337,10 @@ public:
 	UnsignedInt getCashValue( Int playerIndex );
 	void addCashValue( Int playerIndex, UnsignedInt cashValue );
 	void removeCashValue( Int playerIndex, UnsignedInt cashValue );
+
+private:
+	Int *getPlayerValues();	///< allocates the values on first use
+public:
 
 	void invalidateShroudedStatusForAllCois(Int playerIndex);
 

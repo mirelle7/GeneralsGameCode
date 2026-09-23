@@ -1227,6 +1227,7 @@ void CellAndObjectIntersection::removeAllCoverage()
 //-----------------------------------------------------------------------------
 PartitionCell::PartitionCell()
 {
+	m_playerValues = nullptr;
 	m_cellX = m_cellY = 0;
 	m_firstCoiInCell = nullptr;
 	m_coiCount = 0;
@@ -1246,11 +1247,6 @@ PartitionCell::PartitionCell()
 		m_shroudLevel[i].m_currentShroud = 1;
 		m_shroudLevel[i].m_activeShroudLevel = 0;
 
-		// default cash value is 0
-		m_cashValue[i] = 0;
-
-		// default threat value is 0
-		m_threatValue[i] = 0;
 	}
 }
 
@@ -1259,6 +1255,7 @@ PartitionCell::~PartitionCell()
 {
 	DEBUG_ASSERTCRASH(m_firstCoiInCell == nullptr && m_coiCount == 0, ("destroying a nonempty PartitionCell"));
 	// but don't destroy the Cois; they don't belong to us
+	delete[] m_playerValues;
 }
 
 //-----------------------------------------------------------------------------
@@ -1394,10 +1391,22 @@ CellShroudStatus PartitionCell::getShroudStatusForPlayer( Int playerIndex ) cons
 }
 
 //-----------------------------------------------------------------------------
+Int *PartitionCell::getPlayerValues()
+{
+	if (m_playerValues == nullptr)
+	{
+		m_playerValues = MSGNEW("PartitionCell_PlayerValues") Int[MAX_PLAYER_COUNT * 2];
+		for (Int i = 0; i < MAX_PLAYER_COUNT * 2; ++i)
+			m_playerValues[i] = 0;
+	}
+	return m_playerValues;
+}
+
+//-----------------------------------------------------------------------------
 UnsignedInt PartitionCell::getThreatValue( Int playerIndex )
 {
 	if (playerIndex >= 0 && playerIndex < MAX_PLAYER_COUNT) {
-		return m_threatValue[playerIndex];
+		return m_playerValues ? m_playerValues[playerIndex] : 0;
 	}
 	return 0;
 }
@@ -1407,10 +1416,10 @@ void PartitionCell::addThreatValue( Int playerIndex, UnsignedInt threatValue )
 {
 	if (playerIndex >= 0 && playerIndex < MAX_PLAYER_COUNT) {
 #ifdef DEBUG_CRASHING
-		UnsignedInt oldThreatVal = m_threatValue[playerIndex];
+		UnsignedInt oldThreatVal = getPlayerValues()[playerIndex];
 		DEBUG_ASSERTCRASH(oldThreatVal <= oldThreatVal + threatValue, ("adding new threat value overflowed allotted storage."));
 #endif
-		m_threatValue[playerIndex] += threatValue;
+		getPlayerValues()[playerIndex] += threatValue;
 	}
 }
 
@@ -1419,10 +1428,10 @@ void PartitionCell::removeThreatValue( Int playerIndex, UnsignedInt threatValue 
 {
 	if (playerIndex >= 0 && playerIndex < MAX_PLAYER_COUNT) {
 #ifdef DEBUG_CRASHING
-		UnsignedInt oldThreatVal = m_threatValue[playerIndex];
+		UnsignedInt oldThreatVal = getPlayerValues()[playerIndex];
 		DEBUG_ASSERTCRASH(oldThreatVal >= oldThreatVal - threatValue, ("removing new threat value underflowed allotted storage."));
 #endif
-		m_threatValue[playerIndex] -= threatValue;
+		getPlayerValues()[playerIndex] -= threatValue;
 	}
 }
 
@@ -1430,7 +1439,7 @@ void PartitionCell::removeThreatValue( Int playerIndex, UnsignedInt threatValue 
 UnsignedInt PartitionCell::getCashValue( Int playerIndex )
 {
 	if (playerIndex >= 0 && playerIndex < MAX_PLAYER_COUNT) {
-		return m_cashValue[playerIndex];
+		return m_playerValues ? m_playerValues[MAX_PLAYER_COUNT + playerIndex] : 0;
 	}
 	return 0;
 }
@@ -1440,10 +1449,10 @@ void PartitionCell::addCashValue( Int playerIndex, UnsignedInt cashValue )
 {
 	if (playerIndex >= 0 && playerIndex < MAX_PLAYER_COUNT) {
 #ifdef DEBUG_CRASHING
-		UnsignedInt oldCashVal = m_cashValue[playerIndex];
+		UnsignedInt oldCashVal = getPlayerValues()[MAX_PLAYER_COUNT + playerIndex];
 		DEBUG_ASSERTCRASH(oldCashVal <= oldCashVal + cashValue, ("adding new cash value overflowed allotted storage."));
 #endif
-		m_cashValue[playerIndex] += cashValue;
+		getPlayerValues()[MAX_PLAYER_COUNT + playerIndex] += cashValue;
 	}
 }
 
@@ -1452,10 +1461,10 @@ void PartitionCell::removeCashValue( Int playerIndex, UnsignedInt cashValue )
 {
 	if (playerIndex >= 0 && playerIndex < MAX_PLAYER_COUNT) {
 #ifdef DEBUG_CRASHING
-		UnsignedInt oldCashVal = m_cashValue[playerIndex];
+		UnsignedInt oldCashVal = getPlayerValues()[MAX_PLAYER_COUNT + playerIndex];
 		DEBUG_ASSERTCRASH(oldCashVal >= oldCashVal - cashValue, ("removing new cash value underflowed allotted storage."));
 #endif
-		m_cashValue[playerIndex] -= cashValue;
+		getPlayerValues()[MAX_PLAYER_COUNT + playerIndex] -= cashValue;
 	}
 }
 
