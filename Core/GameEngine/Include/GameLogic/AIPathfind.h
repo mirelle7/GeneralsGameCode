@@ -485,8 +485,8 @@ private:
 };
 
 
-#define PATHFIND_CELL_SIZE		20
-#define PATHFIND_CELL_SIZE_F	20.0f
+#define PATHFIND_CELL_SIZE		10
+#define PATHFIND_CELL_SIZE_F	10.0f
 
 enum { PATHFIND_QUEUE_LEN=512};
 
