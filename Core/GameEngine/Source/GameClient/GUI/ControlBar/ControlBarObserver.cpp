@@ -253,7 +253,7 @@ void ControlBar::populateObserverList()
 	if(TheRecorder->isMultiplayer())
 	{
 
-		for (i = 0; i < MAX_SLOTS; ++i)
+		for (i = 0; i < MAX_SLOTS && currentButton < MAX_BUTTONS; ++i)
 		{
 			Player *p = ThePlayerList->getPlayerFromSlotIndex(i);
 			if(p)
