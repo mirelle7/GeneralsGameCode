@@ -171,20 +171,21 @@ Player *ScriptConditions::playerFromParam(Parameter *pSideParm)
 {
 	DEBUG_ASSERTCRASH(Parameter::SIDE == pSideParm->getParameterType(), ("Wrong parameter type."));
 	Player *pPlayer=nullptr;
-	UnsignedInt mask = (UnsignedInt)pSideParm->getInt();
-	if (mask) {
-		pPlayer = ThePlayerList->getPlayerFromMask(mask);
+	// The cache holds the player index + 1 (0 = not cached yet, -1 = no such player), so it does not depend on the width of PlayerMaskType.
+	Int cachedIndex = pSideParm->getInt();
+	if (cachedIndex) {
+		pPlayer = (cachedIndex > 0) ? ThePlayerList->getNthPlayer(cachedIndex - 1) : nullptr;
 	} else {
 		pPlayer = TheScriptEngine->getPlayerFromAsciiString(pSideParm->getString());
 		if (pPlayer) {
-			// Enemy player can change dynamically, so don't cache the player mask.  jba.
+			// Enemy player can change dynamically, so don't cache the player index.  jba.
 			if (pSideParm->getString()!=THIS_PLAYER_ENEMY) {
-				mask = pPlayer->getPlayerMask();
+				cachedIndex = pPlayer->getPlayerIndex() + 1;
 			}
 		} else {
-			mask = 0xFFFF0000;
+			cachedIndex = -1;
 		}
-		pSideParm->friend_setInt((Int)mask);
+		pSideParm->friend_setInt(cachedIndex);
 	}
 	DEBUG_ASSERTCRASH(pPlayer, ("Couldn't find player %s", pSideParm->getString().str()));
 	return pPlayer;

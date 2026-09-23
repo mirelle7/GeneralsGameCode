@@ -46,7 +46,7 @@ static constexpr const Int FRAMES_TO_KEEP = (MAX_FRAMES_AHEAD / 2) + 1;
 // This is the connection numbering: 1-8 are for players
 enum ConnectionNumbers CPP_11(: Int)
 {
-	MAX_PLAYER = 7,			// The index of the highest possible player number.  This is 0 based, so the most players allowed in a game is MAX_PLAYER+1.
+	MAX_PLAYER = 31,			// The index of the highest possible player number.  This is 0 based, so the most players allowed in a game is MAX_PLAYER+1.
 };
 
 #pragma pack(push, 1)
@@ -60,6 +60,9 @@ struct TransportMessageHeader
 #pragma pack(pop)
 
 static constexpr const Int MAX_SLOTS = MAX_PLAYER+1;
+
+// The lobby, load screen and score screen only have window rows for this many slots. Slots beyond it are only ever filled with AI by the skirmish start code.
+static constexpr const Int MAX_LOBBY_SLOTS = 8;
 
 // TheSuperHackers @info As we are not detecting for network fragmentation and dynamically adjusting payload sizes, we set an 1100 bytes UDP payload as a safe upper limit for various networks
 // We chose 1100 bytes as when taking mobile networks into account, maximum transmission unit sizes can vary from 1340 - 1500 bytes

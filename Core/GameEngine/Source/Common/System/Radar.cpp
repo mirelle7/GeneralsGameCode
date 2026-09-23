@@ -1363,7 +1363,7 @@ void Radar::xfer( Xfer *xfer )
 #if RETAIL_COMPATIBLE_XFER_SAVE
 	XferVersion currentVersion = 1;
 #else
-	XferVersion currentVersion = 2;
+	XferVersion currentVersion = 3;
 #endif
 	XferVersion version = currentVersion;
 	xfer->xferVersion( &version, currentVersion );
@@ -1384,12 +1384,32 @@ void Radar::xfer( Xfer *xfer )
 		xfer->xferBool( &value );
 		m_radarForceOn[localPlayerIndex] = value;
 	}
+	else if (version == 2)
+	{
+		// Version 2 saved the flags of the original 16 players.
+		Bool legacyHidden[16];
+		Bool legacyForceOn[16];
+		for (Int i = 0; i < 16; ++i)
+		{
+			legacyHidden[i] = m_radarHidden[i];
+			legacyForceOn[i] = m_radarForceOn[i];
+		}
+
+		xfer->xferUser(legacyHidden, sizeof(legacyHidden));
+		xfer->xferUser(legacyForceOn, sizeof(legacyForceOn));
+
+		for (Int i = 0; i < 16; ++i)
+		{
+			m_radarHidden[i] = legacyHidden[i];
+			m_radarForceOn[i] = legacyForceOn[i];
+		}
+	}
 	else
 	{
-		static_assert(sizeof(m_radarHidden) == 16, "Increase version if size changes");
+		static_assert(sizeof(m_radarHidden) == MAX_PLAYER_COUNT, "Increase version if size changes");
 		xfer->xferUser(&m_radarHidden, sizeof(m_radarHidden));
 
-		static_assert(sizeof(m_radarForceOn) == 16, "Increase version if size changes");
+		static_assert(sizeof(m_radarForceOn) == MAX_PLAYER_COUNT, "Increase version if size changes");
 		xfer->xferUser(&m_radarForceOn, sizeof(m_radarForceOn));
 	}
 
