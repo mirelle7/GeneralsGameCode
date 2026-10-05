@@ -2,7 +2,7 @@
 
 Mirelle7/GeneralsGameCode is a single person project. It's goal is to make the best console version of generals.
 
-Also the best state of this project is being deleted. Either having upstreamed all this code to any of the larger forks.
+Also the best state of this project is being archived. Either having upstreamed all this code to any of the larger forks.
 Such as GO, TSH, Vibecoded flavour of the Day. If you're truly bored please help me reach version 0 (see urbit kelvin versioning).
 
 You can compete on any of this code.
