@@ -14,7 +14,7 @@
             "binaryDir": "${sourceDir}/build/${presetName}",
             "cacheVariables": {
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-                "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL",
+                "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>",
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_C_FLAGS": "/std:c17",
                 "CMAKE_CXX_FLAGS": "/std:c++20 /EHsc /Zc:__cplusplus",
@@ -86,7 +86,7 @@
             "cacheVariables": {
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
                 "CMAKE_MSVC_DEBUG_INFORMATION_FORMAT": "$<$<CONFIG:Release,Debug,RelWithDebInfo>:Embedded>",
-                "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
+                "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>"
             }
         },
         {
@@ -98,7 +98,7 @@
             "cacheVariables": {
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
                 "CMAKE_MSVC_DEBUG_INFORMATION_FORMAT": "$<$<CONFIG:Release,Debug,RelWithDebInfo>:Embedded>",
-                "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL",
+                "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>",
                 "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
                 "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/triplets"
             }
@@ -148,7 +148,7 @@
                 "strategy": "external"
             },
             "cacheVariables": {
-                "VCPKG_TARGET_TRIPLET": "x86-windows-static-md",
+                "VCPKG_TARGET_TRIPLET": "x86-windows-static",
                 "VCPKG_INSTALL_OPTIONS": "--x-buildtrees-root=$env{LOCALAPPDATA}/vcpkg/bt",
                 "RTS_FLAGS": "/W3"
             },

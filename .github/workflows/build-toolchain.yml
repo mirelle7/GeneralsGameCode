@@ -117,7 +117,7 @@ jobs:
           $triplet = "x86-windows"
           if ("${{ inputs.preset }}" -like "x64*") { $triplet = "x64-windows" }
           # Must match VCPKG_TARGET_TRIPLET in the win32-vcpkg presets.
-          if ("${{ inputs.preset }}" -like "win32-vcpkg*") { $triplet = "x86-windows-static-md" }
+          if ("${{ inputs.preset }}" -like "win32-vcpkg*") { $triplet = "x86-windows-static" }
 
           "baseline=$baseline" >> $env:GITHUB_OUTPUT
           "triplet=$triplet" >> $env:GITHUB_OUTPUT

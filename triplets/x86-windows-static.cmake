@@ -1,6 +1,7 @@
-# Static libraries with the dynamic CRT (/MD), matching CMAKE_MSVC_RUNTIME_LIBRARY.
+# Static libraries with the static CRT (/MT), matching CMAKE_MSVC_RUNTIME_LIBRARY. No Visual C++
+# redistributable is needed at runtime.
 set(VCPKG_TARGET_ARCHITECTURE x86)
-set(VCPKG_CRT_LINKAGE dynamic)
+set(VCPKG_CRT_LINKAGE static)
 set(VCPKG_LIBRARY_LINKAGE static)
 
 # Match the engine's _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR: std::mutex built with the
