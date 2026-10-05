@@ -98,6 +98,21 @@ if(RTS_BUILD_GENERALS)
     add_feature_info(GeneralsDocs RTS_BUILD_GENERALS_DOCS "Build Generals Documentation")
 endif()
 
+# The MFC based tools need the DLL runtime (_AFXDLL requires /MD) and the engine libraries they link
+# must use the same runtime. Build the tools with -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded[Debug]DLL.
+if(MSVC AND NOT IS_VS6_BUILD AND CMAKE_MSVC_RUNTIME_LIBRARY AND NOT CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "DLL")
+    if(RTS_BUILD_CORE_TOOLS OR RTS_BUILD_ZEROHOUR_TOOLS OR RTS_BUILD_GENERALS_TOOLS)
+        message(STATUS "Static MSVC runtime: disabling the MFC based tools, they need the DLL runtime")
+        set(RTS_BUILD_CORE_TOOLS OFF CACHE BOOL "Build core tools" FORCE)
+        if(RTS_BUILD_ZEROHOUR)
+            set(RTS_BUILD_ZEROHOUR_TOOLS OFF CACHE BOOL "Build tools for Zero Hour" FORCE)
+        endif()
+        if(RTS_BUILD_GENERALS)
+            set(RTS_BUILD_GENERALS_TOOLS OFF CACHE BOOL "Build tools for Generals" FORCE)
+        endif()
+    endif()
+endif()
+
 if(NOT IS_VS6_BUILD)
     # Because we set CMAKE_CXX_STANDARD_REQUIRED and CMAKE_CXX_EXTENSIONS in the compilers.cmake this should be enforced.
     target_compile_features(core_config INTERFACE cxx_std_20)
