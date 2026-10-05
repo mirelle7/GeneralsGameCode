@@ -1,21 +1,29 @@
-[![GitHub Release](https://img.shields.io/github/v/release/TheSuperHackers/GeneralsGameCode?include_prereleases&sort=date&display_name=tag&style=flat&label=Release)](https://github.com/TheSuperHackers/GeneralsGameCode/releases)
-![GitHub milestone details](https://img.shields.io/github/milestones/progress-percent/TheSuperHackers/GeneralsGameCode/3)
-![GitHub milestone details](https://img.shields.io/github/milestones/progress-percent/TheSuperHackers/GeneralsGameCode/1)
-![GitHub milestone details](https://img.shields.io/github/milestones/progress-percent/TheSuperHackers/GeneralsGameCode/4)
-![GitHub milestone details](https://img.shields.io/github/milestones/progress-percent/TheSuperHackers/GeneralsGameCode/5)
-![GitHub milestone details](https://img.shields.io/github/milestones/progress-percent/TheSuperHackers/GeneralsGameCode/6)
-
-[![GitHub issues by-label](https://img.shields.io/github/issues/TheSuperHackers/GeneralsGameCode/bug?style=flat&label=Bug%20Issues&labelColor=%23c4c4c4&color=%23424242)](https://github.com/TheSuperHackers/GeneralsGameCode/issues?q=label%3ABug)
-[![GitHub issues by-label](https://img.shields.io/github/issues/TheSuperHackers/GeneralsGameCode/enhancement?style=flat&label=Enhancement%20Issues&labelColor=%23c4c4c4&color=%23424242)](https://github.com/TheSuperHackers/GeneralsGameCode/issues?q=label%3AEnhancement)
-[![GitHub issues by-label](https://img.shields.io/github/issues/TheSuperHackers/GeneralsGameCode/major?style=flat&label=Major%20Issues&labelColor=%23c4c4c4&color=%23424242)](https://github.com/TheSuperHackers/GeneralsGameCode/issues?q=label%3AMajor)
-[![GitHub issues by-label](https://img.shields.io/github/issues/TheSuperHackers/GeneralsGameCode/critical?style=flat&label=Critical%20Issues&labelColor=%23c4c4c4&color=%23424242)](https://github.com/TheSuperHackers/GeneralsGameCode/issues?q=label%3ACritical)
-[![GitHub issues by-label](https://img.shields.io/github/issues/TheSuperHackers/GeneralsGameCode/blocker?style=flat&label=Blocker%20Issues&labelColor=%23c4c4c4&color=%23424242)](https://github.com/TheSuperHackers/GeneralsGameCode/issues?q=label%3ABlocker)
-
 # Welcome to the Generals Game Code Project
 
-GeneralsGameCode is a community-driven project aimed at fixing and improving the classic RTS game, *Command &
-Conquer: Generals* and its expansion *Zero Hour*. This repository contains the source code for both games, with a
-primary focus on *Zero Hour*.
+Mirelle7/GeneralsGameCode is a single person project. It's goal is to make the best console version of generals.
+
+Also the best state of this project is being deleted. Either having upstreamed all this code to any of the larger forks.
+Such as GO, TSH, Vibecoded flavour of the Day. If you're truly bored please help me reach version 0 (see urbit kelvin versioning).
+
+You can compete on any of this code.
+
+As I'm unemployed it's imperative to include a Properly Tested NixOS image of the entire GeneralsMD psychofauna. And to not use it.
+I love reading them.
+
+Estimated cost:
+1 tinybox for but for video games https://tinygrad.org/#tinybox
+as many monitors 4 RTX cards support, 240hz atleast
+as many input devices this motherboard and its antennas supports, 4/16 gamepads are possible. usb also supports a pretty high number for mk/b
+
+Legi/GO/TSH/bgfx/CO/multiview and either sdl3 or gameinput support
+
+and im not paying for it (except for my own seat ofc)
+
+Also we should include gambling. In spectator mode I do want to be able to bet on who will when, the faster and the more correct i guess the higher the score.
+
+score = base × (1 − time_locked / match_length) + accuracy_bonus
+
+essentially, 3 async game modus in one
 
 Additionally, there is a complementary project repository for fixing and improving game data and assets such as
 INI scripts, GUI, AI, maps, models, textures, audio, localization. You can find it
@@ -34,16 +42,7 @@ and features will be possible to implement.
 
 Here's an overview of our current focus and future plans
 
-- **Modernizing the Codebase**: Transitioning to modern C++ standards and refactoring old code.
-- **Critical Bug Fixes**: Fixing game-breaking issues (e.g., fullscreen crash).
-- **Minor Bug Fixes**: Addressing minor bugs (e.g., UI issues, graphical glitches).
-- **Cross-Platform Support**: Adding support for more platforms (e.g., Linux, macOS).
-- **Engine Improvements**: Enhancing the game engine to improve performance and stability.
-- **Client-Side Features**: Enhancing the game's client with features such as an improved replay viewer and UI updates.
-- **Multiplayer Improvements**: Implementing a new game server and an upgraded matchmaking lobby.
-- **Tooling Improvements**: Developing new or improving existing tools for modding and game development.
-- **Community-Driven Improvements**: Once the community grows, we plan to incorporate more features, updates, and
-  changes based on player feedback.
+- Minimize the codebase. 
 
 ## Running the Game
 
