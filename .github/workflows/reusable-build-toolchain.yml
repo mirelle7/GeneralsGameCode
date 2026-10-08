@@ -31,6 +31,16 @@ on:
         default: false
         type: boolean
         description: "Build with FFmpeg support"
+      cmake_args:
+        required: false
+        default: ""
+        type: string
+        description: "Extra space-separated -D flags, applied after the defaults (used by the build portal)"
+      artifact_suffix:
+        required: false
+        default: ""
+        type: string
+        description: "Appended to the artifact name so variants of one preset do not collide"
 
 jobs:
   build:
@@ -153,6 +163,9 @@ jobs:
           $buildFlags += "-DRTS_BUILD_${gamePrefix}_EXTRAS=${{ inputs.extras && 'ON' || 'OFF' }}"
           $buildFlags += "-DRTS_BUILD_OPTION_FFMPEG=${{ inputs.ffmpeg && 'ON' || 'OFF' }}"
 
+          $extraArgs = "${{ inputs.cmake_args }}"
+          if ($extraArgs) { $buildFlags += ($extraArgs -split '\s+' | Where-Object { $_ }) }
+
           Write-Host "Build flags: $($buildFlags -join ' | ')"
           cmake --preset ${{ inputs.preset }} $buildFlags
 
@@ -181,7 +194,7 @@ jobs:
       - name: Upload ${{ inputs.game }} ${{ inputs.preset }}${{ inputs.tools && '+t' || '' }}${{ inputs.extras && '+e' || '' }} Artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: ${{ inputs.game }}-${{ inputs.preset }}${{ inputs.tools && '+t' || '' }}${{ inputs.extras && '+e' || '' }}
+          name: ${{ inputs.game }}-${{ inputs.preset }}${{ inputs.tools && '+t' || '' }}${{ inputs.extras && '+e' || '' }}${{ inputs.artifact_suffix }}
           path: build\${{ inputs.preset }}\${{ inputs.game }}\artifacts
           retention-days: 30
           if-no-files-found: error

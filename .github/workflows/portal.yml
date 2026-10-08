@@ -1,0 +1,115 @@
+name: Build Portal
+
+# Builds every tier 1 / tier 2 variant from build-portal/matrix.yaml and publishes
+# the configurator site (GitHub Pages) with the build artifacts.
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "Highest tier to build (1 = CI presets only, 2 = plus curated variants)"
+        required: false
+        default: "2"
+        type: choice
+        options: ["1", "2"]
+  schedule:
+    - cron: '0 3 * * 6'
+  pull_request:
+    paths:
+      - 'build-portal/**'
+      - '.github/workflows/portal.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: Plan matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install PyYAML
+        run: python3 -m pip install pyyaml
+      - name: Test matrix and resolver
+        run: python3 build-portal/scripts/test_portal.py
+      - name: Generate matrix
+        id: matrix
+        run: |
+          python3 build-portal/scripts/portal.py generate
+          TIER="${{ github.event.inputs.tier || '2' }}"
+          # Pull requests only validate the matrix; they never start Windows builds.
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+          else
+            python3 - "$TIER" >> "$GITHUB_OUTPUT" <<'PY'
+          import json, sys
+          m = json.load(open("build-portal/ci-matrix.json"))
+          m["include"] = [b for b in m["include"] if b["tier"] <= int(sys.argv[1])]
+          print("matrix=" + json.dumps(m, separators=(",", ":")))
+          PY
+          fi
+
+  build:
+    name: ${{ matrix.id }}
+    needs: plan
+    if: ${{ fromJSON(needs.plan.outputs.matrix).include[0] != null }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/reusable-build-toolchain.yml
+    with:
+      game: ${{ matrix.game }}
+      preset: ${{ matrix.preset }}
+      tools: true
+      extras: false
+      cmake_args: ${{ matrix.cmake_args }}
+      artifact_suffix: ${{ format('-{0}', matrix.id) }}
+    secrets: inherit
+
+  publish:
+    name: Publish site
+    needs: [plan, build]
+    # Publish whatever built, even if some variants failed.
+    if: ${{ !cancelled() && needs.plan.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+      actions: read
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install PyYAML
+        run: python3 -m pip install pyyaml
+      - name: Generate site data
+        run: python3 build-portal/scripts/portal.py generate
+
+      - name: Download build artifacts
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          path: artifacts
+
+      - name: Package builds and write manifests
+        if: ${{ github.event_name != 'pull_request' }}
+        run: |
+          python3 build-portal/scripts/package_builds.py artifacts build-portal/site/builds \
+            --commit "${{ github.sha }}" --log-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          python3 build-portal/scripts/portal.py publish build-portal/site/builds
+
+      - uses: actions/upload-pages-artifact@v3 # TODO: pin to a commit SHA like the other actions
+        with:
+          path: build-portal/site
+      - uses: actions/deploy-pages@v4 # TODO: pin to a commit SHA like the other actions
+        if: ${{ github.event_name != 'pull_request' }}
