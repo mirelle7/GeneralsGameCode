@@ -418,7 +418,7 @@ void MapPreview::buildMapPreviewTexture( CString tgaName )
 		tga.Header.PixelDepth = 32;
 		tga.Header.ImageType = TGA_TRUECOLOR;
 		tga.SetImage((char *)m_pixelBuffer);
-		tga.Save(tgaName,TGAF_IMAGE, FALSE);
+		tga.Save(tgaName,TGAF_IMAGE);
 	}
 
 }

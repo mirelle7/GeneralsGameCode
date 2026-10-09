@@ -105,6 +105,7 @@ set(WWLIB_SRC
     SLIST.h
     slnode.cpp
     SLNODE.h
+    stb_impl.cpp
     stimer.cpp
     stimer.h
     straw.cpp
@@ -118,8 +119,6 @@ set(WWLIB_SRC
     TARGA.h
     textfile.cpp
     textfile.h
-    tgatodxt.cpp
-    tgatodxt.h
     thread.cpp
     thread.h
     trect.h
@@ -179,4 +178,5 @@ target_precompile_headers(core_wwlib PRIVATE
 target_link_libraries(core_wwlib PRIVATE
     core_wwcommon
     corei_always
+    stb
 )

@@ -1442,7 +1442,7 @@ void WW3D::Make_Screen_Shot( const char * filename_base , const float gamma, con
 					_TheWritingFileFactory->Return_File( file );
 				}
 
-				targ.Save(filename,TGAF_IMAGE,false);
+				targ.Save(filename,TGAF_IMAGE);
 			}
 		break;
 		case BMP:

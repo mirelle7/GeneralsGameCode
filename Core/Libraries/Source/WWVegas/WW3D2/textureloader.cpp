@@ -562,9 +562,6 @@ IDirect3DSurface8* TextureLoader::Load_Surface_Immediate(
 	unsigned src_width=targa.Header.Width;
 	unsigned src_height=targa.Header.Height;
 
-	// NOTE: We load the palette but we do not yet support paletted textures!
-	char palette[256*4];
-	targa.SetPalette(palette);
 	if (TARGA_ERROR_HANDLER(targa.Load(filename, TGAF_IMAGE, false),filename)) return MissingTexture::_Create_Missing_Surface();
 
 	unsigned char* src_surface=(unsigned char*)targa.GetImage();
@@ -586,8 +583,8 @@ IDirect3DSurface8* TextureLoader::Load_Surface_Immediate(
 			src_height,
 			src_width*src_bpp,
 			src_format,
-			(unsigned char*)targa.GetPalette(),
-			targa.Header.CMapDepth>>3,
+			nullptr,
+			0,
 			false);
 		src_surface=converted_surface;
 		src_format=WW3D_FORMAT_A8R8G8B8;//dest_format;
@@ -618,8 +615,8 @@ IDirect3DSurface8* TextureLoader::Load_Surface_Immediate(
 		src_height,
 		src_pitch,
 		src_format,
-		(unsigned char*)targa.GetPalette(),
-		targa.Header.CMapDepth>>3,
+		nullptr,
+		0,
 		false);	// No mipmap
 
 	DX8_ErrorCode(d3d_surface->UnlockRect());
@@ -1734,15 +1731,11 @@ bool TextureLoadTaskClass::Load_Uncompressed_Mipmap()
 
 	dest_format = Get_Format();	// Texture can be requested in different format than the most obvious from the TGA
 
-	char palette[256*4];
-	targa.SetPalette(palette);
-
 	unsigned int src_width	= targa.Header.Width;
 	unsigned int src_height	= targa.Header.Height;
 	unsigned int width		= Get_Width();
 	unsigned int height		= Get_Height();
 
-	// NOTE: We load the palette but we do not yet support paletted textures!
 	if (TARGA_ERROR_HANDLER(targa.Load(Texture->Get_Full_Path(), TGAF_IMAGE, false), Texture->Get_Full_Path())) {
 		return false;
 	}
@@ -1774,8 +1767,8 @@ bool TextureLoadTaskClass::Load_Uncompressed_Mipmap()
 			src_height,
 			src_width*src_bpp,
 			src_format,
-			(unsigned char*)targa.GetPalette(),
-			targa.Header.CMapDepth>>3,
+			nullptr,
+			0,
 			false,
 			hsv_shift);
 		hsv_shift=Vector3(0.0f,0.0f,0.0f);

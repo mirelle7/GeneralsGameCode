@@ -127,7 +127,7 @@ static UnsignedByte * saveSurface(IDirect3DSurface8 *surface)
 	targ.SetImage(image);
 	targ.YFlip();
 
-	targ.Save("ObjectPreview.tga",TGAF_IMAGE,false);
+	targ.Save("ObjectPreview.tga",TGAF_IMAGE);
 
 	return nullptr;
 

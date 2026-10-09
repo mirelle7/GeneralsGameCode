@@ -1286,7 +1286,7 @@ Bool TexturePage::writeFile( char *baseFilename )
 	long flags = TGAF_IMAGE;
 	if( TheImagePacker->getCompressTextures() == TRUE )
 		BitSet( flags, TGAF_COMPRESS );
-	error = m_targa->Save( filePath, flags , FALSE );
+	error = m_targa->Save( filePath, flags );
 
 	if( error != 0 )
 	{

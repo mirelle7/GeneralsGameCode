@@ -204,9 +204,6 @@ ThumbnailClass::ThumbnailClass(ThumbnailManagerClass* manager, const StringClass
 		unsigned src_width=targa.Header.Width;
 		unsigned src_height=targa.Header.Height;
 
-		// NOTE: We load the palette but we do not yet support paletted textures!
-		char palette[256*4];
-		targa.SetPalette(palette);
 		if (TARGA_ERROR_HANDLER(targa.Load(filename, TGAF_IMAGE, false),filename)) return;
 
 		// Get time stamp from the tga file
@@ -241,8 +238,8 @@ ThumbnailClass::ThumbnailClass(ThumbnailManagerClass* manager, const StringClass
 			src_height,
 			src_width*src_bpp,
 			src_format,
-			(unsigned char*)targa.GetPalette(),
-			targa.Header.CMapDepth>>3,
+			nullptr,
+			0,
 			false);
 	}
 

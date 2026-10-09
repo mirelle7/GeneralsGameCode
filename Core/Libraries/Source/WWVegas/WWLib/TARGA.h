@@ -97,8 +97,6 @@ typedef struct _TGAHeader
 
 /* Access modes. */
 #define TGA_READMODE  0
-#define TGA_WRITEMODE 1
-#define TGA_RDWRMODE  2
 
 /* Error codes */
 #define TGAERR_OPEN         -1
@@ -110,12 +108,13 @@ typedef struct _TGAHeader
 
 /* Flags definitions */
 #define TGAF_IMAGE    (1<<0)
-#define TGAF_PAL      (1<<1)
 #define TGAF_COMPRESS (1<<2)
-#define TGAF_TGA2     (1<<3)
 
 /* Macro definitions */
 #define TGA_BytesPerPixel(a) ((a+7) >> 3)
+
+/* Largest width or height accepted when loading. */
+#define TGA_MAX_DIMENSION 8192
 
 /*---------------------------------------------------------------------------
  * TARGA 2.0 DEFINITIONS
@@ -141,121 +140,15 @@ typedef struct _TGA2Footer
 	_TGA2Footer() {}
 	} TGA2Footer;
 
-/* TGA2DateStamp - A series of 3 WORD values which define the integer value
- *                 for the date the image was saved.
- *
- * Month - Month number (1 - 12)
- * Day   - Day number (1 - 31)
- * Year  - Year number (4 digit, ie. 1989)
- */
-typedef struct _TGA2DateStamp
-	{
-	short Month;
-	short Day;
-	short Year;
-	} TGA2DateStamp;
-
-/* TGA2TimeStamp - A series of 3 WORD values which define the integer value
- *                 for the time the image was saved.
- *
- * Hour   - Hour number, military time (0 - 23)
- * Minute - Minute number (0 - 59)
- * Second - Second number (0 - 59)
- */
-typedef struct _TGA2TimeStamp
-	{
-	short Hour;
-	short Minute;
-	short Second;
-	} TGA2TimeStamp;
-
-/* TGA2SoftVer - Define the version of the software used to generate file.
- *
- * Number - Version number * 100
- * Letter - Version letter
- */
-typedef struct _TGA2SoftVer
-	{
-	short Number;
-	char  Letter;
-	} TGA2SoftVer;
-
-/* TGA2Ratio - Numerator and denominator which when taken together specify
- *             a ratio.
- *
- * Numer - Numerator
- * Denom - Denominator (a value of zero indicates no ratio specified)
- */
-typedef struct _TGA2Ratio
-	{
-	short Numer;
-	short Denom;
-	} TGA2Ratio;
-
-/* TGA2Extension - Extension area, provided for additional file information.
- *                 This data is pointed to by the Extension offset in the
- *                 TGA2Footer.
- *
- * ExtSize     - Extension area size. (495 bytes for 2.0)
- * AuthName    - Name of the person who created image (null-terminated ASCII)
- * AuthComment - Comments of the author (null-terminated ASCII)
- * DateStamp   - Date the file was created. (See TGA2DateStamp)
- * TimeStamp   - Time the file was created. (See TGA2TimeStamp)
- * JobName     - Name of job image belongs to (null-terminated ASCII)
- * JobTime     - Elapsed time of the job.
- * SoftID      - ID of software used to create image (null-terminated ASCII)
- * SoftVer     - Version number of software used.
- * KeyColor    - Tranparent color value.
- * Aspect      - Pixel aspect ratio.
- * Gamma       - Fractional gamma value.
- * ColorCor    - Color correction table offset.
- * PostStamp   - Postage stamp image offset.
- * ScanLine    - Scan line table offset.
- * Attributes  - Alpha channel attributes. (Set defines below)
- */
-typedef struct _TGA2Extension
-	{
-	short         ExtSize;
-	char          AuthName[41];
-	char          AuthComment[324];
-	TGA2DateStamp Date;
-	TGA2TimeStamp Time;
-	char          JobName[41];
-	TGA2TimeStamp JobTime;
-	char          SoftID[41];
-	TGA2SoftVer   SoftVer;
-	long          KeyColor;
-	TGA2Ratio     Aspect;
-	TGA2Ratio     Gamma;
-	long          ColorCor;
-	long          PostStamp;
-	long          ScanLine;
-	char          Attributes;
-	} TGA2Extension;
-
-/* Alpha channel attributes (Extension Area) */
-#define EXTA_NOALPHA 0  /* No alpha data included */
-#define EXTA_IGNORE  1  /* Undefined alpha data, can ignore */
-#define EXTA_RETAIN  2  /* Undefined alpha data, should retain */
-#define EXTA_USEFUL  3  /* Useful alpha channel */
-#define EXTA_PREMULT 4  /* Pre-Multiplied alpha data */
-
 #pragma pack(pop)
-
-/*
-** This define changes this code from code that works with standard IO calls,
-** to code that uses FileClass and FileFactoryClass.
-*/
-#define TGA_USES_WWLIB_FILE_CLASSES
-
-#ifdef TGA_USES_WWLIB_FILE_CLASSES
-class FileClass;
-#endif
 
 /*---------------------------------------------------------------------------
  * CLASS DEFINITION
  *-------------------------------------------------------------------------*/
 
+// Reads and writes Targa files through the WWLib file factories. The pixels are
+// decoded and encoded by stb_image. Color mapped images are expanded to true color
+// when opened, so the header describes the pixels that Load returns.
 class Targa
 	{
 	public:
@@ -267,51 +160,25 @@ class Targa
 		long Open(const char* name, long mode);
 		void Close();
 
-		long Load(const char* name, char* palette, char* image,bool invert_image=true);
 		long Load(const char* name, long flags, bool invert_image=true);
-		long Save(const char* name, long flags, bool addextension = false);
+		long Save(const char* name, long flags);
 
-		void XFlip();
 		void YFlip();
 
 		char* SetImage(char* buffer);
 		char* GetImage() const {return (mImage);}
 
-		char* SetPalette(char* buffer);
-		char* GetPalette() const {return (mPalette);}
-
-		bool IsCompressed();
-
-		TGA2Extension* GetExtension();
-
 		TGAHeader Header;
 
 	protected:
-#ifdef TGA_USES_WWLIB_FILE_CLASSES
-		FileClass *TGAFile;
-#else
-		long mFH;
-#endif
-		long mAccess;
+		unsigned char* mFileData;
+		int mFileSize;
+		char mFileImageDescriptor;
 		long mFlags;
 		char* mImage;
-		char* mPalette;
-		TGA2Extension mExtension;
 
 	private:
-		// Utility functions
-		long DecodeImage();
-		long EncodeImage();
-		void InvertImage();
-
-		// These functions are for ease of ifdef'ing between standard io calls
-		// and FileClass.
-		void Clear_File();
-		bool Is_File_Open();
-		bool File_Open_Read(const char* name);
-		bool File_Open_Write(const char* name);
-		bool File_Open_ReadWrite(const char* name);
-		int File_Seek(int pos, int dir);
-		int File_Read(void *buffer, int size);
-		int File_Write(void *buffer, int size);
+		long ReadHeader();
+		long DecodeImage(bool invert_image);
+		void StoreImage(const unsigned char* rgba, bool invert_image);
 	};

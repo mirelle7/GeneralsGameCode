@@ -1,4 +1,4 @@
-# Fetch the stb library for writing JPEG and PNG screenshots.
+# Fetch the stb library for reading and writing Targa files and writing JPEG and PNG screenshots.
 
 # vcpkg provides stb through a find module (FindStb.cmake), not a config package,
 # so the search must not be restricted to CONFIG mode.

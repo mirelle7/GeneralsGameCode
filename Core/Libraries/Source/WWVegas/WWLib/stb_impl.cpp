@@ -16,6 +16,15 @@
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "TARGA.h"
+
+// Only Targa files are read, and only from memory.
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_TGA
+#define STBI_NO_STDIO
+#define STBI_NO_LINEAR
+#define STBI_MAX_DIMENSIONS TGA_MAX_DIMENSION
+#include <stb_image.h>
+
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
-

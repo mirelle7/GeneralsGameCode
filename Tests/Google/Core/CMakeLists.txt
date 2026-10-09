@@ -3,6 +3,7 @@ set(COREI_GOOGLETEST_SRC
     GoogleTestMain.cpp
     GameEngine/Common/AsciiStringTest.cpp
     Libraries/Compression/CompressionManagerTest.cpp
+    Libraries/WWLib/TargaTest.cpp
 )
 
 add_library(corei_googletest INTERFACE)
