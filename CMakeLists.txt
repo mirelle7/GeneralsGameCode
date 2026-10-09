@@ -68,6 +68,10 @@ include(cmake/gamespy.cmake)
 include(cmake/lzhl.cmake)
 include(cmake/stb.cmake)
 
+if(NOT IS_VS6_BUILD)
+    include(cmake/wuffs.cmake)
+endif()
+
 if(RTS_BUILD_OPTION_PROFILE_TRACY)
     include(cmake/tracy.cmake)
 else()

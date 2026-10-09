@@ -147,8 +147,9 @@ typedef struct _TGA2Footer
  *-------------------------------------------------------------------------*/
 
 // Reads and writes Targa files through the WWLib file factories. The pixels are
-// decoded and encoded by stb_image. Color mapped images are expanded to true color
-// when opened, so the header describes the pixels that Load returns.
+// decoded by Wuffs, or by stb_image in VC6 builds, and encoded by stb_image. Color
+// mapped images are expanded to true color when opened, so the header describes the
+// pixels that Load returns.
 class Targa
 	{
 	public:
@@ -180,5 +181,6 @@ class Targa
 	private:
 		long ReadHeader();
 		long DecodeImage(bool invert_image);
+		long DecodeImageWithWuffs(bool invert_image, bool& useFallback);
 		void StoreImage(const unsigned char* rgba, bool invert_image);
 	};

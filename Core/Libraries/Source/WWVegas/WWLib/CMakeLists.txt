@@ -180,3 +180,7 @@ target_link_libraries(core_wwlib PRIVATE
     corei_always
     stb
 )
+
+if(NOT IS_VS6_BUILD)
+    target_link_libraries(core_wwlib PRIVATE wuffs)
+endif()

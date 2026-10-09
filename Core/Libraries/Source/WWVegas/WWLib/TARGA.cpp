@@ -36,7 +36,8 @@
 *
 * MODIFICATIONS:
 *     Converted to work with FileClass, FileFactory. Naty Hoffman, January 25, 2001
-*     TheSuperHackers: The pixels are decoded and encoded by stb_image.
+*     TheSuperHackers: The pixels are decoded by Wuffs, or by stb_image in VC6
+*     builds, and encoded by stb_image.
 *
 ****************************************************************************/
 
@@ -49,6 +50,17 @@
 
 #include <stb_image.h>
 #include <stb_image_write.h>
+
+#ifdef WUFFS_CONFIG__MODULE__TARGA
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsuggest-override"
+#endif
+#include <wuffs-v0.4.c>
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+#endif
 
 #include <algorithm>
 
@@ -413,6 +425,13 @@ long Targa::ReadHeader()
 
 long Targa::DecodeImage(bool invert_image)
 {
+#ifdef WUFFS_CONFIG__MODULE__TARGA
+	bool useFallback = false;
+	const long wuffsError = DecodeImageWithWuffs(invert_image, useFallback);
+	if (!useFallback)
+		return wuffsError;
+#endif
+
 	int width = 0;
 	int height = 0;
 	unsigned char* rgba = stbi_load_from_memory(mFileData, mFileSize, &width, &height, nullptr, 4);
@@ -428,6 +447,75 @@ long Targa::DecodeImage(bool invert_image)
 	stbi_image_free(rgba);
 	return error;
 }
+
+#ifdef WUFFS_CONFIG__MODULE__TARGA
+
+/****************************************************************************
+*
+* NAME
+*     Targa::DecodeImageWithWuffs - Decode the file in memory with Wuffs.
+*
+* FUNCTION
+*     Wuffs rejects run length encoded packets that continue on the next row,
+*     which the Targa specification forbids but older tools wrote. Those files
+*     are left for stb_image to decode, which useFallback reports.
+*
+****************************************************************************/
+
+long Targa::DecodeImageWithWuffs(bool invert_image, bool& useFallback)
+{
+	/* Clear header fields that Wuffs is stricter about than this class. Right-to-left
+	 * pixels are mirrored by StoreImage, 8 bit true color pixels are the same bytes as
+	 * grey pixels, and the color map fields of images without one are unused. */
+	mFileData[17] &= ~TGAIDF_XORIGIN;
+	if (mFileData[1] == 0)
+		memset(mFileData + 3, 0, 5);
+	if (((mFileData[2] & ~8) == TGA_TRUECOLOR) && (mFileData[16] == 8))
+		mFileData[2] = (unsigned char)(mFileData[2] - TGA_TRUECOLOR + TGA_MONO);
+
+	const int width = Header.Width;
+	const int height = Header.Height;
+	wuffs_targa__decoder* decoder = wuffs_targa__decoder__alloc();
+	unsigned char* rgba = (unsigned char*)malloc((size_t)width * height * 4);
+	if ((decoder == nullptr) || (rgba == nullptr)) {
+		free(decoder);
+		free(rgba);
+		return TGAERR_NOMEM;
+	}
+
+	wuffs_base__io_buffer source = wuffs_base__ptr_u8__reader(mFileData, mFileSize, true);
+	wuffs_base__image_config config;
+	wuffs_base__status status = wuffs_targa__decoder__decode_image_config(decoder, &config, &source);
+	if (wuffs_base__status__is_ok(&status) &&
+			(wuffs_base__pixel_config__width(&config.pixcfg) == (uint32_t)width) &&
+			(wuffs_base__pixel_config__height(&config.pixcfg) == (uint32_t)height)) {
+		wuffs_base__pixel_config__set(&config.pixcfg, WUFFS_BASE__PIXEL_FORMAT__RGBA_NONPREMUL,
+			WUFFS_BASE__PIXEL_SUBSAMPLING__NONE, width, height);
+		wuffs_base__pixel_buffer pixels;
+		status = wuffs_base__pixel_buffer__set_from_slice(&pixels, &config.pixcfg,
+			wuffs_base__make_slice_u8(rgba, (size_t)width * height * 4));
+		if (wuffs_base__status__is_ok(&status)) {
+			status = wuffs_targa__decoder__decode_frame(decoder, &pixels, &source,
+				WUFFS_BASE__PIXEL_BLEND__SRC, wuffs_base__empty_slice_u8(), nullptr);
+		}
+	} else if (wuffs_base__status__is_ok(&status)) {
+		status.repr = wuffs_base__error__bad_argument;
+	}
+
+	long error = 0;
+	if (wuffs_base__status__is_ok(&status))
+		StoreImage(rgba, invert_image);
+	else if (status.repr == wuffs_targa__error__bad_run_length_encoding)
+		useFallback = true;
+	else
+		error = TGAERR_READ;
+
+	free(decoder);
+	free(rgba);
+	return error;
+}
+
+#endif
 
 /****************************************************************************
 *
@@ -474,7 +562,7 @@ void Targa::StoreImage(const unsigned char* rgba, bool invert_image)
 					break;
 				case 2:
 				{
-					/* stb_image ignores the attribute bit of 16 bit pixels, so they are stored opaque. */
+					/* The decoders ignore the attribute bit of 16 bit pixels, so they are stored opaque. */
 					const unsigned v = 0x8000 | ((p[0] >> 3) << 10) | ((p[1] >> 3) << 5) | (p[2] >> 3);
 					*dst++ = (unsigned char)(v & 0xFF);
 					*dst++ = (unsigned char)(v >> 8);
