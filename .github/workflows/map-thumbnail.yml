@@ -1,0 +1,70 @@
+name: Map Thumbnail
+
+permissions:
+  contents: read
+
+on:
+  push:
+    paths:
+      - "Core/Tools/MapThumbnail/**"
+      - "cmake/stb.cmake"
+      - ".github/workflows/map-thumbnail.yml"
+  pull_request:
+    paths:
+      - "Core/Tools/MapThumbnail/**"
+      - "cmake/stb.cmake"
+      - ".github/workflows/map-thumbnail.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The thumbnail handlers load into the 64-bit file browsers, so they are built 64-bit,
+          # separately from the 32-bit game.
+          - name: Windows x64 (Explorer)
+            os: windows-latest
+            configure: -A x64
+            artifacts: |
+              build/Release/generals-map-thumbnailer.exe
+              build/windows/Release/MapThumbnailProvider.dll
+          - name: macOS (Quick Look)
+            os: macos-latest
+            configure: -G Xcode
+            artifacts: |
+              build/macos/Release/GeneralsMapThumbnails.app
+              build/Release/generals-map-thumbnailer
+          - name: Linux (freedesktop)
+            os: ubuntu-latest
+            configure: -DCMAKE_BUILD_TYPE=Release
+            artifacts: |
+              build/generals-map-thumbnailer
+              Core/Tools/MapThumbnail/linux/generals-map.thumbnailer
+              Core/Tools/MapThumbnail/linux/generals-map.xml
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Configure
+        run: cmake -S Core/Tools/MapThumbnail -B build ${{ matrix.configure }}
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Upload
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: map-thumbnail-${{ runner.os }}
+          path: ${{ matrix.artifacts }}
+          if-no-files-found: error
