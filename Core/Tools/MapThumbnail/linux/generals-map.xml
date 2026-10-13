@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Command & Conquer Generals / Zero Hour maps, recognised by content rather than the .map
+     extension, which other programs (linkers, other games) use too. -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-generals-map">
+    <comment>Command &amp; Conquer Generals map</comment>
+    <generic-icon name="image-x-generic"/>
+    <magic priority="80">
+      <match type="string" offset="0" value="CkMp"/>
+      <match type="big32" offset="0" value="0x45415200"/>
+    </magic>
+  </mime-type>
+</mime-info>
