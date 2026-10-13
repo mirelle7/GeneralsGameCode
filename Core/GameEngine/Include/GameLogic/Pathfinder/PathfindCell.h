@@ -179,11 +179,18 @@ private:
 	UnsignedInt m_blockedByAlly : 1;          ///< True if this cell is blocked by an allied unit.
 	UnsignedInt m_obstacleIsFence : 1;        ///< True if occupied by a fence.
 	UnsignedInt m_obstacleIsTransparent : 1;  ///< True if obstacle is transparent (undefined if obstacleid is invalid)
+#if RETAIL_COMPATIBLE_PATHFINDING
 
 	zoneStorageType m_zone : 14;              ///< Zone. Each zone is a set of adjacent terrain type.  If from & to in the same zone, you can successfully pathfind.  If not,
 	                                          /// you still may be able to if you can cross multiple terrain types.
 	UnsignedShort m_aircraftGoal : 1;         ///< This is an aircraft goal cell.
 	UnsignedShort m_pinched : 1;              ///< This cell is surrounded by obstacle cells.
+#else
+	// TheSuperHackers @bugfix Large maps need more than 14 bits of zones. The flags move into the int bitfield so the cell stays 16 bytes.
+	UnsignedInt m_aircraftGoal : 1;           ///< This is an aircraft goal cell.
+	UnsignedInt m_pinched : 1;                ///< This cell is surrounded by obstacle cells.
+	zoneStorageType m_zone;                   ///< Zone. Each zone is a set of adjacent terrain type.
+#endif
 	UnsignedByte m_type : 4;                  ///< what type of cell terrain this is.
 	UnsignedByte m_flags : 4;                 ///< what type of units are in or moving through this cell.
 	UnsignedByte m_connectsToLayer : 4;       ///< This cell can pathfind onto this layer, if > LAYER_TOP.

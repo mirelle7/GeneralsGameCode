@@ -163,8 +163,15 @@ void PathfindZoneManager::calculateZones( PathfindCell **map, PathfindLayer laye
 #endif
 
 	m_maxZone = 1;	// we start using zone 0 as a flag.
+#if RETAIL_COMPATIBLE_PATHFINDING
 	const Int maxZones=24000;
 	zoneStorageType zoneEquivalency[maxZones];
+#else
+	// TheSuperHackers @bugfix Large maps need more zones than fit on the stack.
+	const Int maxZones=65535;
+	std::vector<zoneStorageType> zoneEquivalencyStorage(maxZones);
+	zoneStorageType *zoneEquivalency = &zoneEquivalencyStorage[0];
+#endif
 	Int i, j;
 	for (i=0; i<maxZones; i++) {
 		zoneEquivalency[i] = i;
@@ -208,6 +215,12 @@ void PathfindZoneManager::calculateZones( PathfindCell **map, PathfindLayer laye
 						}
 					}
 					if (cell->getZone()==0) {
+#if !RETAIL_COMPATIBLE_PATHFINDING
+						if (m_maxZone >= maxZones) {
+							DEBUG_CRASH(("Ran out of pathfind zones.  SERIOUS ERROR! jba."));
+							break;
+						}
+#endif
 						cell->setZone(m_maxZone);
 						m_maxZone++;
 #if RTS_GENERALS && RETAIL_COMPATIBLE_PATHFINDING
@@ -230,7 +243,12 @@ void PathfindZoneManager::calculateZones( PathfindCell **map, PathfindLayer laye
 
 	// Collapse the zones into a 1,2,3... sequence, removing collapsed zones.
 	m_maxZone = 1;
+#if RETAIL_COMPATIBLE_PATHFINDING
 	Int collapsedZones[maxZones];
+#else
+	std::vector<Int> collapsedZonesStorage(maxZones);
+	Int *collapsedZones = &collapsedZonesStorage[0];
+#endif
 	collapsedZones[0] = 0;
 	for (i=1; i<totalZones; i++) {
 		Int zone = zoneEquivalency[i];

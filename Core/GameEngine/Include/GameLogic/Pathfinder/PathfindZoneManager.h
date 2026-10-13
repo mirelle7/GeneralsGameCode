@@ -80,9 +80,16 @@ private:
 	ZoneBlock			**m_zoneBlocks;						///< Zone blocks as a matrix - contains matrix indexing into the map.
 	ICoord2D			m_zoneBlockExtent;				///< Zone block extents. Not the same scale as the pathfind extents.
 
+#if RETAIL_COMPATIBLE_PATHFINDING
 	UnsignedShort m_maxZone;								///< Max zone used.
 	UnsignedInt		m_nextFrameToCalculateZones;		///< When should I recalculate, next?.
 	UnsignedShort m_zonesAllocated;
+#else
+	// TheSuperHackers @bugfix Zone counters are 32 bit so doubling the zone tables past 32768 does not wrap to 0.
+	Int m_maxZone;											///< Max zone used.
+	UnsignedInt		m_nextFrameToCalculateZones;		///< When should I recalculate, next?.
+	Int m_zonesAllocated;
+#endif
 	zoneStorageType *m_groundCliffZones;
 	zoneStorageType *m_groundWaterZones;
 	zoneStorageType *m_groundRubbleZones;
