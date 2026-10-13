@@ -37,7 +37,11 @@
 //	Prototypes
 //*****************************************************************************
 BOOL InitSymbolInfo();
+#if defined(_WIN64)
+void MakeStackTrace(CONTEXT& context, int skipFrames, void (*callback)(const char*));
+#else
 void MakeStackTrace(DWORD myeip,DWORD myesp,DWORD myebp, int skipFrames, void (*callback)(const char*));
+#endif
 void GetFunctionDetails(void *pointer, char*name, char*filename, unsigned int* linenumber, unsigned int* address);
 void WriteStackLine(void*address, void (*callback)(const char*));
 
@@ -67,6 +71,13 @@ void StackDump(void (*callback)(const char*))
 	if (!InitSymbolInfo())
 		return;
 
+#if defined(_WIN64)
+	// TheSuperHackers @build bobtista 11/06/2026 x64 has no inline asm; capture the live context.
+	CONTEXT context;
+	RtlCaptureContext(&context);
+
+	MakeStackTrace(context, 2, callback);
+#else
 	DWORD myeip,myesp,myebp;
 
 #if defined(_MSC_VER)
@@ -97,9 +108,11 @@ MYEIP1:
 
 
 	MakeStackTrace(myeip,myesp,myebp, 2, callback);
+#endif
 }
 
 
+#if !defined(_WIN64)
 //*****************************************************************************
 //*****************************************************************************
 void StackDumpFromContext(DWORD eip,DWORD esp,DWORD ebp, void (*callback)(const char*))
@@ -114,6 +127,7 @@ void StackDumpFromContext(DWORD eip,DWORD esp,DWORD ebp, void (*callback)(const 
 
 	MakeStackTrace(eip,esp,ebp, 0,  callback);
 }
+#endif
 
 
 //*****************************************************************************
@@ -168,6 +182,61 @@ BOOL InitSymbolInfo()
 }
 
 
+#if defined(_WIN64)
+//*****************************************************************************
+//*****************************************************************************
+void MakeStackTrace(CONTEXT& context, int skipFrames, void (*callback)(const char*))
+{
+STACKFRAME64    stack_frame;
+BOOL            b_ret = TRUE;
+
+HANDLE thread = GetCurrentThread();
+HANDLE process = GetCurrentProcess();
+
+memset(&stack_frame, 0, sizeof(STACKFRAME64));
+stack_frame.AddrPC.Mode = AddrModeFlat;
+stack_frame.AddrPC.Offset = context.Rip;
+stack_frame.AddrStack.Mode = AddrModeFlat;
+stack_frame.AddrStack.Offset = context.Rsp;
+stack_frame.AddrFrame.Mode = AddrModeFlat;
+stack_frame.AddrFrame.Offset = context.Rbp;
+
+	callback("Call Stack\n**********\n");
+
+	// Skip some ?
+	unsigned int skip = skipFrames;
+	while (b_ret&&skip)
+	{
+		b_ret = DbgHelp::StackWalk64(IMAGE_FILE_MACHINE_AMD64,
+								process,
+								thread,
+								&stack_frame,
+								&context,
+								nullptr,
+								DbgHelp::SymFunctionTableAccess64,
+								DbgHelp::SymGetModuleBase64,
+								nullptr);
+		skip--;
+	}
+
+	skip = 30;
+	while(b_ret&&skip)
+	{
+		b_ret = DbgHelp::StackWalk64(IMAGE_FILE_MACHINE_AMD64,
+								process,
+								thread,
+								&stack_frame,
+								&context,
+								nullptr,
+								DbgHelp::SymFunctionTableAccess64,
+								DbgHelp::SymGetModuleBase64,
+								nullptr);
+
+		if (b_ret) WriteStackLine((void *) stack_frame.AddrPC.Offset, callback);
+		skip--;
+	}
+}
+#else
 //*****************************************************************************
 //*****************************************************************************
 void MakeStackTrace(DWORD myeip,DWORD myesp,DWORD myebp, int skipFrames, void (*callback)(const char*))
@@ -241,6 +310,7 @@ stack_frame.AddrFrame.Offset = myebp;
 			}
 	}
 }
+#endif
 
 
 //*****************************************************************************
@@ -268,6 +338,9 @@ void GetFunctionDetails(void *pointer, char*name, char*filename, unsigned int* l
 	}
 
 	ULONG displacement = 0;
+#if defined(_WIN64)
+	DWORD64 symDisplacement = 0;
+#endif
 
     HANDLE process = ::GetCurrentProcess();
 
@@ -278,7 +351,11 @@ void GetFunctionDetails(void *pointer, char*name, char*filename, unsigned int* l
     psymbol->SizeOfStruct = sizeof(symbol_buffer);
     psymbol->MaxNameLength = 512;
 
+#if defined(_WIN64)
+	if (DbgHelp::SymGetSymFromAddr64(process, (DWORD64) pointer, &symDisplacement, psymbol))
+#else
 	if (DbgHelp::SymGetSymFromAddr(process, (DWORD) pointer, &displacement, psymbol))
+#endif
 	{
 		if (name)
 		{
@@ -292,7 +369,11 @@ void GetFunctionDetails(void *pointer, char*name, char*filename, unsigned int* l
 		memset(&line,0,sizeof(line));
 		line.SizeOfStruct = sizeof(line);
 
+#if defined(_WIN64)
+		if (DbgHelp::SymGetLineFromAddr64(process, (DWORD64) pointer, &displacement, &line))
+#else
 		if (DbgHelp::SymGetLineFromAddr(process, (DWORD) pointer, &displacement, &line))
+#endif
 		{
 			if (filename)
 			{
@@ -314,6 +395,73 @@ void GetFunctionDetails(void *pointer, char*name, char*filename, unsigned int* l
 //*****************************************************************************
 // Gets last x addresses from the stack
 //*****************************************************************************
+#if defined(_WIN64)
+void FillStackAddresses(void**addresses, unsigned int count, unsigned int skip)
+{
+	if (!InitSymbolInfo())
+		return;
+
+	STACKFRAME64	stack_frame;
+
+	HANDLE thread = GetCurrentThread();
+	HANDLE process = GetCurrentProcess();
+
+	CONTEXT context;
+	RtlCaptureContext(&context);
+
+	memset(&stack_frame, 0, sizeof(STACKFRAME64));
+	stack_frame.AddrPC.Mode = AddrModeFlat;
+	stack_frame.AddrPC.Offset = context.Rip;
+	stack_frame.AddrStack.Mode = AddrModeFlat;
+	stack_frame.AddrStack.Offset = context.Rsp;
+	stack_frame.AddrFrame.Mode = AddrModeFlat;
+	stack_frame.AddrFrame.Offset = context.Rbp;
+
+	Bool stillgoing = TRUE;
+
+	// Skip some?
+	while (stillgoing&&skip)
+	{
+		stillgoing = DbgHelp::StackWalk64(IMAGE_FILE_MACHINE_AMD64,
+							process,
+							thread,
+							&stack_frame,
+							&context,
+							nullptr,
+							DbgHelp::SymFunctionTableAccess64,
+							DbgHelp::SymGetModuleBase64,
+							nullptr) != 0;
+		skip--;
+	}
+
+	while(stillgoing&&count)
+	{
+		stillgoing = DbgHelp::StackWalk64(IMAGE_FILE_MACHINE_AMD64,
+							process,
+							thread,
+							&stack_frame,
+							&context,
+							nullptr,
+							DbgHelp::SymFunctionTableAccess64,
+							DbgHelp::SymGetModuleBase64,
+							nullptr) != 0;
+		if (stillgoing)
+		{
+			*addresses  = (void*)stack_frame.AddrPC.Offset;
+			addresses++;
+			count--;
+		}
+	}
+
+	// Fill remainder
+	while (count)
+	{
+		*addresses = nullptr;
+		addresses++;
+		count--;
+	}
+}
+#else
 void FillStackAddresses(void**addresses, unsigned int count, unsigned int skip)
 {
 	if (!InitSymbolInfo())
@@ -430,6 +578,7 @@ stack_frame.AddrFrame.Offset = myebp;
 	}
 */
 }
+#endif
 
 
 
@@ -589,7 +738,15 @@ void DumpExceptionInfo( unsigned int u, EXCEPTION_POINTERS* e_info )
 	}
 
 	DOUBLE_DEBUG (("\nStack Dump:"));
+#if defined(_WIN64)
+	if (InitSymbolInfo())
+	{
+		CONTEXT walk_context = *context;
+		MakeStackTrace(walk_context, 0, StackDumpDefaultHandler);
+	}
+#else
 	StackDumpFromContext(context->Eip, context->Esp, context->Ebp, nullptr);
+#endif
 
 	DOUBLE_DEBUG (("\nDetails:"));
 
@@ -598,9 +755,15 @@ void DumpExceptionInfo( unsigned int u, EXCEPTION_POINTERS* e_info )
 	/*
 	** Dump the registers.
 	*/
+#if defined(_WIN64)
+	DOUBLE_DEBUG ( ( "Rip:%016llX\tRsp:%016llX\tRbp:%016llX", context->Rip, context->Rsp, context->Rbp));
+	DOUBLE_DEBUG ( ( "Rax:%016llX\tRbx:%016llX\tRcx:%016llX", context->Rax, context->Rbx, context->Rcx));
+	DOUBLE_DEBUG ( ( "Rdx:%016llX\tRsi:%016llX\tRdi:%016llX", context->Rdx, context->Rsi, context->Rdi));
+#else
 	DOUBLE_DEBUG ( ( "Eip:%08X\tEsp:%08X\tEbp:%08X", context->Eip, context->Esp, context->Ebp));
 	DOUBLE_DEBUG ( ( "Eax:%08X\tEbx:%08X\tEcx:%08X", context->Eax, context->Ebx, context->Ecx));
 	DOUBLE_DEBUG ( ( "Edx:%08X\tEsi:%08X\tEdi:%08X", context->Edx, context->Esi, context->Edi));
+#endif
 	DOUBLE_DEBUG ( ( "EFlags:%08X ", context->EFlags));
 	DOUBLE_DEBUG ( ( "CS:%04x  SS:%04x  DS:%04x  ES:%04x  FS:%04x  GS:%04x", context->SegCs, context->SegSs, context->SegDs, context->SegEs, context->SegFs, context->SegGs));
 
@@ -609,9 +772,15 @@ void DumpExceptionInfo( unsigned int u, EXCEPTION_POINTERS* e_info )
 	*/
 	char scrap[512];
 	DOUBLE_DEBUG ( ("EIP bytes dump..."));
+#if defined(_WIN64)
+	sprintf (scrap, "\nBytes at CS:RIP (%016llX)  : ", context->Rip);
+
+	unsigned char *eip_ptr = (unsigned char *) (context->Rip);
+#else
 	wsprintf (scrap, "\nBytes at CS:EIP (%08X)  : ", context->Eip);
 
 	unsigned char *eip_ptr = (unsigned char *) (context->Eip);
+#endif
 	char bytestr[32];
 
 	for (int c = 0 ; c < 32 ; c++)

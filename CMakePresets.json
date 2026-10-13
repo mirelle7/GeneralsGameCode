@@ -105,6 +105,28 @@
             }
         },
         {
+            "name": "win64-bgfx-standalone",
+            "inherits": "default",
+            "hidden": false,
+            "displayName": "Windows 64bit Release (bgfx standalone)",
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            },
+            "cacheVariables": {
+                "RTS_FLAGS": "/W3",
+                "RTS_BUILD_GENERALS_TOOLS": "OFF",
+                "RTS_BUILD_ZEROHOUR_TOOLS": "OFF",
+                "RTS_BUILD_CORE_TOOLS": "OFF",
+                "GGC_BGFX_STANDALONE": "ON"
+            },
+            "vendor": {
+                "jetbrains.com/clion": {
+                    "toolchain": "Visual Studio"
+                }
+            }
+        },
+        {
             "name": "win32-profile",
             "inherits": "win32",
             "displayName": "Windows 32bit Profile",
@@ -229,6 +251,13 @@
             "configurePreset": "win32",
             "displayName": "Build Windows 32bit Release",
             "description": "Build Windows 32bit Release",
+            "configuration": "Release"
+        },
+        {
+            "name": "win64-bgfx-standalone",
+            "configurePreset": "win64-bgfx-standalone",
+            "displayName": "Build Windows 64bit Release (bgfx standalone)",
+            "description": "Build Windows 64bit Release (bgfx standalone)",
             "configuration": "Release"
         },
         {
