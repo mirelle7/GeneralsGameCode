@@ -166,3 +166,17 @@ private:
 };
 
 extern SubsystemInterfaceList* TheSubsystemList;
+
+//-------------------------------------------------------------------------------------------------
+template<class SUBSYSTEM>
+void initSubsystem(
+	SUBSYSTEM*& sysref,
+	AsciiString name,
+	SUBSYSTEM* sys,
+	Xfer *pXfer,
+	const char* path1 = nullptr,
+	const char* path2 = nullptr)
+{
+	sysref = sys;
+	TheSubsystemList->initSubsystem(sys, path1, path2, pXfer, name);
+}

@@ -83,16 +83,6 @@
 #include "Win32Device/Common/Win32BIGFileSystem.h"
 
 
-static SubsystemInterfaceList TheSubsystemListRecord;
-
-template<class SUBSYSTEM>
-void initSubsystem(SUBSYSTEM*& sysref, SUBSYSTEM* sys, const char* path1 = nullptr, const char* path2 = nullptr)
-{
-	sysref = sys;
-	TheSubsystemListRecord.initSubsystem(sys, path1, path2, nullptr);
-}
-
-
 #define APP_SECTION "WorldbuilderApp"
 #define OPEN_FILE_DIR "OpenDirectory"
 
@@ -343,8 +333,10 @@ BOOL CWorldBuilderApp::InitInstance()
 
 	TheFileSystem = new FileSystem;
 
-	initSubsystem(TheLocalFileSystem, (LocalFileSystem*)new Win32LocalFileSystem);
-	initSubsystem(TheArchiveFileSystem, (ArchiveFileSystem*)new Win32BIGFileSystem);
+	TheSubsystemList = new SubsystemInterfaceList;
+
+	initSubsystem(TheLocalFileSystem, "TheLocalFileSystem", (LocalFileSystem*)new Win32LocalFileSystem, nullptr);
+	initSubsystem(TheArchiveFileSystem, "TheArchiveFileSystem", (ArchiveFileSystem*)new Win32BIGFileSystem, nullptr);
 
 	// Just for kicks, get the HINSTANCE that WOL would need
 	// if we were going to use it, which we aren't.
@@ -353,7 +345,7 @@ BOOL CWorldBuilderApp::InitInstance()
 	INI ini;
 
 	DEBUG_ASSERTCRASH(TheWritableGlobalData, ("TheWritableGlobalData expected to be created"));
-	initSubsystem(TheWritableGlobalData, TheWritableGlobalData, "Data\\INI\\Default\\GameData", "Data\\INI\\GameData");
+	initSubsystem(TheWritableGlobalData, "TheWritableGlobalData", TheWritableGlobalData, nullptr, "Data\\INI\\Default\\GameData", "Data\\INI\\GameData");
 
 	TheFramePacer = new FramePacer();
 
@@ -388,42 +380,42 @@ BOOL CWorldBuilderApp::InitInstance()
 	ini.loadFileDirectory( "Data\\INI\\Default\\Water", INI_LOAD_OVERWRITE, nullptr );
 	ini.loadFileDirectory( "Data\\INI\\Water", INI_LOAD_OVERWRITE, nullptr );
 
-	initSubsystem(TheGameText, CreateGameTextInterface());
-	initSubsystem(TheScienceStore, new ScienceStore(), "Data\\INI\\Default\\Science", "Data\\INI\\Science");
-	initSubsystem(TheMultiplayerSettings, new MultiplayerSettings(), "Data\\INI\\Default\\Multiplayer", "Data\\INI\\Multiplayer");
-	initSubsystem(TheTerrainTypes, new TerrainTypeCollection(), "Data\\INI\\Default\\Terrain", "Data\\INI\\Terrain");
-	initSubsystem(TheTerrainRoads, new TerrainRoadCollection(), "Data\\INI\\Default\\Roads", "Data\\INI\\Roads");
+	initSubsystem(TheGameText, "TheGameText", CreateGameTextInterface(), nullptr);
+	initSubsystem(TheScienceStore, "TheScienceStore", new ScienceStore(), nullptr, "Data\\INI\\Default\\Science", "Data\\INI\\Science");
+	initSubsystem(TheMultiplayerSettings, "TheMultiplayerSettings", new MultiplayerSettings(), nullptr, "Data\\INI\\Default\\Multiplayer", "Data\\INI\\Multiplayer");
+	initSubsystem(TheTerrainTypes, "TheTerrainTypes", new TerrainTypeCollection(), nullptr, "Data\\INI\\Default\\Terrain", "Data\\INI\\Terrain");
+	initSubsystem(TheTerrainRoads, "TheTerrainRoads", new TerrainRoadCollection(), nullptr, "Data\\INI\\Default\\Roads", "Data\\INI\\Roads");
 
 	WorldHeightMapEdit::init();
 
-	initSubsystem(TheScriptEngine, (ScriptEngine*)(new ScriptEngine()));
+	initSubsystem(TheScriptEngine, "TheScriptEngine", (ScriptEngine*)(new ScriptEngine()), nullptr);
 
 	TheScriptEngine->turnBreezeOff(); // stop the tree sway.
 
 	//  [2/11/2003]
 	ini.loadFileDirectory( "Data\\Scripts\\Scripts", INI_LOAD_OVERWRITE, nullptr );
 
-	initSubsystem(TheAudio, (AudioManager*)new MilesAudioManager());
-	initSubsystem(TheVideoPlayer, (VideoPlayerInterface*)(new NullVideoPlayer()));
-	initSubsystem(TheModuleFactory, (ModuleFactory*)(new W3DModuleFactory()));
-	initSubsystem(TheSidesList, new SidesList());
-	initSubsystem(TheCaveSystem, new CaveSystem());
-	initSubsystem(TheRankInfoStore, new RankInfoStore(), nullptr, "Data\\INI\\Rank");
-	initSubsystem(ThePlayerTemplateStore, new PlayerTemplateStore(), "Data\\INI\\Default\\PlayerTemplate", "Data\\INI\\PlayerTemplate");
-	initSubsystem(TheSpecialPowerStore, new SpecialPowerStore(), "Data\\INI\\Default\\SpecialPower", "Data\\INI\\SpecialPower" );
-	initSubsystem(TheParticleSystemManager, (ParticleSystemManager*)(new W3DParticleSystemManager()));
-	initSubsystem(TheFXListStore, new FXListStore(), "Data\\INI\\Default\\FXList", "Data\\INI\\FXList");
-	initSubsystem(TheWeaponStore, new WeaponStore(), nullptr, "Data\\INI\\Weapon");
-	initSubsystem(TheObjectCreationListStore, new ObjectCreationListStore(), "Data\\INI\\Default\\ObjectCreationList", "Data\\INI\\ObjectCreationList");
-	initSubsystem(TheLocomotorStore, new LocomotorStore(), nullptr, "Data\\INI\\Locomotor");
-	initSubsystem(TheDamageFXStore, new DamageFXStore(), nullptr, "Data\\INI\\DamageFX");
-	initSubsystem(TheArmorStore, new ArmorStore(), nullptr, "Data\\INI\\Armor");
-	initSubsystem(TheThingFactory, new ThingFactory(), "Data\\INI\\Default\\Object", "Data\\INI\\Object");
-	initSubsystem(TheCrateSystem, new CrateSystem(), "Data\\INI\\Default\\Crate", "Data\\INI\\Crate");
-	initSubsystem(TheUpgradeCenter, new UpgradeCenter, "Data\\INI\\Default\\Upgrade", "Data\\INI\\Upgrade");
-	initSubsystem(TheAnim2DCollection, new Anim2DCollection ); //Init's itself.
+	initSubsystem(TheAudio, "TheAudio", (AudioManager*)new MilesAudioManager(), nullptr);
+	initSubsystem(TheVideoPlayer, "TheVideoPlayer", (VideoPlayerInterface*)(new NullVideoPlayer()), nullptr);
+	initSubsystem(TheModuleFactory, "TheModuleFactory", (ModuleFactory*)(new W3DModuleFactory()), nullptr);
+	initSubsystem(TheSidesList, "TheSidesList", new SidesList(), nullptr);
+	initSubsystem(TheCaveSystem, "TheCaveSystem", new CaveSystem(), nullptr);
+	initSubsystem(TheRankInfoStore, "TheRankInfoStore", new RankInfoStore(), nullptr, nullptr, "Data\\INI\\Rank");
+	initSubsystem(ThePlayerTemplateStore, "ThePlayerTemplateStore", new PlayerTemplateStore(), nullptr, "Data\\INI\\Default\\PlayerTemplate", "Data\\INI\\PlayerTemplate");
+	initSubsystem(TheSpecialPowerStore, "TheSpecialPowerStore", new SpecialPowerStore(), nullptr, "Data\\INI\\Default\\SpecialPower", "Data\\INI\\SpecialPower");
+	initSubsystem(TheParticleSystemManager, "TheParticleSystemManager", (ParticleSystemManager*)(new W3DParticleSystemManager()), nullptr);
+	initSubsystem(TheFXListStore, "TheFXListStore", new FXListStore(), nullptr, "Data\\INI\\Default\\FXList", "Data\\INI\\FXList");
+	initSubsystem(TheWeaponStore, "TheWeaponStore", new WeaponStore(), nullptr, nullptr, "Data\\INI\\Weapon");
+	initSubsystem(TheObjectCreationListStore, "TheObjectCreationListStore", new ObjectCreationListStore(), nullptr, "Data\\INI\\Default\\ObjectCreationList", "Data\\INI\\ObjectCreationList");
+	initSubsystem(TheLocomotorStore, "TheLocomotorStore", new LocomotorStore(), nullptr, nullptr, "Data\\INI\\Locomotor");
+	initSubsystem(TheDamageFXStore, "TheDamageFXStore", new DamageFXStore(), nullptr, nullptr, "Data\\INI\\DamageFX");
+	initSubsystem(TheArmorStore, "TheArmorStore", new ArmorStore(), nullptr, nullptr, "Data\\INI\\Armor");
+	initSubsystem(TheThingFactory, "TheThingFactory", new ThingFactory(), nullptr, "Data\\INI\\Default\\Object", "Data\\INI\\Object");
+	initSubsystem(TheCrateSystem, "TheCrateSystem", new CrateSystem(), nullptr, "Data\\INI\\Default\\Crate", "Data\\INI\\Crate");
+	initSubsystem(TheUpgradeCenter, "TheUpgradeCenter", new UpgradeCenter, nullptr, "Data\\INI\\Default\\Upgrade", "Data\\INI\\Upgrade");
+	initSubsystem(TheAnim2DCollection, "TheAnim2DCollection", new Anim2DCollection, nullptr); //Init's itself.
 
-	TheSubsystemListRecord.postProcessLoadAll();
+	TheSubsystemList->postProcessLoadAll();
 
 	TheW3DFileSystem = new WB_W3DFileSystem;
 
@@ -654,7 +646,9 @@ int CWorldBuilderApp::ExitInstance()
 
 	ScriptList::reset();
 
-	TheSubsystemListRecord.shutdownAll();
+	TheSubsystemList->shutdownAll();
+	delete TheSubsystemList;
+	TheSubsystemList = nullptr;
 
 	WorldHeightMapEdit::shutdown();
 
