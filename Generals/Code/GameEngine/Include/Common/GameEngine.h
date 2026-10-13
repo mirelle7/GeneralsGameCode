@@ -115,3 +115,9 @@ extern GameEngine *CreateGameEngine();
 
 /// The entry point for the game system
 extern Int GameMain();
+
+/// Init the INI data subsystems shared by the game and WorldBuilder. xferCRC may be null.
+/// These are separate groups because the game initializes other subsystems in between them.
+extern void initGeneralDataSubsystems(Xfer *xferCRC);
+extern void initPlayerDataSubsystems(Xfer *xferCRC);
+extern void initWeaponDataSubsystems(Xfer *xferCRC);

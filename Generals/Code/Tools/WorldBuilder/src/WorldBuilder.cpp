@@ -34,6 +34,7 @@
 #include "W3DDevice/GameClient/W3DFileSystem.h"
 #include "Common/CommandLine.h"
 #include "Common/FramePacer.h"
+#include "Common/GameEngine.h"
 #include "Common/GlobalData.h"
 #include "WHeightMapEdit.h"
 //#include "Common/GameFileSystem.h"
@@ -370,10 +371,7 @@ BOOL CWorldBuilderApp::InitInstance()
 	ini.loadFileDirectory( "Data\\INI\\Water", INI_LOAD_OVERWRITE, nullptr );
 
 	initSubsystem(TheGameText, "TheGameText", CreateGameTextInterface(), nullptr);
-	initSubsystem(TheScienceStore, "TheScienceStore", new ScienceStore(), nullptr, "Data\\INI\\Default\\Science", "Data\\INI\\Science");
-	initSubsystem(TheMultiplayerSettings, "TheMultiplayerSettings", new MultiplayerSettings(), nullptr, "Data\\INI\\Default\\Multiplayer", "Data\\INI\\Multiplayer");
-	initSubsystem(TheTerrainTypes, "TheTerrainTypes", new TerrainTypeCollection(), nullptr, "Data\\INI\\Default\\Terrain", "Data\\INI\\Terrain");
-	initSubsystem(TheTerrainRoads, "TheTerrainRoads", new TerrainRoadCollection(), nullptr, "Data\\INI\\Default\\Roads", "Data\\INI\\Roads");
+	initGeneralDataSubsystems(nullptr);
 
 	WorldHeightMapEdit::init();
 
@@ -381,18 +379,9 @@ BOOL CWorldBuilderApp::InitInstance()
 	initSubsystem(TheAudio, "TheAudio", (AudioManager*)new MilesAudioManager(), nullptr);
 	initSubsystem(TheVideoPlayer, "TheVideoPlayer", (VideoPlayerInterface*)(new NullVideoPlayer()), nullptr);
 	initSubsystem(TheModuleFactory, "TheModuleFactory", (ModuleFactory*)(new W3DModuleFactory()), nullptr);
-	initSubsystem(TheSidesList, "TheSidesList", new SidesList(), nullptr);
-	initSubsystem(TheCaveSystem, "TheCaveSystem", new CaveSystem(), nullptr);
-	initSubsystem(TheRankInfoStore, "TheRankInfoStore", new RankInfoStore(), nullptr, nullptr, "Data\\INI\\Rank");
-	initSubsystem(ThePlayerTemplateStore, "ThePlayerTemplateStore", new PlayerTemplateStore(), nullptr, "Data\\INI\\Default\\PlayerTemplate", "Data\\INI\\PlayerTemplate");
-	initSubsystem(TheSpecialPowerStore, "TheSpecialPowerStore", new SpecialPowerStore(), nullptr, "Data\\INI\\Default\\SpecialPower", "Data\\INI\\SpecialPower");
+	initPlayerDataSubsystems(nullptr);
 	initSubsystem(TheParticleSystemManager, "TheParticleSystemManager", (ParticleSystemManager*)(new W3DParticleSystemManager()), nullptr);
-	initSubsystem(TheFXListStore, "TheFXListStore", new FXListStore(), nullptr, "Data\\INI\\Default\\FXList", "Data\\INI\\FXList");
-	initSubsystem(TheWeaponStore, "TheWeaponStore", new WeaponStore(), nullptr, nullptr, "Data\\INI\\Weapon");
-	initSubsystem(TheObjectCreationListStore, "TheObjectCreationListStore", new ObjectCreationListStore(), nullptr, "Data\\INI\\Default\\ObjectCreationList", "Data\\INI\\ObjectCreationList");
-	initSubsystem(TheLocomotorStore, "TheLocomotorStore", new LocomotorStore(), nullptr, nullptr, "Data\\INI\\Locomotor");
-	initSubsystem(TheDamageFXStore, "TheDamageFXStore", new DamageFXStore(), nullptr, nullptr, "Data\\INI\\DamageFX");
-	initSubsystem(TheArmorStore, "TheArmorStore", new ArmorStore(), nullptr, nullptr, "Data\\INI\\Armor");
+	initWeaponDataSubsystems(nullptr);
 	initSubsystem(TheThingFactory, "TheThingFactory", new ThingFactory(), nullptr, "Data\\INI\\Default\\Object", "Data\\INI\\Object");
 	initSubsystem(TheCrateSystem, "TheCrateSystem", new CrateSystem(), nullptr, "Data\\INI\\Default\\Crate", "Data\\INI\\Crate");
 	initSubsystem(TheUpgradeCenter, "TheUpgradeCenter", new UpgradeCenter, nullptr, "Data\\INI\\Default\\Upgrade", "Data\\INI\\Upgrade");
