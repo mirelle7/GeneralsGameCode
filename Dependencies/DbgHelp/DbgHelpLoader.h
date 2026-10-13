@@ -63,6 +63,7 @@ BOOL WINAPI SymInitialize(
 BOOL WINAPI SymCleanup(
 	HANDLE hProcess);
 
+#if !defined(_WIN64)
 DWORD WINAPI SymLoadModule(
 	HANDLE hProcess,
 	HANDLE hFile,
@@ -70,34 +71,44 @@ DWORD WINAPI SymLoadModule(
 	PCSTR ModuleName,
 	DWORD BaseOfDll,
 	DWORD SizeOfDll);
+#endif
 
+#if !defined(_WIN64)
 DWORD WINAPI SymGetModuleBase(
 	HANDLE hProcess,
 	DWORD dwAddr);
+#endif
 
 BOOL WINAPI SymUnloadModule(
 	HANDLE hProcess,
 	DWORD BaseOfDll);
 
+#if !defined(_WIN64)
 BOOL WINAPI SymGetSymFromAddr(
 	HANDLE hProcess,
 	DWORD dwAddr,
 	PDWORD pdwDisplacement,
 	PIMAGEHLP_SYMBOL Symbol);
+#endif
 
+#if !defined(_WIN64)
 BOOL WINAPI SymGetLineFromAddr(
 	HANDLE hProcess,
 	DWORD dwAddr,
 	PDWORD pdwDisplacement,
 	PIMAGEHLP_LINE Line);
+#endif
 
 DWORD WINAPI SymSetOptions(
 	DWORD SymOptions);
 
+#if !defined(_WIN64)
 PVOID WINAPI SymFunctionTableAccess(
 	HANDLE hProcess,
 	DWORD AddrBase);
+#endif
 
+#if !defined(_WIN64)
 BOOL WINAPI StackWalk(
 	DWORD MachineType,
 	HANDLE hProcess,
@@ -108,6 +119,50 @@ BOOL WINAPI StackWalk(
 	PFUNCTION_TABLE_ACCESS_ROUTINE FunctionTableAccessRoutine,
 	PGET_MODULE_BASE_ROUTINE GetModuleBaseRoutine,
 	PTRANSLATE_ADDRESS_ROUTINE TranslateAddress);
+#endif
+
+#if defined(_WIN64)
+// TheSuperHackers @feature bobtista 11/06/2026 64-bit DbgHelp entry points. The legacy
+// 32-bit functions above truncate addresses to DWORD and cannot walk a 64-bit stack.
+DWORD64 WINAPI SymGetModuleBase64(
+	HANDLE hProcess,
+	DWORD64 dwAddr);
+
+DWORD64 WINAPI SymLoadModule64(
+	HANDLE hProcess,
+	HANDLE hFile,
+	PCSTR ImageName,
+	PCSTR ModuleName,
+	DWORD64 BaseOfDll,
+	DWORD SizeOfDll);
+
+BOOL WINAPI SymGetSymFromAddr64(
+	HANDLE hProcess,
+	DWORD64 Address,
+	PDWORD64 Displacement,
+	PIMAGEHLP_SYMBOL64 Symbol);
+
+BOOL WINAPI SymGetLineFromAddr64(
+	HANDLE hProcess,
+	DWORD64 dwAddr,
+	PDWORD pdwDisplacement,
+	PIMAGEHLP_LINE64 Line);
+
+PVOID WINAPI SymFunctionTableAccess64(
+	HANDLE hProcess,
+	DWORD64 AddrBase);
+
+BOOL WINAPI StackWalk64(
+	DWORD MachineType,
+	HANDLE hProcess,
+	HANDLE hThread,
+	LPSTACKFRAME64 StackFrame,
+	PVOID ContextRecord,
+	PREAD_PROCESS_MEMORY_ROUTINE64 ReadMemoryRoutine,
+	PFUNCTION_TABLE_ACCESS_ROUTINE64 FunctionTableAccessRoutine,
+	PGET_MODULE_BASE_ROUTINE64 GetModuleBaseRoutine,
+	PTRANSLATE_ADDRESS_ROUTINE64 TranslateAddress);
+#endif
 
 BOOL WINAPI MiniDumpWriteDump(
 	HANDLE hProcess,

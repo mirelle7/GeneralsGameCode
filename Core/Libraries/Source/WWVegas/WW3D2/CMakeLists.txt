@@ -254,3 +254,15 @@ target_link_libraries(corei_ww3d2 INTERFACE
     core_wwlib
     core_wwmath
 )
+
+# TheSuperHackers @refactor bobtista 22/04/2026 Phase 5.2 Stage 5 -
+# In-tree implementations of the D3DX8 helpers the engine calls
+# (matrix math, mip filter, surface copy, FVF size, error string).
+# Compiled only for standalone builds, which don't link d3dx8.lib.
+# Ref-popup builds still pull those symbols from d3dx8.lib and skip
+# this file entirely.
+if(GGC_BGFX_STANDALONE)
+    target_sources(corei_ww3d2 INTERFACE
+        ${CMAKE_CURRENT_SOURCE_DIR}/D3DXStandaloneStubs.cpp
+    )
+endif()
