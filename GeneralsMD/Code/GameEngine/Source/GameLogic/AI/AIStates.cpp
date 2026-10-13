@@ -878,8 +878,14 @@ StateReturnType AIStateMachine::updateStateMachine()
 
 			return status;
 		}
-		m_temporaryState->onExit(EXIT_NORMAL);
-		m_temporaryState = nullptr;
+
+		// TheSuperHackers @bugfix Okladnoj 08/10/2026 Check that the temporary state still exists as it can be cleared from the state machine within the states update.
+		// This only happens without RETAIL_COMPATIBLE_CRC, where clear() resets the temporary state.
+		if (m_temporaryState)
+		{
+			m_temporaryState->onExit(EXIT_NORMAL);
+			m_temporaryState = nullptr;
+		}
 	}
 	StateReturnType retType = StateMachine::updateStateMachine();
 
@@ -3939,9 +3945,9 @@ void AIFollowWaypointPathState::computeGoal(Bool useGroupOffsets)
 	Region3D extent;
 	TheTerrainLogic->getMaximumPathfindExtent(&extent);
 
-	if (extent.isInRegion(dest.asCoord2D())) {
+	if (extent.containsWithin(dest.asCoord2D())) {
 		// The waypoint is on the map.  Check & see if the adjusted position is off map [8/28/2003]
-		if (!extent.isInRegion(m_goalPosition.asCoord2D())) {
+		if (!extent.containsWithin(m_goalPosition.asCoord2D())) {
 			// clamp to in region. [8/28/2003]
 			if (m_goalPosition.x < extent.lo.x+PATHFIND_CELL_SIZE_F) {
 				m_goalPosition.x = extent.lo.x+PATHFIND_CELL_SIZE_F;
@@ -3958,7 +3964,7 @@ void AIFollowWaypointPathState::computeGoal(Bool useGroupOffsets)
 		}
 	}
 
-	if (!extent.isInRegion(m_goalPosition.asCoord2D())) {
+	if (!extent.containsWithin(m_goalPosition.asCoord2D())) {
 		setAdjustsDestination(false); // moving off the map.
 		ai->getCurLocomotor()->setAllowInvalidPosition(true); // allow it to move off the map.
 		m_appendGoalPosition = true; // Moving off the map.

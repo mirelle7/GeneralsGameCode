@@ -49,6 +49,7 @@ set(GAMEENGINE_SRC
 #    Include/Common/GameEngine.h
 #    Include/Common/GameLOD.h
     Include/Common/GameMemory.h
+    Include/Common/GameMemoryNull.inl
     Include/Common/GameMusic.h
     Include/Common/GameSounds.h
 #    Include/Common/GameSpyMiscPreferences.h
@@ -491,6 +492,7 @@ set(GAMEENGINE_SRC
      Include/GameLogic/Pathfinder/PathfindCell.h
      Include/GameLogic/Pathfinder/PathfindCellInfo.h
      Include/GameLogic/Pathfinder/PathfindCellList.h
+     Include/GameLogic/Pathfinder/PathfindConstants.h
      Include/GameLogic/Pathfinder/PathfindLayer.h
      Include/GameLogic/Pathfinder/PathfindZoneManager.h
      Include/GameLogic/Pathfinder/PathNode.h
@@ -666,8 +668,13 @@ set(GAMEENGINE_SRC
     Source/Common/System/FileSystem.cpp
 #    Source/Common/System/FunctionLexicon.cpp
     Source/Common/System/GameCommon.cpp
-    #Source/Common/System/GameMemory.cpp # is conditionally appended
-    #Source/Common/System/GameMemoryInit.cpp # is conditionally appended
+    Source/Common/System/GameMemory.cpp
+    Source/Common/System/GameMemoryInit.cpp
+    Source/Common/System/GameMemoryInitDMA_Generals.inl
+    Source/Common/System/GameMemoryInitDMA_GeneralsMD.inl
+    Source/Common/System/GameMemoryInitPools_Generals.inl
+    Source/Common/System/GameMemoryInitPools_GeneralsMD.inl
+    Source/Common/System/GameMemoryNull.cpp
     Source/Common/System/GameType.cpp
 #    Source/Common/System/Geometry.cpp
 #    Source/Common/System/KindOf.cpp
@@ -862,6 +869,15 @@ set(GAMEENGINE_SRC
 #    Source/GameLogic/AI/AISkirmishPlayer.cpp
 #    Source/GameLogic/AI/AIStates.cpp
 #    Source/GameLogic/AI/AITNGuard.cpp
+    Source/GameLogic/AI/Pathfinder/Path.cpp
+    Source/GameLogic/AI/Pathfinder/PathfindCell.cpp
+    Source/GameLogic/AI/Pathfinder/PathfindCellInfo.cpp
+    Source/GameLogic/AI/Pathfinder/PathfindCellList.cpp
+    Source/GameLogic/AI/Pathfinder/PathfindConstants.cpp
+    Source/GameLogic/AI/Pathfinder/PathfindLayer.cpp
+    Source/GameLogic/AI/Pathfinder/PathfindZoneManager.cpp
+    Source/GameLogic/AI/Pathfinder/PathNode.cpp
+    Source/GameLogic/AI/Pathfinder/ZoneBlock.cpp
 #    Source/GameLogic/AI/Squad.cpp
 #    Source/GameLogic/AI/TurretAI.cpp
     Source/GameLogic/Map/PolygonTrigger.cpp
@@ -1161,24 +1177,6 @@ set(GAMEENGINE_SRC
     Source/GameNetwork/WOLBrowser/WebBrowser.cpp
     Source/Precompiled/PreRTS.cpp
 )
-
-if(RTS_GAMEMEMORY_ENABLE)
-    # Uses the original Game Memory implementation.
-    list(APPEND GAMEENGINE_SRC
-        Source/Common/System/GameMemory.cpp
-        Source/Common/System/GameMemoryInit.cpp
-        Source/Common/System/GameMemoryInitDMA_Generals.inl
-        Source/Common/System/GameMemoryInitDMA_GeneralsMD.inl
-        Source/Common/System/GameMemoryInitPools_Generals.inl
-        Source/Common/System/GameMemoryInitPools_GeneralsMD.inl
-    )
-else()
-    # Uses the null implementation when disabled.
-    list(APPEND GAMEENGINE_SRC
-        Source/Common/System/GameMemoryNull.cpp
-        Include/Common/GameMemoryNull.h
-    )
-endif()
 
 
 add_library(corei_gameengine_private INTERFACE)

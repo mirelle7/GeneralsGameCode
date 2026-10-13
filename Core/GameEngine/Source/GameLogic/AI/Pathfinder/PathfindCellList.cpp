@@ -1,6 +1,6 @@
 /*
 **	Command & Conquer Generals Zero Hour(tm)
-**	Copyright 2026 TheSuperHackers
+**	Copyright 2025 Electronic Arts Inc.
 **
 **	This program is free software: you can redistribute it and/or modify
 **	it under the terms of the GNU General Public License as published by
@@ -16,15 +16,13 @@
 **	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// TheSuperHackers @refactor bobtista 10/04/2026 Backend selection seam. The
-// build links exactly one backend implementation, and that implementation
-// defines Create_Render_Backend. WW3D owns the instance it returns; use
-// WW3D::Get_Render_Backend() to reach the active backend.
+#include "GameLogic/Pathfinder/PathfindCell.h"
+#include "GameLogic/Pathfinder/PathfindCellList.h"
 
-#pragma once
+Bool PathfindCellList::canReverseSort(PathfindCell& currentCell) const
+{
+	if (m_head && m_tail)
+		return m_head->getTotalCostDifference(currentCell) > m_tail->getTotalCostDifference(currentCell);
 
-class IRenderBackend;
-
-// Construct and initialize the backend selected by the build. Exactly one
-// backend implementation must define this function. Returns null on failure.
-IRenderBackend *Create_Render_Backend(void * window, bool lite);
+	return false;
+}
