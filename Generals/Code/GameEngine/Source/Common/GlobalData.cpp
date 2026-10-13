@@ -681,6 +681,7 @@ GlobalData::GlobalData()
 	m_showSoftWaterEdge = TRUE;	//display soft water edge
 	m_usingWaterTrackEditor = FALSE;
 	m_isWorldBuilder = FALSE;
+	m_startInWorldBuilder = FALSE;
 
 	m_showMetrics = false;
 

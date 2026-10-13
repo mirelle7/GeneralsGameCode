@@ -32,6 +32,7 @@
 
 #include "gamespy/ghttp/ghttp.h"
 
+#include "Common/EditorInterface.h"
 #include "Common/GameEngine.h"
 #include "Common/GameState.h"
 #include "Common/GlobalData.h"
@@ -495,6 +496,9 @@ void MainMenuInit( WindowLayout *layout, void *userData )
 	buttonExit = TheWindowManager->winGetWindowFromId( parentMainMenu, exitID );
 	buttonMOTD = TheWindowManager->winGetWindowFromId( parentMainMenu, motdID );
 	buttonWorldBuilder = TheWindowManager->winGetWindowFromId( parentMainMenu, worldBuilderID );
+	// TheSuperHackers @feature The in-game WorldBuilder is always available when it is built in.
+	if (buttonWorldBuilder && TheEditor)
+		buttonWorldBuilder->winHide(FALSE);
 	buttonReplay = TheWindowManager->winGetWindowFromId( parentMainMenu, buttonReplayID );
 	buttonLoadReplay = TheWindowManager->winGetWindowFromId( parentMainMenu, buttonLoadReplayID );
 	buttonLoad = TheWindowManager->winGetWindowFromId( parentMainMenu, buttonLoadID );
@@ -1493,6 +1497,12 @@ WindowMsgHandledType MainMenuSystem( GameWindow *window, UnsignedInt msg,
 			}
 			else if( controlID == worldBuilderID )
 			{
+				// TheSuperHackers @feature Open the in-game WorldBuilder when it is built in.
+				if (TheEditor)
+				{
+					TheEditor->requestEnter();
+					break;
+				}
 #if defined RTS_DEBUG
 				if(_spawnl(_P_NOWAIT,"WorldBuilderD.exe","WorldBuilderD.exe", nullptr) < 0)
 					MessageBoxOk(TheGameText->fetch("GUI:WorldBuilder"), TheGameText->fetch("GUI:WorldBuilderLoadFailed"),nullptr);

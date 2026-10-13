@@ -23,6 +23,7 @@ set(GAMEENGINE_SRC
     Include/Common/CommandLine.h
     Include/Common/crc.h
     Include/Common/CRCDebug.h
+    Include/Common/EditorInterface.h
 #    Include/Common/CriticalSection.h
 #    Include/Common/CustomMatchPreferences.h
     Include/Common/DamageFX.h
@@ -584,6 +585,7 @@ set(GAMEENGINE_SRC
     Source/Common/CommandLine.cpp
     Source/Common/crc.cpp
     Source/Common/CRCDebug.cpp
+    Source/Common/EditorInterface.cpp
     Source/Common/DamageFX.cpp
     Source/Common/Diagnostic/SimulationMathCrc.cpp
     Source/Common/Dict.cpp

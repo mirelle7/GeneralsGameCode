@@ -32,6 +32,7 @@
 #include "Common/AudioAffect.h"
 #include "Common/BuildAssistant.h"
 #include "Common/CRCDebug.h"
+#include "Common/EditorInterface.h"
 #include "Common/FramePacer.h"
 #include "Common/Radar.h"
 #include "Common/PlayerTemplate.h"
@@ -733,6 +734,11 @@ DECLARE_PERF_TIMER(GameEngine_update)
 void GameEngine::update()
 {
 	USE_PERF_TIMER(GameEngine_update)
+	// TheSuperHackers @feature The in-game WorldBuilder owns the whole frame while it is active.
+	if (TheEditor != nullptr && TheEditor->updateFrame())
+	{
+		return;
+	}
 	{
 		{
 			// VERIFY CRC needs to be in this code block.  Please to not pull TheGameLogic->update() inside this block.

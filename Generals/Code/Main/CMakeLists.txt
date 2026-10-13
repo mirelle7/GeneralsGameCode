@@ -23,6 +23,10 @@ target_link_libraries(g_generals PRIVATE
     winmm
 )
 
+if(RTS_BUILD_OPTION_EDITOR)
+    target_link_libraries(g_generals PRIVATE g_editor)
+endif()
+
 # TODO Originally referred to build host and user, replace with git info perhaps?
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/GeneratedVersion.h
 "#pragma once

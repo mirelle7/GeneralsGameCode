@@ -1210,6 +1210,14 @@ Int parseNoShellMap(char *args[], int)
 	return 1;
 }
 
+// TheSuperHackers @feature Open the in-game WorldBuilder as soon as the main menu is up.
+Int parseWorldBuilder(char *args[], int)
+{
+	TheWritableGlobalData->m_startInWorldBuilder = TRUE;
+
+	return 1;
+}
+
 Int parseNoShaders(char *args[], int)
 {
 	TheWritableGlobalData->m_chipSetType = 1;	//force to a voodoo card which uses least amount of features.
@@ -1747,6 +1755,7 @@ static CommandLineParam paramsForEngineInit[] =
 	{ "-bgfxEffects", parseBgfxEffects }, // must be in this (post-INI) table so it overrides Bgfx.ini/GameData.ini
 	{ "-bgfxNoEffects", parseBgfxNoEffects }, // must be post-INI so parity/perf runs can override Bgfx.ini/GameData.ini
 	{ "-noshellmap", parseNoShellMap },
+	{ "-worldbuilder", parseWorldBuilder },
 	{ "-noShellAnim", parseNoWindowAnimation }, // TheSuperHackers @tweak Is now available in Release builds.
 	{ "-xres", parseXRes },
 	{ "-yres", parseYRes },

@@ -36,6 +36,10 @@
 
 #include "Common/CommandLine.h"
 #include "Common/Debug.h"
+#include "Common/EditorInterface.h"
+#ifdef RTS_HAS_EDITOR
+#include "Editor/WorldBuilderEditor.h"
+#endif
 #include "Common/GameEngine.h"
 #include "Common/GameMemory.h"
 #include "Common/GlobalData.h"
@@ -428,7 +432,15 @@ int main(int argc, char **argv)
 	if (rts::ClientInstance::initialize())
 	{
 		GGC_TRACE("calling GameMain");
+#ifdef RTS_HAS_EDITOR
+		// TheSuperHackers @feature The in-game WorldBuilder, opened from the main menu.
+		TheEditor = CreateWorldBuilderEditor();
+#endif
 		result = GameMain();
+#ifdef RTS_HAS_EDITOR
+		delete TheEditor;
+		TheEditor = nullptr;
+#endif
 		GGC_TRACE("GameMain returned result=%d", result);
 	}
 	else

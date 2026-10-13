@@ -26,6 +26,7 @@
 
 #include "Common/AudioRequest.h"
 #include "Common/Debug.h"
+#include "Common/EditorInterface.h"
 #include "Common/GameAudio.h"
 #include "Common/GlobalData.h"
 #include "Common/MessageStream.h"
@@ -213,6 +214,12 @@ void SDL3GameEngine::pollSDL3Events()
 	SDL_Event event;
 	while (SDL_PollEvent(&event))
 	{
+		// TheSuperHackers @feature The in-game WorldBuilder takes the input events while it is active.
+		if (TheEditor != NULL && TheEditor->handleSDLEvent(&event))
+		{
+			continue;
+		}
+
 		switch (event.type)
 		{
 			case SDL_EVENT_QUIT:
@@ -802,6 +809,14 @@ void SDL3GameEngine::updateTextInputState()
 {
 	if (m_sdlWindow == NULL)
 	{
+		return;
+	}
+
+	// TheSuperHackers @feature The in-game WorldBuilder manages text input itself while it is active
+	// and stops it again when it hands the frame back to the game.
+	if (TheEditor != NULL && TheEditor->isActive())
+	{
+		m_textInputActive = FALSE;
 		return;
 	}
 

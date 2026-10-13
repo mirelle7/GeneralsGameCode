@@ -43,6 +43,7 @@ static void drawFramerateBar();
 #include <rts/profile.h>
 
 // USER INCLUDES //////////////////////////////////////////////////////////////
+#include "Common/EditorInterface.h"
 #include "Common/FramePacer.h"
 #include "Common/ThingFactory.h"
 #include "Common/GlobalData.h"
@@ -2079,6 +2080,17 @@ void W3DDisplay::draw()
 
 	if (TheGlobalData->m_headless)
 		return;
+
+	// TheSuperHackers @feature The in-game WorldBuilder draws its own scene and interface.
+	if (TheEditor != nullptr && TheEditor->isActive())
+	{
+		if (WW3D::Begin_Render(true, true, Vector3(0.0f, 0.0f, 0.0f)) == WW3D_ERROR_OK)
+		{
+			TheEditor->drawFrame();
+			WW3D::End_Render();
+		}
+		return;
+	}
 
 	// TheSuperHackers @feature bobtista 10/07/2026 Show messages for screenshots finished by the screenshot thread.
 	W3D_UpdateScreenshotMessages();

@@ -162,6 +162,7 @@ public:
 	Bool m_showSoftWaterEdge;
 	Bool m_usingWaterTrackEditor;
 	Bool m_isWorldBuilder;
+	Bool m_startInWorldBuilder;	///< TheSuperHackers @feature Open the in-game WorldBuilder at startup (-worldbuilder).
 
 	Int m_featherWater;
 

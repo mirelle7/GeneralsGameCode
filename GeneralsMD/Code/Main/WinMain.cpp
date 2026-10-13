@@ -43,6 +43,10 @@
 #include "WinMain.h"
 #include "Common/CommandLine.h"
 #include "Common/CriticalSection.h"
+#include "Common/EditorInterface.h"
+#ifdef RTS_HAS_EDITOR
+#include "Editor/WorldBuilderEditor.h"
+#endif
 #include "Common/GlobalData.h"
 #include "Common/GameEngine.h"
 #include "Common/GameSounds.h"
@@ -298,6 +302,12 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message,
 
 	try
 	{
+		// TheSuperHackers @feature The in-game WorldBuilder takes the input messages while it is active.
+		if ( TheEditor && TheEditor->handleWin32Message( hWnd, message, (UnsignedInt64)wParam, (Int64)lParam ) )
+		{
+			return 0;
+		}
+
 		// First let the IME manager do it's stuff.
 		if ( TheIMEManager )
 		{
@@ -929,7 +939,15 @@ Int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		DEBUG_LOG(("CRC message is %d", GameMessage::MSG_LOGIC_CRC));
 
 		// run the game main loop
+#ifdef RTS_HAS_EDITOR
+		// TheSuperHackers @feature The in-game WorldBuilder, opened from the main menu.
+		TheEditor = CreateWorldBuilderEditor();
+#endif
 		exitcode = GameMain();
+#ifdef RTS_HAS_EDITOR
+		delete TheEditor;
+		TheEditor = nullptr;
+#endif
 
 		delete TheVersion;
 		TheVersion = nullptr;

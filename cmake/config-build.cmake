@@ -10,6 +10,7 @@ option(RTS_BUILD_OPTION_ASAN "Build code with Address Sanitizer." OFF)
 option(RTS_BUILD_OPTION_VC6_FULL_DEBUG "Build VC6 with full debug info." OFF)
 option(SAGE_USE_SDL3 "Use SDL3 for GeneralsMD windowing and input (cross-platform alternative to the Win32 path; macOS and Windows)." OFF)
 option(SAGE_USE_OPENAL "Use OpenAL for GeneralsMD audio (cross-platform alternative to the Windows audio path; macOS and Windows)." OFF)
+cmake_dependent_option(RTS_BUILD_OPTION_EDITOR "Build the in-game WorldBuilder editor (Dear ImGui)." ON "NOT IS_VS6_BUILD" OFF)
 option(GGC_DIAGNOSTIC_TOOLS "Compile diagnostic- and probe-tier GGC_* runtime flags into the game (see GgcRuntimeFlags.h)." ON)
 
 if(NOT RTS_BUILD_ZEROHOUR AND NOT RTS_BUILD_GENERALS)
@@ -28,6 +29,7 @@ add_feature_info(Vc6FullDebug RTS_BUILD_OPTION_VC6_FULL_DEBUG "Building VC6 with
 add_feature_info(FFmpegSupport RTS_BUILD_OPTION_FFMPEG "Building with FFmpeg support")
 add_feature_info(SDL3Windowing SAGE_USE_SDL3 "Using SDL3 for GeneralsMD windowing and input")
 add_feature_info(OpenALAudio SAGE_USE_OPENAL "Using OpenAL for GeneralsMD audio")
+add_feature_info(InGameEditor RTS_BUILD_OPTION_EDITOR "Building the in-game WorldBuilder editor")
 add_feature_info(GgcDiagnosticTools GGC_DIAGNOSTIC_TOOLS "Compiling diagnostic/probe GGC_* runtime flags")
 
 set(RTS_BUILD_OUTPUT_SUFFIX "" CACHE STRING "Suffix appended to output names of installable targets")
@@ -78,6 +80,10 @@ endif()
 
 if(SAGE_USE_SDL3)
     target_compile_definitions(core_config INTERFACE SAGE_USE_SDL3)
+endif()
+
+if(RTS_BUILD_OPTION_EDITOR)
+    target_compile_definitions(core_config INTERFACE RTS_HAS_EDITOR)
 endif()
 
 if(SAGE_USE_OPENAL)

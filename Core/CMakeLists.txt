@@ -35,4 +35,8 @@ add_subdirectory(GameEngine)
 # Platform specific GameEngine code
 add_subdirectory(GameEngineDevice)
 
+if(RTS_BUILD_OPTION_EDITOR)
+    add_subdirectory(Editor)
+endif()
+
 add_subdirectory(Tools)

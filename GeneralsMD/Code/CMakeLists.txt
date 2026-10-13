@@ -34,6 +34,11 @@ add_subdirectory(GameEngine)
 # Platform specific GameEngine code
 add_subdirectory(GameEngineDevice)
 
+# In-game WorldBuilder editor
+if(RTS_BUILD_OPTION_EDITOR)
+    add_subdirectory(Editor)
+endif()
+
 # Contains the main game exe target.
 add_subdirectory(Main)
 

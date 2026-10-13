@@ -17,6 +17,10 @@ target_link_libraries(z_generals PRIVATE
     zi_always
 )
 
+if(RTS_BUILD_OPTION_EDITOR)
+    target_link_libraries(z_generals PRIVATE z_editor)
+endif()
+
 if(WIN32)
     target_link_libraries(z_generals PRIVATE
         binkloader
