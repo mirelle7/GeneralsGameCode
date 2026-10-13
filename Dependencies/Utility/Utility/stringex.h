@@ -305,7 +305,8 @@ template<typename T> inline bool endsWithNoCase(const T *str, const T *suffix)
 #if defined(_MSC_VER) && _MSC_VER < 1300
   #include "stringex_memcchr_x86asm.inl"
 #else
-  #if defined(_M_IX86) || defined(_M_X64) || defined(__SSE2__)
+  // Note: MinGW headers define _M_IX86 too, so only trust it for MSVC. GCC and Clang need __SSE2__ (-msse2).
+  #if (defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_X64))) || defined(__SSE2__)
     #include <emmintrin.h>
     #if defined(_MSC_VER)
       #include <intrin.h>

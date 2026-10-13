@@ -13,6 +13,11 @@ if (IS_VS6_BUILD)
 endif()
 
 add_subdirectory(Utility)
+
+if(MINGW AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_subdirectory(D3DX8Compat)
+endif()
+
 add_subdirectory(Bink)
 add_subdirectory(Miles)
 

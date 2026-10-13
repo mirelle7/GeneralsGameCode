@@ -191,6 +191,37 @@
             "cacheVariables": {
                 "RTS_BUILD_OPTION_PROFILE": "ON"
             }
+        },
+        {
+            "name": "mingw-w64-i686-clang",
+            "displayName": "MinGW-w64 32-bit (i686) Clang Release",
+            "generator": "Ninja",
+            "hidden": false,
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/mingw-w64-i686-clang.cmake",
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "mingw-w64-i686-clang-debug",
+            "displayName": "MinGW-w64 32-bit (i686) Clang Debug",
+            "hidden": false,
+            "inherits": "mingw-w64-i686-clang",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "RTS_BUILD_OPTION_DEBUG": "ON"
+            }
+        },
+        {
+            "name": "mingw-w64-i686-clang-profile",
+            "displayName": "MinGW-w64 32-bit (i686) Clang Profile",
+            "hidden": false,
+            "inherits": "mingw-w64-i686-clang",
+            "cacheVariables": {
+                "RTS_BUILD_OPTION_PROFILE": "ON"
+            }
         }
     ],
     "buildPresets": [
@@ -290,6 +321,24 @@
             "configurePreset": "mingw-w64-i686-profile",
             "displayName": "Build MinGW-w64 32-bit (i686) Profile",
             "description": "Build MinGW-w64 32-bit (i686) Profile"
+        },
+        {
+            "name": "mingw-w64-i686-clang",
+            "configurePreset": "mingw-w64-i686-clang",
+            "displayName": "Build MinGW-w64 32-bit (i686) Clang Release",
+            "description": "Build MinGW-w64 32-bit (i686) Clang Release"
+        },
+        {
+            "name": "mingw-w64-i686-clang-debug",
+            "configurePreset": "mingw-w64-i686-clang-debug",
+            "displayName": "Build MinGW-w64 32-bit (i686) Clang Debug",
+            "description": "Build MinGW-w64 32-bit (i686) Clang Debug"
+        },
+        {
+            "name": "mingw-w64-i686-clang-profile",
+            "configurePreset": "mingw-w64-i686-clang-profile",
+            "displayName": "Build MinGW-w64 32-bit (i686) Clang Profile",
+            "description": "Build MinGW-w64 32-bit (i686) Clang Profile"
         }
     ],
     "testPresets": [
@@ -547,6 +596,45 @@
                 {
                     "type": "build",
                     "name": "mingw-w64-i686-profile"
+                }
+            ]
+        },
+        {
+            "name": "mingw-w64-i686-clang",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "mingw-w64-i686-clang"
+                },
+                {
+                    "type": "build",
+                    "name": "mingw-w64-i686-clang"
+                }
+            ]
+        },
+        {
+            "name": "mingw-w64-i686-clang-debug",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "mingw-w64-i686-clang-debug"
+                },
+                {
+                    "type": "build",
+                    "name": "mingw-w64-i686-clang-debug"
+                }
+            ]
+        },
+        {
+            "name": "mingw-w64-i686-clang-profile",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "mingw-w64-i686-clang-profile"
+                },
+                {
+                    "type": "build",
+                    "name": "mingw-w64-i686-clang-profile"
                 }
             ]
         }
