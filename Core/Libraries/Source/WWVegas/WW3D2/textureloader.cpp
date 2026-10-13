@@ -52,6 +52,7 @@
 #include "dx8caps.h"
 #include "missingtexture.h"
 #include "WWLib/TARGA.h"
+#include <stb_image.h>
 #include <d3dx8tex.h>
 #include "WWDebug/wwmemlog.h"
 #include "formconv.h"
@@ -1327,6 +1328,145 @@ static unsigned Get_Requested_Reduction(unsigned width, unsigned height, unsigne
 }
 
 
+// ----------------------------------------------------------------------------
+//
+// stb_image decoding of uncompressed textures. Images are decoded to 32 bit
+// A8R8G8B8 so they can go through the same mipmap path as 32 bit TGA files.
+// TGA variants that stb_image decodes differently from the Targa class return
+// false so that the caller falls back to the Targa loader.
+//
+// ----------------------------------------------------------------------------
+
+// Enough for the TGA header and the PNG IHDR chunk, which is all stbi_info needs.
+static const int STB_INFO_READ_SIZE = 64;
+
+static unsigned char* Read_Image_File(const char* filename, int max_size, int& size)
+{
+	size = 0;
+	file_auto_ptr file(_TheFileFactory, filename);
+	if (!file->Is_Available() || !file->Open(FileClass::READ))
+	{
+		return nullptr;
+	}
+
+	int file_size = file->Size();
+	if (max_size > 0 && file_size > max_size)
+	{
+		file_size = max_size;
+	}
+
+	unsigned char* buffer = nullptr;
+	if (file_size > 0)
+	{
+		buffer = new unsigned char[file_size];
+		size = file->Read(buffer, file_size);
+	}
+	file->Close();
+
+	if (size != file_size)
+	{
+		delete[] buffer;
+		size = 0;
+		return nullptr;
+	}
+	return buffer;
+}
+
+static bool Is_Targa_File_Name(const char* filename)
+{
+	const char* ext = strrchr(filename, '.');
+	return ext && stricmp(ext, ".tga") == 0;
+}
+
+// stb_image reads 16 bit TGAs (and 16 bit palettes) as RGB, dropping the 1 bit
+// alpha, and reads 8 bit non-paletted TGAs as grey where the Targa class reads
+// them as alpha. Those are left to the Targa loader.
+static bool Is_Stb_Compatible_Targa(const unsigned char* header, int size)
+{
+	if (size < 18)
+	{
+		return false;
+	}
+
+	const unsigned char colormap_type = header[1];
+	const unsigned char colormap_depth = header[7];
+	const unsigned char pixel_depth = header[16];
+
+	if (colormap_type == 1)
+	{
+		return colormap_depth == 24 || colormap_depth == 32;
+	}
+	return pixel_depth == 24 || pixel_depth == 32;
+}
+
+static bool Get_Stb_Image_Information(const char* filename, unsigned& w, unsigned& h, WW3DFormat& format)
+{
+	int size;
+	unsigned char* data = Read_Image_File(filename, STB_INFO_READ_SIZE, size);
+	if (!data)
+	{
+		return false;
+	}
+
+	int x, y, comp;
+	bool ok = (!Is_Targa_File_Name(filename) || Is_Stb_Compatible_Targa(data, size))
+		&& stbi_info_from_memory(data, size, &x, &y, &comp)
+		&& x > 0 && y > 0;
+	delete[] data;
+
+	if (!ok)
+	{
+		return false;
+	}
+
+	w = x;
+	h = y;
+	format = (comp == 2 || comp == 4) ? WW3D_FORMAT_A8R8G8B8 : WW3D_FORMAT_R8G8B8;
+	return true;
+}
+
+// Returns a top-down A8R8G8B8 image allocated with new[], or nullptr.
+static unsigned char* Load_Stb_Image(const char* filename, unsigned& w, unsigned& h)
+{
+	int size;
+	unsigned char* data = Read_Image_File(filename, 0, size);
+	if (!data)
+	{
+		return nullptr;
+	}
+
+	unsigned char* rgba = nullptr;
+	int x = 0, y = 0, comp;
+	if (!Is_Targa_File_Name(filename) || Is_Stb_Compatible_Targa(data, size))
+	{
+		rgba = stbi_load_from_memory(data, size, &x, &y, &comp, 4);
+	}
+	delete[] data;
+
+	if (!rgba)
+	{
+		return nullptr;
+	}
+
+	// stb_image rows are top-down like the D3D surface, so only the channel
+	// order changes: RGBA bytes become BGRA, which is A8R8G8B8 in memory.
+	const unsigned pixel_count = (unsigned)x * (unsigned)y;
+	unsigned char* bgra = new unsigned char[pixel_count * 4];
+	for (unsigned i = 0; i < pixel_count * 4; i += 4)
+	{
+		bgra[i + 0] = rgba[i + 2];
+		bgra[i + 1] = rgba[i + 1];
+		bgra[i + 2] = rgba[i + 0];
+		bgra[i + 3] = rgba[i + 3];
+	}
+	stbi_image_free(rgba);
+
+	w = x;
+	h = y;
+	return bgra;
+}
+
+
 static bool	Get_Texture_Information
 (
 	const char* filename,
@@ -1355,6 +1495,18 @@ static bool	Get_Texture_Information
 			d = dds_file.Get_Depth(0);
 			format = dds_file.Get_Format();
 			mip_count = dds_file.Get_Mip_Level_Count();
+			reduction = Get_Requested_Reduction(w, h, mip_count);
+
+			return true;
+		}
+
+		if (Get_Stb_Image_Information(filename, w, h, format))
+		{
+			mip_count = 0;
+			for (unsigned i=w, j=h; i > 0 && j > 0; i>>=1, j>>=1)
+				mip_count++;
+
+			d = 1;
 			reduction = Get_Requested_Reduction(w, h, mip_count);
 
 			return true;
@@ -1718,37 +1870,56 @@ bool TextureLoadTaskClass::Load_Uncompressed_Mipmap()
 		return false;
 	}
 
-	Targa targa;
-	if (TARGA_ERROR_HANDLER(targa.Open(Texture->Get_Full_Path(), TGA_READMODE), Texture->Get_Full_Path())) {
-		return false;
-	}
-
-	// DX8 uses image upside down compared to TGA
-	targa.Header.ImageDescriptor ^= TGAIDF_YORIGIN;
-
 	WW3DFormat src_format;
 	WW3DFormat dest_format;
 	unsigned int src_bpp = 0;
-	Get_WW3D_Format(dest_format,src_format,src_bpp,targa);
-	if (src_format==WW3D_FORMAT_UNKNOWN) return false;
-
-	dest_format = Get_Format();	// Texture can be requested in different format than the most obvious from the TGA
-
-	char palette[256*4];
-	targa.SetPalette(palette);
-
-	unsigned int src_width	= targa.Header.Width;
-	unsigned int src_height	= targa.Header.Height;
+	unsigned int src_width	= 0;
+	unsigned int src_height	= 0;
 	unsigned int width		= Get_Width();
 	unsigned int height		= Get_Height();
 
-	// NOTE: We load the palette but we do not yet support paletted textures!
-	if (TARGA_ERROR_HANDLER(targa.Load(Texture->Get_Full_Path(), TGAF_IMAGE, false), Texture->Get_Full_Path())) {
-		return false;
-	}
-
-	unsigned char * src_surface			= (unsigned char*)targa.GetImage();
+	unsigned char * src_surface			= nullptr;
+	unsigned char * src_palette			= nullptr;
+	unsigned int src_palette_bpp			= 0;
 	unsigned char * converted_surface	= nullptr;
+
+	Targa targa;
+	char palette[256*4];
+
+	unsigned char * stb_surface = Load_Stb_Image(Texture->Get_Full_Path(), src_width, src_height);
+	if (stb_surface) {
+		src_surface	= stb_surface;
+		src_format	= WW3D_FORMAT_A8R8G8B8;
+		src_bpp		= 4;
+		dest_format = Get_Format();
+	}
+	else {
+		if (TARGA_ERROR_HANDLER(targa.Open(Texture->Get_Full_Path(), TGA_READMODE), Texture->Get_Full_Path())) {
+			return false;
+		}
+
+		// DX8 uses image upside down compared to TGA
+		targa.Header.ImageDescriptor ^= TGAIDF_YORIGIN;
+
+		Get_WW3D_Format(dest_format,src_format,src_bpp,targa);
+		if (src_format==WW3D_FORMAT_UNKNOWN) return false;
+
+		dest_format = Get_Format();	// Texture can be requested in different format than the most obvious from the TGA
+
+		targa.SetPalette(palette);
+
+		src_width	= targa.Header.Width;
+		src_height	= targa.Header.Height;
+
+		// NOTE: We load the palette but we do not yet support paletted textures!
+		if (TARGA_ERROR_HANDLER(targa.Load(Texture->Get_Full_Path(), TGAF_IMAGE, false), Texture->Get_Full_Path())) {
+			return false;
+		}
+
+		src_surface		= (unsigned char*)targa.GetImage();
+		src_palette		= (unsigned char*)targa.GetPalette();
+		src_palette_bpp	= targa.Header.CMapDepth>>3;
+	}
 
 	// No paletted format allowed when generating mipmaps
 	Vector3 hsv_shift=HSVShift;
@@ -1774,8 +1945,8 @@ bool TextureLoadTaskClass::Load_Uncompressed_Mipmap()
 			src_height,
 			src_width*src_bpp,
 			src_format,
-			(unsigned char*)targa.GetPalette(),
-			targa.Header.CMapDepth>>3,
+			src_palette,
+			src_palette_bpp,
 			false,
 			hsv_shift);
 		hsv_shift=Vector3(0.0f,0.0f,0.0f);
@@ -1849,6 +2020,7 @@ bool TextureLoadTaskClass::Load_Uncompressed_Mipmap()
 	}
 
 	delete[] converted_surface;
+	delete[] stb_surface;
 
 	return true;
 }
