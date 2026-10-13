@@ -1,6 +1,6 @@
 /*
 **	Command & Conquer Generals Zero Hour(tm)
-**	Copyright 2025 Electronic Arts Inc.
+**	Copyright 2026 TheSuperHackers
 **
 **	This program is free software: you can redistribute it and/or modify
 **	it under the terms of the GNU General Public License as published by
@@ -11,14 +11,15 @@
 **	but WITHOUT ANY WARRANTY; without even the implied warranty of
 **	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 **	GNU General Public License for more details.
+**
+**	You should have received a copy of the GNU General Public License
+**	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// TheSuperHackers @refactor bobtista 22/04/2026 Stage 5 —
+// TheSuperHackers @build bobtista 22/04/2026
 // Minimal in-tree implementations of the D3DX8 helper functions the
-// engine actually calls, so the standalone bgfx build can drop the
-// d3dx8.lib static-link dependency entirely. This file only compiles
-// under GGC_BGFX_STANDALONE; in ref-popup mode d3dx8.lib continues to
-// provide these symbols.
+// engine actually calls. There is no 64-bit d3dx8.lib, so the x64 build
+// compiles this file instead. 32-bit builds keep linking d3dx8.lib.
 //
 // Not implemented here:
 // - D3DXMatrixIdentity / D3DXMatrixIsIdentity — these are D3DXINLINE
@@ -27,7 +28,7 @@
 // - Non-critical functions (shader assemble from file/resource, mesh
 //   loaders, font create, etc.) that aren't called at runtime.
 
-#if defined(GGC_BGFX_STANDALONE)
+#if defined(_WIN64)
 
 #include <cmath>
 #include <cstring>
@@ -642,7 +643,7 @@ extern "C" HRESULT WINAPI D3DXLoadSurfaceFromSurface(
 }
 
 // Non-TGA file loading: dx8wrapper.cpp only hits this as a fallback when
-// the TGA fast path rejects the file. In standalone we just surface
+// the TGA fast path rejects the file. Here we just surface
 // MissingTexture through the engine's normal error handling.
 extern "C" HRESULT WINAPI D3DXCreateTextureFromFileExA(
 	LPDIRECT3DDEVICE8 /*device*/,
@@ -674,8 +675,7 @@ extern "C" HRESULT WINAPI D3DXCreateTextureFromFileExA(
 	return E_NOTIMPL;
 }
 
-// Shader assembler — the bgfx backend uses its own .sc shaders, so if
-// some code path calls this the result isn't driving bgfx output.
+// Shader assembler: not available without d3dx8.lib.
 // Return E_NOTIMPL; callers already handle D3DX assembly failure by
 // falling back to the fixed function pipeline.
 extern "C" HRESULT WINAPI D3DXAssembleShader(
@@ -690,7 +690,7 @@ extern "C" HRESULT WINAPI D3DXAssembleShader(
 	if (!s_logged)
 	{
 		s_logged = true;
-		WWDEBUG_SAY(("[D3DXStub] D3DXAssembleShader stubbed (bgfx uses its own shaders)"));
+		WWDEBUG_SAY(("[D3DXStub] D3DXAssembleShader stubbed (no shader assembler without d3dx8.lib)"));
 	}
 	if (constants)
 	{
@@ -707,4 +707,4 @@ extern "C" HRESULT WINAPI D3DXAssembleShader(
 	return E_NOTIMPL;
 }
 
-#endif // GGC_BGFX_STANDALONE
+#endif // _WIN64

@@ -105,10 +105,10 @@
             }
         },
         {
-            "name": "win64-bgfx-standalone",
+            "name": "win64",
             "inherits": "default",
             "hidden": false,
-            "displayName": "Windows 64bit Release (bgfx standalone)",
+            "displayName": "Windows 64bit Release",
             "architecture": {
                 "value": "x64",
                 "strategy": "external"
@@ -117,8 +117,7 @@
                 "RTS_FLAGS": "/W3",
                 "RTS_BUILD_GENERALS_TOOLS": "OFF",
                 "RTS_BUILD_ZEROHOUR_TOOLS": "OFF",
-                "RTS_BUILD_CORE_TOOLS": "OFF",
-                "GGC_BGFX_STANDALONE": "ON"
+                "RTS_BUILD_CORE_TOOLS": "OFF"
             },
             "vendor": {
                 "jetbrains.com/clion": {
@@ -254,10 +253,10 @@
             "configuration": "Release"
         },
         {
-            "name": "win64-bgfx-standalone",
-            "configurePreset": "win64-bgfx-standalone",
-            "displayName": "Build Windows 64bit Release (bgfx standalone)",
-            "description": "Build Windows 64bit Release (bgfx standalone)",
+            "name": "win64",
+            "configurePreset": "win64",
+            "displayName": "Build Windows 64bit Release",
+            "description": "Build Windows 64bit Release",
             "configuration": "Release"
         },
         {
