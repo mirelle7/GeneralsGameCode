@@ -2,12 +2,13 @@
 # GeneralsMapThumbnails.app with MapThumbnailExtension.appex inside. App extensions need the
 # Xcode generator: cmake -S Core/Tools/MapThumbnail -B build/mapthumbnail -G Xcode
 
+set(MAPTHUMBNAIL_BUNDLE_ID "com.thesuperhackers.GeneralsMapThumbnails" CACHE STRING "Bundle identifier of the map thumbnail app")
+
 if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
     message(STATUS "Skipping the Quick Look extension: it needs the Xcode generator (-G Xcode).")
     return()
 endif()
 
-set(MAPTHUMBNAIL_BUNDLE_ID "com.thesuperhackers.GeneralsMapThumbnails" CACHE STRING "Bundle identifier of the map thumbnail app")
 set(MAPTHUMBNAIL_SIGN_IDENTITY "-" CACHE STRING "Code signing identity; '-' signs ad hoc for local use")
 
 set(MAPTHUMBNAIL_XCODE_COMMON

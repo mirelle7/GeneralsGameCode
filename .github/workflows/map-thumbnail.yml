@@ -35,17 +35,20 @@ jobs:
             artifacts: |
               build/Release/generals-map-thumbnailer.exe
               build/windows/Release/MapThumbnailProvider.dll
+              build/windows/Release/MapThumbnailToggle.exe
           - name: macOS (Quick Look)
             os: macos-latest
             configure: -G Xcode
             artifacts: |
               build/macos/Release/GeneralsMapThumbnails.app
               build/Release/generals-map-thumbnailer
+              build/Release/generals-map-thumbnails-toggle
           - name: Linux (freedesktop)
             os: ubuntu-latest
             configure: -DCMAKE_BUILD_TYPE=Release
             artifacts: |
               build/generals-map-thumbnailer
+              build/generals-map-thumbnails-toggle
               Core/Tools/MapThumbnail/linux/generals-map.thumbnailer
               Core/Tools/MapThumbnail/linux/generals-map.xml
     runs-on: ${{ matrix.os }}

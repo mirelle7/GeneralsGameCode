@@ -29,11 +29,11 @@ The `Map Thumbnail` GitHub workflow builds all three and uploads them as artifac
 regsvr32 MapThumbnailProvider.dll
 ```
 
-This registers the handler for the current user only (no administrator rights needed). `regsvr32 /u MapThumbnailProvider.dll` removes it. The handler runs inside Explorer so that it can find the TGA next to each map.
+This registers the handler for the current user only (no administrator rights needed). `regsvr32 /u MapThumbnailProvider.dll` removes it. Or double-click `MapThumbnailToggle.exe` next to the DLL to switch thumbnails on and off. The handler runs inside Explorer so that it can find the TGA next to each map.
 
 ### macOS
 
-Copy `GeneralsMapThumbnails.app` to `/Applications` and open it once; that registers the Quick Look extension (System Settings > General > Login Items & Extensions > Quick Look lists it). The extension is sandboxed with read-only access to the file system, which it needs for the TGA next to each map, the settings file and the game folders.
+Copy `GeneralsMapThumbnails.app` to `/Applications` and open it once; that registers the Quick Look extension (System Settings > General > Login Items & Extensions > Quick Look lists it). The extension is sandboxed with read-only access to the file system, which it needs for the TGA next to each map, the settings file and the game folders. Run `generals-map-thumbnails-toggle` to switch the extension off and on again.
 
 ### Linux
 
@@ -44,7 +44,7 @@ install -Dm644 linux/generals-map.xml ~/.local/share/mime/packages/generals-map.
 update-mime-database ~/.local/share/mime
 ```
 
-or `cmake --install` for a system-wide install. This works with file managers that use freedesktop thumbnailers: GNOME Files, Nemo, Caja and Thunar (through tumbler). Maps are recognised by their content, so other `.map` files keep their usual type.
+or `cmake --install` for a system-wide install. Or put `generals-map-thumbnails-toggle` next to `generals-map-thumbnailer` and run it: the first run installs the thumbnailer for the current user, the next removes it again. This works with file managers that use freedesktop thumbnailers: GNOME Files, Nemo, Caja and Thunar (through tumbler). Maps are recognised by their content, so other `.map` files keep their usual type.
 
 ## Settings
 

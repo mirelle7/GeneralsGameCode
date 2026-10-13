@@ -61,6 +61,15 @@ else()
     add_subdirectory(linux)
 endif()
 
+if(NOT WIN32)
+    # Command line switch that turns the thumbnails on and off; Windows has MapThumbnailToggle.exe.
+    add_executable(generals-map-thumbnails-toggle cli/Toggle.c)
+    if(APPLE)
+        target_compile_definitions(generals-map-thumbnails-toggle PRIVATE MAPTHUMBNAIL_EXTENSION_ID="${MAPTHUMBNAIL_BUNDLE_ID}.ThumbnailExtension")
+    endif()
+    install(TARGETS generals-map-thumbnails-toggle RUNTIME DESTINATION bin)
+endif()
+
 if(MAPTHUMBNAIL_BUILD_TESTS)
     enable_testing()
     add_executable(mapthumbnail_tests tests/MapThumbnailTest.cpp)

@@ -15,4 +15,14 @@ if(MINGW)
     target_link_options(MapThumbnailProvider PRIVATE -static)
 endif()
 
-install(TARGETS MapThumbnailProvider RUNTIME DESTINATION bin)
+# Double-click switch that registers or unregisters the DLL next to it.
+add_executable(MapThumbnailToggle WIN32 Toggle.c)
+target_link_libraries(MapThumbnailToggle PRIVATE advapi32 user32)
+if(MSVC)
+    # No C runtime keeps the exe at a few KB. Debug keeps it for the /RTC checks.
+    target_compile_options(MapThumbnailToggle PRIVATE /GS-)
+    target_link_options(MapThumbnailToggle PRIVATE /ENTRY:ToggleMain $<$<NOT:$<CONFIG:Debug>>:/NODEFAULTLIB>)
+    target_link_libraries(MapThumbnailToggle PRIVATE kernel32)
+endif()
+
+install(TARGETS MapThumbnailProvider MapThumbnailToggle RUNTIME DESTINATION bin)
