@@ -201,7 +201,10 @@ namespace
 			backend->Set_Texture(0, m_texture);
 			backend->Set_Vertex_Buffer(vb);
 			backend->Set_Index_Buffer(ib, 0);
-			backend->Set_Shader(Render2DClass::Get_Default_Shader());
+			// ImGui emits both windings and the conversion to clip space flips Y, so draw two sided.
+			ShaderClass shader = Render2DClass::Get_Default_Shader();
+			shader.Set_Cull_Mode(ShaderClass::CULL_MODE_DISABLE);
+			backend->Set_Shader(shader);
 			backend->Draw_Triangles(0, (unsigned short)(vertexCount / 3), 0, (unsigned short)vertexCount);
 
 			m_vertices.clear();

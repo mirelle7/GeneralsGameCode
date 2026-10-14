@@ -145,6 +145,7 @@ static GameWindow *buttonOptions = nullptr;
 static GameWindow *buttonExit = nullptr;
 static GameWindow *buttonMOTD = nullptr;
 static GameWindow *buttonWorldBuilder = nullptr;
+static GameWindow *buttonInGameWorldBuilder = nullptr;
 static GameWindow *mainMenuMovie = nullptr;
 static GameWindow *getUpdate = nullptr;
 static GameWindow *buttonTRAINING = nullptr;
@@ -459,9 +460,6 @@ void MainMenuInit( WindowLayout *layout, void *userData )
 	buttonExit = TheWindowManager->winGetWindowFromId( parentMainMenu, exitID );
 	buttonMOTD = TheWindowManager->winGetWindowFromId( parentMainMenu, motdID );
 	buttonWorldBuilder = TheWindowManager->winGetWindowFromId( parentMainMenu, worldBuilderID );
-	// TheSuperHackers @feature The in-game WorldBuilder is always available when it is built in.
-	if (buttonWorldBuilder && TheEditor)
-		buttonWorldBuilder->winHide(FALSE);
 	buttonReplay = TheWindowManager->winGetWindowFromId( parentMainMenu, buttonReplayID );
 	buttonLoadReplay = TheWindowManager->winGetWindowFromId( parentMainMenu, buttonLoadReplayID );
 	buttonLoad = TheWindowManager->winGetWindowFromId( parentMainMenu, buttonLoadID );
@@ -521,6 +519,22 @@ void MainMenuInit( WindowLayout *layout, void *userData )
 																									 180, 26,
 																									 &instData, nullptr, TRUE );
 #endif
+
+	// TheSuperHackers @feature The retail MainMenu.wnd has no visible World Builder button, so add
+	// one for the in-game WorldBuilder when it is built in.
+	buttonInGameWorldBuilder = nullptr;
+	if (TheEditor)
+	{
+		WinInstanceData wbInstData;
+		wbInstData.init();
+		BitSet( wbInstData.m_style, GWS_PUSH_BUTTON | GWS_MOUSE_TRACK );
+		wbInstData.m_textLabelString = "GUI:WorldBuilder";
+		buttonInGameWorldBuilder = TheWindowManager->gogoGadgetPushButton( parentMainMenu,
+																										WIN_STATUS_ENABLED,
+																										25, 20,
+																										180, 26,
+																										&wbInstData, nullptr, TRUE );
+	}
 
 	initLabelVersion();
 
@@ -1206,6 +1220,14 @@ WindowMsgHandledType MainMenuSystem( GameWindow *window, UnsignedInt msg,
 
 			if(buttonPushed)
 				break;
+
+			// TheSuperHackers @feature Open the in-game WorldBuilder.
+			if( buttonInGameWorldBuilder != nullptr && control == buttonInGameWorldBuilder )
+			{
+				if (TheEditor)
+					TheEditor->requestEnter();
+				break;
+			}
 #if defined(RTS_DEBUG)
 			if( control == buttonCampaign )
 			{
