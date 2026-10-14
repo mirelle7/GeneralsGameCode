@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <cstring>
 
 #include "Common/Thing.h"
 #include "Common/ThingTemplate.h"

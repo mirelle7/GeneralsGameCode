@@ -38,6 +38,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <cstring>
 #include <string.h>
 #include <map>
 #include <utility>
