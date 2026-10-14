@@ -34,6 +34,12 @@
 #else
 // TheSuperHackers @build bobtista 12/06/2026 INTERFACE_INFO / SIO_GET_INTERFACE_LIST (used by
 // getSubnetBroadcastAddress) are declared in ws2ipdef.h, which winsock2.h does not include by default.
+#if defined(__MINGW32__)
+// TheSuperHackers @build MinGW-w64 only declares the Winsock 2 types ws2ipdef.h needs, and
+// SIO_GET_INTERFACE_LIST, through winsock2.h and ws2tcpip.h.
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#endif
 #include <ws2ipdef.h>
 #endif
 
