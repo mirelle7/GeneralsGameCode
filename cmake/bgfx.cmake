@@ -146,6 +146,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
             target_compile_definitions(${_t} PRIVATE WINAPI_FAMILY=WINAPI_FAMILY_APP)
         endif()
     endforeach()
+    # TheSuperHackers @performance githubawn 17/10/2026 bgfx updates part of a dynamic
+    # vertex/index buffer by creating a throwaway staging buffer per call. The engine does
+    # ~160 such updates per frame, and on the Xbox One UWP driver each CreateBuffer costs
+    # ~0.3 ms (50 ms/frame). The staging-buffer config keeps one persistent staging buffer
+    # per dynamic buffer instead.
+    target_compile_definitions(bgfx PRIVATE BGFX_CONFIG_RENDERER_DIRECT3D11_USE_STAGING_BUFFER=1)
 endif()
 
 # IDE organization.

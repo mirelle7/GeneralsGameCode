@@ -246,6 +246,21 @@ static const char * GgcGetenv(const char * name)
     return it->second;
 }
 
+// TheSuperHackers @performance githubawn 17/10/2026 On the Xbox One UWP D3D11 driver every
+// bgfx dynamic-buffer update is a map+copy that stalls on the previous copy from the same
+// staging buffer, and the engine issues ~200 small updates per frame (dynamic VB/IB ring
+// writes). bgfx applies all of a frame's buffer updates before any of its draws anyway, so
+// on UWP the updates are mirrored into a CPU copy per buffer and uploaded once per frame as
+// one dirty range (GgcFlushBufferUpdates, before bgfx::frame and before any destroy).
+#if defined(GGC_PLATFORM_UWP)
+#define GGC_COALESCE_BUFFER_UPDATES 1
+static void GgcFlushBufferUpdates();
+static void GgcForgetBufferShadow(bool isIndex, uint16_t idx);
+#else
+static inline void GgcFlushBufferUpdates() {}
+static inline void GgcForgetBufferShadow(bool, uint16_t) {}
+#endif
+
 #ifdef RTS_ZEROHOUR
 extern "C" void GGC_GetBgfxPostProcessParams(float * params);
 extern "C" void GGC_GetBgfxDiagnosticFlags(int * logStats, int * noSceneFramebuffer, int * noPostFx);
@@ -3035,6 +3050,7 @@ void BgfxBackend::Shutdown()
         g_caches.framebuffer.clear();
         // Cached engine buffers. Destroy before bgfx::shutdown
         // so the handles outlive nothing.
+        GgcFlushBufferUpdates();
         for (auto & kv : g_caches.vb)
         {
             if (bgfx::isValid(kv.second.handle))
@@ -3233,10 +3249,12 @@ void BgfxBackend::Begin_Scene()
     }
     g_caches.deferredDestroysPrev.clear();
     // Destroy PREVIOUS frame's orphaned dynamic VBs (same two-frame deferral).
+    GgcFlushBufferUpdates();
     for (auto & h : g_caches.deferredDestroyVBPrev)
     {
         if (bgfx::isValid(h))
         {
+            GgcForgetBufferShadow(false, h.idx);
             bgfx::destroy(h);
         }
     }
@@ -3696,6 +3714,7 @@ void BgfxBackend::End_Scene(bool /*flip_frame*/)
     // VeryHigh cost is GL/GPU, not engine CPU render-traversal.
     {
         struct timespec _t0; clock_gettime(CLOCK_MONOTONIC, &_t0);
+        GgcFlushBufferUpdates();
         bgfx::frame();
         struct timespec _t1; clock_gettime(CLOCK_MONOTONIC, &_t1);
         static int s_ff = 0; static double acc = 0.0;
@@ -3716,6 +3735,7 @@ void BgfxBackend::End_Scene(bool /*flip_frame*/)
     {
         static unsigned s_ggcFrames = 0;
         ++s_ggcFrames;
+        GgcFlushBufferUpdates();
         bgfx::frame();
         if (s_ggcFrames <= 3 || (s_ggcFrames % 30) == 0)
         {
@@ -3727,6 +3747,7 @@ void BgfxBackend::End_Scene(bool /*flip_frame*/)
         }
     }
 #else
+    GgcFlushBufferUpdates();
     bgfx::frame();
 #endif
 
@@ -3984,6 +4005,7 @@ bgfx::DynamicVertexBufferHandle EnsureDynamicVertexBuffer(const VertexBufferClas
         }
         if (bgfx::isValid(it->second.handle))
         {
+            GgcFlushBufferUpdates();
             bgfx::destroy(it->second.handle);
         }
         g_caches.vb.erase(it);
@@ -4025,6 +4047,7 @@ bgfx::DynamicVertexBufferHandle EnsureDynamicVertexBuffer(const VertexBufferClas
         return BGFX_INVALID_HANDLE;
     }
     bgfx::DynamicVertexBufferHandle h = bgfx::createDynamicVertexBuffer(num_verts, layout);
+    GgcForgetBufferShadow(false, h.idx);
     g_stats.dynamicVbAllocations++;
     BgfxVbCacheEntry e{ h, num_verts, engine_stride };
     g_caches.vb[vb] = e;
@@ -4044,6 +4067,7 @@ bgfx::DynamicIndexBufferHandle EnsureDynamicIndexBuffer(const IndexBufferClass *
         }
         if (bgfx::isValid(it->second.handle))
         {
+            GgcFlushBufferUpdates();
             bgfx::destroy(it->second.handle);
         }
         g_caches.ib.erase(it);
@@ -4053,12 +4077,88 @@ bgfx::DynamicIndexBufferHandle EnsureDynamicIndexBuffer(const IndexBufferClass *
         return BGFX_INVALID_HANDLE;
     }
     bgfx::DynamicIndexBufferHandle h = bgfx::createDynamicIndexBuffer(num_indices);
+    GgcForgetBufferShadow(true, h.idx);
     g_stats.dynamicIbAllocations++;
     BgfxIbCacheEntry e{ h, num_indices };
     g_caches.ib[ib] = e;
     return h;
 }
 }
+
+#if defined(GGC_COALESCE_BUFFER_UPDATES)
+struct GgcBufferShadow
+{
+    std::vector<uint8_t> data;
+    uint32_t dirtyBegin = 0xffffffffu;
+    uint32_t dirtyEnd = 0;
+    uint32_t stride = 1;
+    uint16_t idx = 0;
+    bool isIndex = false;
+};
+static std::unordered_map<uint32_t, GgcBufferShadow> g_ggcBufferShadows;
+static std::vector<uint32_t> g_ggcPendingShadows;
+
+static inline uint32_t GgcShadowKey(bool isIndex, uint16_t idx)
+{
+    return (isIndex ? 0x10000u : 0u) | idx;
+}
+
+static void GgcForgetBufferShadow(bool isIndex, uint16_t idx)
+{
+    g_ggcBufferShadows.erase(GgcShadowKey(isIndex, idx));
+}
+
+// Mirror a write of size_bytes at byte_offset into the buffer's CPU copy and grow its
+// dirty range; the GPU upload happens in GgcFlushBufferUpdates.
+static void GgcQueueBufferUpdate(bool isIndex, uint16_t idx, uint32_t stride, uint32_t total_bytes,
+                                 uint32_t byte_offset, const void * data, uint32_t size_bytes)
+{
+    GgcBufferShadow & sh = g_ggcBufferShadows[GgcShadowKey(isIndex, idx)];
+    if (sh.data.size() != total_bytes || sh.stride != stride)
+    {
+        sh.data.assign(total_bytes, 0);
+        sh.stride = stride;
+        sh.idx = idx;
+        sh.isIndex = isIndex;
+    }
+    std::memcpy(&sh.data[byte_offset], data, size_bytes);
+    if (sh.dirtyBegin == 0xffffffffu)
+    {
+        g_ggcPendingShadows.push_back(GgcShadowKey(isIndex, idx));
+    }
+    sh.dirtyBegin = std::min(sh.dirtyBegin, byte_offset);
+    sh.dirtyEnd = std::max(sh.dirtyEnd, byte_offset + size_bytes);
+}
+
+static void GgcFlushBufferUpdates()
+{
+    for (uint32_t key : g_ggcPendingShadows)
+    {
+        auto it = g_ggcBufferShadows.find(key);
+        if (it == g_ggcBufferShadows.end() || it->second.dirtyBegin == 0xffffffffu)
+        {
+            continue;
+        }
+        GgcBufferShadow & sh = it->second;
+        // The flush runs right before bgfx::frame(), which (single-threaded on UWP) consumes the
+        // update before the engine can write this shadow again, so reference it instead of copying.
+        const bgfx::Memory * mem = bgfx::makeRef(&sh.data[sh.dirtyBegin], sh.dirtyEnd - sh.dirtyBegin);
+        if (sh.isIndex)
+        {
+            bgfx::DynamicIndexBufferHandle h = { sh.idx };
+            bgfx::update(h, sh.dirtyBegin / sh.stride, mem);
+        }
+        else
+        {
+            bgfx::DynamicVertexBufferHandle h = { sh.idx };
+            bgfx::update(h, sh.dirtyBegin / sh.stride, mem);
+        }
+        sh.dirtyBegin = 0xffffffffu;
+        sh.dirtyEnd = 0;
+    }
+    g_ggcPendingShadows.clear();
+}
+#endif
 
 // TheSuperHackers @feature bobtista 17/04/2026 Shroud texture capture for
 // bgfx. The shroud destination texture is POOL_DEFAULT, which the bgfx
@@ -4163,6 +4263,7 @@ void BgfxBackend::Capture_Vertex_Data(const VertexBufferClass * vb,
             {
                 bgfx::DynamicVertexBufferHandle fresh =
                     bgfx::createDynamicVertexBuffer(cit->second.num_verts, layout);
+                GgcForgetBufferShadow(false, fresh.idx);
                 if (bgfx::isValid(fresh))
                 {
                     g_stats.dynamicVbAllocations++;
@@ -4175,9 +4276,13 @@ void BgfxBackend::Capture_Vertex_Data(const VertexBufferClass * vb,
             }
         }
     }
+#if defined(GGC_COALESCE_BUFFER_UPDATES)
+    GgcQueueBufferUpdate(false, h.idx, stride, buffer_bytes, 0, data, size_bytes);
+#else
     const bgfx::Memory * mem = bgfx::copy(data, size_bytes);
     LogBgfxBufferUpdate("vb-full", vb, data, 0, size_bytes, h.idx, mem);
     bgfx::update(h, 0, mem);
+#endif
 #if defined(__APPLE__)
     // ggc-alias: detect a cached dynamic VB updated >1x this frame (deferred
     // submit reads only the LAST upload -> earlier draws shatter). Strip when done.
@@ -4331,9 +4436,13 @@ void BgfxBackend::Capture_Index_Data(const IndexBufferClass * ib,
     {
         return;
     }
+#if defined(GGC_COALESCE_BUFFER_UPDATES)
+    GgcQueueBufferUpdate(true, h.idx, sizeof(uint16_t), buffer_bytes, 0, data, size_bytes);
+#else
     const bgfx::Memory * mem = bgfx::copy(data, size_bytes);
     LogBgfxBufferUpdate("ib-full", ib, data, 0, size_bytes, h.idx, mem);
     bgfx::update(h, 0, mem);
+#endif
 #if defined(__APPLE__)
     // ggc-alias: detect a cached dynamic IB updated >1x this frame. Strip when done.
     {
@@ -4414,9 +4523,13 @@ void BgfxBackend::Capture_Vertex_Sub_Range(const VertexBufferClass * vb,
     {
         return;
     }
+#if defined(GGC_COALESCE_BUFFER_UPDATES)
+    GgcQueueBufferUpdate(false, h.idx, stride, buffer_bytes, start_vertex * stride, data, size_bytes);
+#else
     const bgfx::Memory * mem = bgfx::copy(data, size_bytes);
     LogBgfxBufferUpdate("vb-range", vb, data, start_vertex, size_bytes, h.idx, mem);
     bgfx::update(h, start_vertex, mem);
+#endif
 
 }
 
@@ -4448,9 +4561,13 @@ void BgfxBackend::Capture_Index_Sub_Range(const IndexBufferClass * ib,
     {
         return;
     }
+#if defined(GGC_COALESCE_BUFFER_UPDATES)
+    GgcQueueBufferUpdate(true, h.idx, sizeof(uint16_t), buffer_bytes, start_index * sizeof(uint16_t), data, size_bytes);
+#else
     const bgfx::Memory * mem = bgfx::copy(data, size_bytes);
     LogBgfxBufferUpdate("ib-range", ib, data, start_index, size_bytes, h.idx, mem);
     bgfx::update(h, start_index, mem);
+#endif
 
 }
 
