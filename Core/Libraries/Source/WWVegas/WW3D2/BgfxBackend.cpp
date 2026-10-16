@@ -1202,6 +1202,14 @@ void *GetNativeWindowHandle(void *window)
     {
         return nativeWindow;
     }
+#elif defined(GGC_PLATFORM_UWP)
+    // TheSuperHackers @build githubawn 16/10/2026 UWP (Xbox) has no HWND; bgfx's WinRT
+    // path takes the CoreWindow (IInspectable*) and creates a CoreWindow swap chain.
+    void *nativeWindow = SDL_GetPointerProperty(props, "SDL.window.winrt.window", NULL);
+    if (nativeWindow != NULL)
+    {
+        return nativeWindow;
+    }
 #elif defined(_WIN32)
     void *nativeWindow = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
     if (nativeWindow != NULL)

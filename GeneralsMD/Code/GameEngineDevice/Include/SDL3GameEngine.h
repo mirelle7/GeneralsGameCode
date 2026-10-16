@@ -18,6 +18,8 @@
 
 extern SDL_Window *TheSDL3Window;
 
+class SDL3Gamepad;
+
 class SDL3GameEngine : public GameEngine
 {
 public:
@@ -56,6 +58,7 @@ private:
 
 	SDL_Window *m_sdlWindow;
 	Bool m_isInitialized;
+	SDL3Gamepad *m_gamepad;	///< gamepad -> emulated mouse/keyboard (Windows/UWP)
 };
 
 #endif

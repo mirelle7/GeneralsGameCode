@@ -78,6 +78,13 @@ void StdBIGFileSystem::init() {
     // load original Generals assets
     AsciiString installPath;
     GetStringFromGeneralsRegistry("", "InstallPath", installPath );
+#if defined(GGC_PLATFORM_UWP)
+    // TheSuperHackers @build githubawn 16/10/2026 UWP (Xbox) has no Generals registry
+    // install; the package ships the base game's archives in a "generals" subfolder
+    // (they share names like Music.big with Zero Hour's, so they cannot sit in the root).
+    if (installPath.isEmpty())
+      installPath = "generals\\";
+#endif
     //@todo this will need to be ramped up to a crash for release
     DEBUG_ASSERTCRASH(!installPath.isEmpty(), ("Be 1337! Go install Generals!"));
     if (!installPath.isEmpty())

@@ -31,9 +31,7 @@
 // TheSuperHackers @build bobtista 13/06/2026 The bundled d3d8.h only declares the
 // IID_IDirect3D* GUIDs on Windows (dxguid.lib). The stub device's QueryInterface
 // compares against them, so pull in the non-Windows GUID definitions.
-#ifndef _WIN32
-#include "d3d8_iids.h"
-#endif
+#include "../compat/win32_shims/d3d8_iids.h"
 
 #include "DXTUtils.h"
 #include "wwdebug.h"

@@ -16,6 +16,8 @@
 
 #include "GameClient/Mouse.h"
 
+class Image;
+
 class SDL3Mouse : public Mouse
 {
 public:
@@ -27,6 +29,11 @@ public:
 	virtual void initCursorResources() override;
 	virtual void setCursor(MouseCursor cursor) override;
 	virtual void setPosition(Int x, Int y) override;
+#if defined(GGC_PLATFORM_UWP)
+	// TheSuperHackers @feature githubawn 16/10/2026 The Xbox shell shows no OS cursor
+	// for UWP games, so draw the game's own 2D cursor images (Mouse.ini) each frame.
+	virtual void draw() override;
+#endif
 
 	void addSDL3MotionEvent(const SDL_MouseMotionEvent &event);
 	void addSDL3ButtonEvent(const SDL_MouseButtonEvent &event);
@@ -49,6 +56,10 @@ private:
 	UnsignedInt m_nextFreeIndex;
 #if defined(__APPLE__) || defined(__EMSCRIPTEN__)
 	SDL_Cursor *m_sdlCursors[Mouse::NUM_MOUSE_CURSORS];
+#endif
+#if defined(GGC_PLATFORM_UWP)
+	const Image *m_cursorImages[Mouse::NUM_MOUSE_CURSORS];
+	Bool m_cursorImagesLoaded;
 #endif
 };
 

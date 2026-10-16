@@ -1484,7 +1484,9 @@ AsciiString GlobalData::BuildUserDataPathFromRegistry()
 	// API is Windows-only. On other platforms (Android) derive the user-data root
 	// from the environment; the launcher can point GENERALS_USER_DIR at its
 	// external files dir.
-#if !defined(_WIN32)
+	// TheSuperHackers @build githubawn 16/10/2026 UWP (Xbox) has no Documents folder
+	// or shell32; SDL3Main points GENERALS_USER_DIR at the app's LocalState.
+#if !defined(_WIN32) || defined(GGC_PLATFORM_UWP)
 	{
 		const char *base = getenv("GENERALS_USER_DIR");
 		if (base == nullptr || base[0] == '\0') base = getenv("HOME");

@@ -330,9 +330,20 @@ if(DEFINED GGC_RENDER_BACKEND_COMPILE_DEFINE)
 endif()
 
 if (MSVC AND NOT IS_VS6_BUILD)
-    target_link_libraries(corei_ww3d2 INTERFACE
-        comsuppw
-    )
+    if(CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
+        # TheSuperHackers @build githubawn 16/10/2026 The store (UWP) lib dir has no
+        # comsuppw.lib; the static desktop one only wraps BSTR/VARIANT APIs that UWP has.
+        get_filename_component(_msvc_bin_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
+        target_link_libraries(corei_ww3d2 INTERFACE
+            "${_msvc_bin_dir}/../../../lib/x64/comsuppw.lib"
+        )
+        # ATL headers pull atls.lib via #pragma comment(lib); it is desktop-only too.
+        target_link_options(corei_ww3d2 INTERFACE "/LIBPATH:${_msvc_bin_dir}/../../../atlmfc/lib/x64")
+    else()
+        target_link_libraries(corei_ww3d2 INTERFACE
+            comsuppw
+        )
+    endif()
 endif()
 
 target_link_libraries(corei_ww3d2 INTERFACE
@@ -347,7 +358,7 @@ if(GGC_RENDER_BACKEND STREQUAL "bgfx")
     # TheSuperHackers @build bobtista 14/06/2026 On non-Windows there is no GDI,
     # so render2dsentence.cpp rasterizes glyphs with stb_truetype (vendored by
     # bgfx). Propagate the stb include dir to WW3D2 consumers.
-    if(NOT WIN32 AND GGC_BGFX_STB_INCLUDE_DIR)
+    if((NOT WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "WindowsStore") AND GGC_BGFX_STB_INCLUDE_DIR)
         target_include_directories(corei_ww3d2 INTERFACE ${GGC_BGFX_STB_INCLUDE_DIR})
     endif()
 endif()

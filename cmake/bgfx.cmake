@@ -11,9 +11,21 @@
 
 # Disable bgfx features we don't need. These must be set BEFORE
 # FetchContent_MakeAvailable so bgfx.cmake picks them up at configure time.
+# TheSuperHackers @build githubawn 16/10/2026 HLSL profile for the dx11 shaders.
+# s_5_0 needs D3D feature level 11_0; UWP games on Xbox One only get D3D11 at
+# feature level 10_1, so the WindowsStore build defaults to s_4_0.
+if(CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
+    set(GGC_BGFX_DX11_SHADER_PROFILE "s_4_0" CACHE STRING "bgfx shaderc profile for dx11 shaders")
+else()
+    set(GGC_BGFX_DX11_SHADER_PROFILE "s_5_0" CACHE STRING "bgfx shaderc profile for dx11 shaders")
+endif()
+
 set(BGFX_BUILD_EXAMPLES       OFF CACHE BOOL "" FORCE)
 set(BGFX_BUILD_TESTS          OFF CACHE BOOL "" FORCE)
-if(ANDROID)
+# TheSuperHackers @build githubawn 16/10/2026 UWP (WindowsStore) tools would be
+# app-container executables that cannot run on the build host; like Android, use a
+# host-built shaderc via GGC_SHADERC_EXE instead.
+if(ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
     set(BGFX_BUILD_TOOLS          OFF CACHE BOOL "" FORCE)
     set(BGFX_BUILD_TOOLS_BIN2C    OFF CACHE BOOL "" FORCE)
     set(BGFX_BUILD_TOOLS_SHADER   OFF CACHE BOOL "" FORCE)
@@ -125,6 +137,17 @@ if(GGC_RENDER_BACKEND STREQUAL "bgfx" AND CMAKE_SYSTEM_NAME STREQUAL "NintendoSw
     message(STATUS "Forced BGFX_CONFIG_RENDERER_OPENGLES=30 + EGL (Nintendo Switch / switch-mesa)")
 endif()
 
+# TheSuperHackers @build githubawn 16/10/2026 bx detects UWP (BX_PLATFORM_WINRT, which
+# makes bgfx create a CoreWindow swap chain) from WINAPI_FAMILY. Set it on the bgfx
+# libraries only; the game code keeps the desktop API family for its Win32 headers.
+if(CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
+    foreach(_t bgfx bx bimg bimg_decode bimg_encode)
+        if(TARGET ${_t})
+            target_compile_definitions(${_t} PRIVATE WINAPI_FAMILY=WINAPI_FAMILY_APP)
+        endif()
+    endforeach()
+endif()
+
 # IDE organization.
 foreach(_t bgfx bx bimg shaderc bimg_decode bimg_encode)
     if(TARGET ${_t})
@@ -195,7 +218,7 @@ function(ggc_compile_bgfx_shader source_sc)
     # cannot execute the target-built shaderc on the host (an iOS/arm64 shaderc
     # is killed by macOS, an Android one cannot run on the build host). Use a
     # host-compiled shaderc via GGC_SHADERC_EXE instead of the cross target.
-    if(ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "iOS" OR CMAKE_SYSTEM_NAME STREQUAL "Emscripten" OR CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+    if(ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "iOS" OR CMAKE_SYSTEM_NAME STREQUAL "Emscripten" OR CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch" OR CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
         if(NOT DEFINED GGC_SHADERC_EXE)
             if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows" OR WIN32)
                 set(GGC_SHADERC_EXE "${CMAKE_SOURCE_DIR}/build/win32-bgfx-standalone/_deps/bgfx_cmake-build/cmake/bgfx/Release/shaderc.exe")
@@ -260,7 +283,7 @@ function(ggc_compile_bgfx_shader source_sc)
             list(APPEND _shader_variants "spirv|linux|spirv")
         endif()
     else()
-        list(APPEND _shader_variants "dx11|windows|s_5_0")
+        list(APPEND _shader_variants "dx11|windows|${GGC_BGFX_DX11_SHADER_PROFILE}")
     endif()
 
     set(_varying_def "${_sc_dir}/varying.def.sc")

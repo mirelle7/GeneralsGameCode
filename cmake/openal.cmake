@@ -50,6 +50,27 @@ if(SAGE_USE_OPENAL)
             set(ALSOFT_NO_TLS ON CACHE BOOL "" FORCE)
         endif()
 
+        # TheSuperHackers @build githubawn 16/10/2026 OpenAL Soft's UWP backend needs
+        # C++/WinRT and otherwise downloads it with nuget. The Windows SDK already ships
+        # the cppwinrt headers (on the dev shell INCLUDE path), so hand it a target.
+        if(CMAKE_SYSTEM_NAME STREQUAL "WindowsStore" AND NOT TARGET Microsoft::CppWinRT)
+            add_library(Microsoft::CppWinRT INTERFACE IMPORTED GLOBAL)
+        endif()
+
         FetchContent_MakeAvailable(openal_soft)
+
+        # OpenAL Soft 1.24's UWP code still uses the deprecated /await coroutines,
+        # which current MSVC STL rejects unless silenced.
+        if(CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
+            foreach(_t OpenAL alsoft.common)
+                if(TARGET ${_t})
+                    target_compile_definitions(${_t} PRIVATE _SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+                endif()
+            endforeach()
+            # The WASAPI backend's MMCSS calls live in avrt.dll, which is not in the UWP
+            # API set; link no-op stubs instead so OpenAL32.dll loads on Xbox.
+            add_library(ggc_avrt_stub STATIC "${CMAKE_CURRENT_LIST_DIR}/uwp/avrt_stub.c")
+            target_link_libraries(OpenAL PRIVATE ggc_avrt_stub)
+        endif()
     endif()
 endif()

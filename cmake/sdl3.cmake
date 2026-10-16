@@ -29,11 +29,21 @@ if(SAGE_USE_SDL3)
         set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
     endif()
 
-    FetchContent_Declare(
-        SDL3
-        URL ${GGC_SDL3_URL}
-        URL_HASH ${GGC_SDL3_URL_HASH}
-    )
+    if(CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
+        # TheSuperHackers @build githubawn 16/10/2026 Upstream SDL3 removed WinRT/UWP;
+        # the Xbox (UWP) build uses the maintained SDL3-uwp fork (SDL 3.4.16 + UWP).
+        FetchContent_Declare(
+            SDL3
+            GIT_REPOSITORY https://github.com/XboxEmulationHub/SDL3-uwp.git
+            GIT_TAG        ddd5d4f99a26ac95d4620ccf489c07fcf5f08636
+        )
+    else()
+        FetchContent_Declare(
+            SDL3
+            URL ${GGC_SDL3_URL}
+            URL_HASH ${GGC_SDL3_URL_HASH}
+        )
+    endif()
 
     FetchContent_GetProperties(SDL3)
     if(NOT sdl3_POPULATED)
@@ -88,4 +98,20 @@ if(SAGE_USE_SDL3)
 
     add_library(sdl3lib INTERFACE)
     target_link_libraries(sdl3lib INTERFACE SDL3::SDL3)
+endif()
+
+# TheSuperHackers @build githubawn 16/10/2026 GGC_SDL3_MAIN uses the SDL3 entry
+# (SDL3Main.cpp + SDL3GameEngine) on Windows instead of WinMain/Win32GameEngine.
+# UWP (Xbox) has no Win32 window or message loop, so it is forced on there.
+if(WIN32 AND SAGE_USE_SDL3 AND CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
+    set(GGC_SDL3_MAIN ON CACHE BOOL "" FORCE)
+endif()
+option(GGC_SDL3_MAIN "Use the SDL3 entry point on Windows instead of WinMain" OFF)
+if(CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
+    add_compile_definitions(GGC_PLATFORM_UWP=1)
+endif()
+if(WIN32 AND NOT GGC_SDL3_MAIN)
+    set(GGC_USE_WINMAIN ON)
+else()
+    set(GGC_USE_WINMAIN OFF)
 endif()

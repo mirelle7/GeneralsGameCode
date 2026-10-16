@@ -1482,7 +1482,18 @@ static void parseCommandLine(const CommandLineParam* params, int numParams)
 {
 	std::vector<char*> argv;
 
+#if defined(GGC_PLATFORM_UWP)
+	// TheSuperHackers @bugfix githubawn 16/10/2026 A UWP process's GetCommandLineA() is just
+	// the exe path; SDL3Main fills __argv from LocalState\cmdline.txt instead.
+	std::string cmdLine;
+	for (int i = 0; i < __argc; ++i)
+	{
+		cmdLine += i == 0 ? "" : " ";
+		cmdLine += __argv[i];
+	}
+#else
 	std::string cmdLine = GetCommandLineA();
+#endif
 	char *token = nextParam(&cmdLine[0], "\" ");
 	while (token != nullptr)
 	{

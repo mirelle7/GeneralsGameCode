@@ -43,7 +43,7 @@
 #include "IRenderBackend.h"
 #include "RenderBackend.h"
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) || defined(GGC_PLATFORM_UWP)
 // TheSuperHackers @feature bobtista 14/06/2026 No GDI on non-Windows, so glyphs
 // are rasterized with stb_truetype (vendored by bgfx) against a system TrueType
 // font. Defining the implementation here keeps it in a single translation unit.
@@ -56,7 +56,7 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #define STBTT_STATIC
 #include <stb/stb_truetype.h>
-#if defined(__SWITCH__)
+#if defined(__SWITCH__) || defined(GGC_PLATFORM_UWP)
 // TheSuperHackers @feature githubawn 04/07/2026 Switch has no system TTF, so embed a
 // UI font directly in the binary (self-contained NRO, no SD/system font needed).
 #include "ggc_embedded_font.h"
@@ -1252,7 +1252,7 @@ FontCharsClass::FontCharsClass () :
 {
 	AlternateUnicodeFont = nullptr;
 	::memset( ASCIICharArray, 0, sizeof (ASCIICharArray) );
-#if !defined(_WIN32)
+#if !defined(_WIN32) || defined(GGC_PLATFORM_UWP)
 	TTFontState = nullptr;
 #endif
 }
@@ -1391,7 +1391,7 @@ FontCharsClass::Blit_Char (WCHAR ch, uint16 *dest_ptr, int dest_stride, int x, i
 const FontCharsClassCharDataStruct *
 FontCharsClass::Store_GDI_Char (WCHAR ch)
 {
-#if !defined(_WIN32)
+#if !defined(_WIN32) || defined(GGC_PLATFORM_UWP)
 	// TheSuperHackers @feature bobtista 14/06/2026 No GDI on non-Windows. When a
 	// system TrueType font loaded (Create_GDI_Font), rasterize the glyph with
 	// stb_truetype into the ARGB4444 glyph buffer (RGB = white, alpha = coverage)
@@ -1646,7 +1646,7 @@ FontCharsClass::Create_GDI_Font (const char *font_name)
 	if (PixelOverlap<0) PixelOverlap = 0;
 	if (PixelOverlap>4) PixelOverlap = 4;
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) || defined(GGC_PLATFORM_UWP)
 	// TheSuperHackers @feature bobtista 14/06/2026 No GDI on non-Windows. Load a
 	// system TrueType font and rasterize glyphs with stb_truetype. Pixel height
 	// matches the GDI cell height (point size at 96 dpi). If no font loads we
@@ -1658,7 +1658,7 @@ FontCharsClass::Create_GDI_Font (const char *font_name)
 	GGCStbFont *ttf = new GGCStbFont;
 	::memset( ttf, 0, sizeof(*ttf) );
 
-#if defined(__SWITCH__)
+#if defined(__SWITCH__) || defined(GGC_PLATFORM_UWP)
 	// Load the embedded font first (self-contained; no external file). malloc+memcpy so
 	// the later ::free(ttf->data) path is uniform with the fopen case.
 	if ( g_ggcEmbeddedFontSize > 0 ) {
@@ -1788,7 +1788,7 @@ FontCharsClass::Create_GDI_Font (const char *font_name)
 void
 FontCharsClass::Free_GDI_Font ()
 {
-#if !defined(_WIN32)
+#if !defined(_WIN32) || defined(GGC_PLATFORM_UWP)
 	if ( TTFontState != nullptr ) {
 		GGCStbFont *ttf = static_cast<GGCStbFont *>( TTFontState );
 		if ( ttf->data != nullptr ) {

@@ -9,6 +9,10 @@
 */
 
 #include "SDL3Device/GameClient/SDL3Mouse.h"
+#if defined(GGC_PLATFORM_UWP)
+#include "GameClient/Display.h"
+#include "GameClient/Image.h"
+#endif
 
 #if defined(SAGE_USE_SDL3)
 
@@ -22,6 +26,13 @@ SDL3Mouse::SDL3Mouse() :
 	m_nextGetIndex(0),
 	m_nextFreeIndex(0)
 {
+#if defined(GGC_PLATFORM_UWP)
+	for (UnsignedInt i = 0; i < NUM_MOUSE_CURSORS; ++i)
+	{
+		m_cursorImages[i] = nullptr;
+	}
+	m_cursorImagesLoaded = FALSE;
+#endif
 #if defined(__APPLE__) || defined(__EMSCRIPTEN__)
 	for (UnsignedInt i = 0; i < NUM_MOUSE_CURSORS; ++i)
 	{
@@ -144,6 +155,63 @@ void SDL3Mouse::setCursor(MouseCursor cursor)
 #endif
 }
 
+#if defined(GGC_PLATFORM_UWP)
+void SDL3Mouse::draw()
+{
+	if (!m_cursorImagesLoaded && TheMappedImageCollection != nullptr)
+	{
+		m_cursorImagesLoaded = TRUE;
+		for (UnsignedInt i = 0; i < NUM_MOUSE_CURSORS; ++i)
+		{
+			if (!m_cursorInfo[i].imageName.isEmpty())
+			{
+				m_cursorImages[i] = TheMappedImageCollection->findImageByName(m_cursorInfo[i].imageName);
+			}
+		}
+	}
+
+	if (!m_visible || TheDisplay == nullptr)
+	{
+		return;
+	}
+	MouseCursor cursor = m_currentCursor;
+	if (cursor <= NONE || cursor >= NUM_MOUSE_CURSORS)
+	{
+		return;
+	}
+	const Image *image = m_cursorImages[cursor];
+	if (image != nullptr)
+	{
+		const ICoord2D &hot = m_cursorInfo[cursor].hotSpotPosition;
+		const Int x = m_currMouse.pos.x - hot.x;
+		const Int y = m_currMouse.pos.y - hot.y;
+		TheDisplay->drawImage(image, x, y, x + image->getImageWidth(), y + image->getImageHeight());
+		return;
+	}
+
+	// Most cursors are .ani (OS) cursors or W3D models with no 2D mapped image, so
+	// fall back to a plain arrow drawn from filled spans: black outline, white body.
+	const Int scale = (TheDisplay->getHeight() >= 1000) ? 2 : 1;
+	const Int rows = 16;
+	const Int x0 = m_currMouse.pos.x;
+	const Int y0 = m_currMouse.pos.y;
+	const Color outline = GameMakeColor(0, 0, 0, 255);
+	const Color body = GameMakeColor(255, 255, 255, 255);
+	for (Int r = 0; r < rows; ++r)
+	{
+		// Arrow head widens one pixel per row; the last third narrows into the tail.
+		Int w = (r < 11) ? (r + 1) : (r < 13 ? 4 : 2);
+		Int xoff = (r < 11) ? 0 : (r < 13 ? 2 : 4);
+		TheDisplay->drawFillRect(x0 + xoff * scale, y0 + r * scale, (w + 1) * scale, scale, outline);
+		if (w > 1)
+		{
+			TheDisplay->drawFillRect(x0 + (xoff + 1) * scale, y0 + r * scale, (w - 1) * scale, scale, body);
+		}
+	}
+	TheDisplay->drawFillRect(x0, y0 + rows * scale, 3 * scale, scale, outline);
+}
+#endif
+
 void SDL3Mouse::setPosition(Int x, Int y)
 {
 	Mouse::setPosition(x, y);
@@ -155,7 +223,7 @@ void SDL3Mouse::setPosition(Int x, Int y)
 
 void SDL3Mouse::capture()
 {
-#if defined(__ANDROID__) || defined(__SWITCH__)
+#if defined(__ANDROID__) || defined(__SWITCH__) || defined(GGC_PLATFORM_UWP)
 	// TheSuperHackers @bugfix bobtista 15/06/2026 Cursor capture / relative mouse
 	// mode is meaningless for touch input (always absolute). On fullscreen Android
 	// the menu would otherwise capture the cursor and switch to relative mode,
@@ -163,6 +231,8 @@ void SDL3Mouse::capture()
 	// TheSuperHackers @bugfix githubawn 04/07/2026 Same on Switch: it fell into the
 	// desktop "relative mouse" branch, so the touchscreen's ABSOLUTE coordinates were
 	// accumulated as deltas (cursor drifted to ~2x and clicks missed). Force absolute.
+	// TheSuperHackers @bugfix githubawn 16/10/2026 Same on UWP (Xbox): the gamepad
+	// cursor sends absolute positions, which relative mode summed and flung off-screen.
 	m_inputMovesAbsolute = TRUE;
 #elif defined(__APPLE__) || defined(__EMSCRIPTEN__)
 	// TheSuperHackers @bugfix On macOS and WASM, bgfx does not draw a hardware cursor,

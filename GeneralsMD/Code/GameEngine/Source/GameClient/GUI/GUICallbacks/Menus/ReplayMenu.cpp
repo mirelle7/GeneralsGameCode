@@ -807,6 +807,9 @@ void copyReplay()
 	translate.translate(GetReplayFilenameFromListbox(listboxReplayFiles, selected));
 	filename.concat(translate);
 
+	// TheSuperHackers @build githubawn 16/10/2026 UWP (Xbox) has no desktop folder or
+	// shell32; copying a replay to the desktop is not available there.
+#if !defined(GGC_PLATFORM_UWP)
 	char path[1024];
 	LPITEMIDLIST pidl;
 	SHGetSpecialFolderLocation(nullptr, CSIDL_DESKTOPDIRECTORY, &pidl);
@@ -824,6 +827,7 @@ void copyReplay()
 		errorStr.trim();
 		MessageBoxOk(TheGameText->fetch("GUI:Error"),errorStr, nullptr);
 	}
+#endif
 
 }
 

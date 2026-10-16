@@ -192,11 +192,16 @@ set(GAMEENGINEDEVICE_SRC
 #    Source/Win32Device/GameClient/Win32Mouse.cpp
 )
 
-if(NOT WIN32)
+if(NOT WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
     list(REMOVE_ITEM GAMEENGINEDEVICE_SRC
         Include/Win32Device/Common/Win32GameEngine.h
         Source/Win32Device/Common/Win32GameEngine.cpp
         Source/Win32Device/Common/Win32OSDisplay.cpp
+    )
+elseif(GGC_SDL3_MAIN)
+    list(REMOVE_ITEM GAMEENGINEDEVICE_SRC
+        Include/Win32Device/Common/Win32GameEngine.h
+        Source/Win32Device/Common/Win32GameEngine.cpp
     )
 endif()
 
@@ -205,9 +210,11 @@ if(SAGE_USE_SDL3)
         Include/SDL3GameEngine.h
         Include/SDL3Device/GameClient/SDL3Keyboard.h
         Include/SDL3Device/GameClient/SDL3Mouse.h
+        Include/SDL3Device/GameClient/SDL3Gamepad.h
         Source/SDL3GameEngine.cpp
         Source/SDL3Device/GameClient/SDL3Keyboard.cpp
         Source/SDL3Device/GameClient/SDL3Mouse.cpp
+        Source/SDL3Device/GameClient/SDL3Gamepad.cpp
     )
 endif()
 

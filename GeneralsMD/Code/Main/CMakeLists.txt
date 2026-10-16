@@ -73,7 +73,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
     unset(_dkp)
 endif()
 
-if(WIN32)
+# TheSuperHackers @build githubawn 16/10/2026 Desktop Windows links these for both
+# entry points; UWP (WindowsStore) has none of them.
+if(WIN32 AND NOT CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
     target_link_libraries(z_generals PRIVATE
         binkstub
         comctl32
@@ -133,11 +135,16 @@ target_include_directories(z_generals PRIVATE
 )
 
 target_sources(z_generals PRIVATE
-    $<$<BOOL:${WIN32}>:WinMain.cpp>
-    $<$<BOOL:${WIN32}>:WinMain.h>
-    $<$<AND:$<NOT:$<BOOL:${WIN32}>>,$<BOOL:${SAGE_USE_SDL3}>>:SDL3Main.cpp>
+    $<$<BOOL:${GGC_USE_WINMAIN}>:WinMain.cpp>
+    $<$<BOOL:${GGC_USE_WINMAIN}>:WinMain.h>
+    $<$<AND:$<NOT:$<BOOL:${GGC_USE_WINMAIN}>>,$<BOOL:${SAGE_USE_SDL3}>>:SDL3Main.cpp>
     $<$<STREQUAL:${CMAKE_SYSTEM_NAME},NintendoSwitch>:SwitchPlatformStubs.cpp>
+    $<$<STREQUAL:${CMAKE_SYSTEM_NAME},WindowsStore>:UWPPlatformStubs.cpp>
 )
+
+# The stubs declare imm32/vfw32 entry points with their own signatures, so keep
+# windows.h (with imm.h) from the precompiled header out of that file.
+set_source_files_properties(UWPPlatformStubs.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
 
 # RC files optional for MinGW builds
 # Icon: LoadIcon() handles missing resource gracefully (uses default system icon)

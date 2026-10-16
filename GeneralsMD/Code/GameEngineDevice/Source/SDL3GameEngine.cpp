@@ -28,6 +28,7 @@
 #endif
 #include "SDL3Device/GameClient/SDL3Keyboard.h"
 #include "SDL3Device/GameClient/SDL3Mouse.h"
+#include "SDL3Device/GameClient/SDL3Gamepad.h"
 #include "StdDevice/Common/StdBIGFileSystem.h"
 #include "StdDevice/Common/StdLocalFileSystem.h"
 #include "StdDevice/Common/DummyAudioManager.h"
@@ -44,12 +45,20 @@ extern Keyboard *TheKeyboard;
 
 SDL3GameEngine::SDL3GameEngine() :
 	m_sdlWindow(NULL),
-	m_isInitialized(false)
+	m_isInitialized(false),
+	m_gamepad(NULL)
 {
+#if defined(_WIN32)
+	// TheSuperHackers @feature githubawn 16/10/2026 Gamepad play on Windows and Xbox
+	// (UWP). Other SDL3 platforms keep their own input handling unchanged.
+	m_gamepad = new SDL3Gamepad;
+#endif
 }
 
 SDL3GameEngine::~SDL3GameEngine()
 {
+	delete m_gamepad;
+	m_gamepad = NULL;
 }
 
 void SDL3GameEngine::init()
@@ -90,6 +99,10 @@ void SDL3GameEngine::pollSDL3Events()
 	SDL_Event event;
 	while (SDL_PollEvent(&event))
 	{
+		if (m_gamepad != NULL)
+		{
+			m_gamepad->handleEvent(event);
+		}
 		switch (event.type)
 		{
 			case SDL_EVENT_QUIT:
@@ -142,6 +155,11 @@ void SDL3GameEngine::pollSDL3Events()
 #endif
 				break;
 		}
+	}
+
+	if (m_gamepad != NULL)
+	{
+		m_gamepad->update(static_cast<SDL3Mouse *>(TheMouse), static_cast<SDL3Keyboard *>(TheKeyboard));
 	}
 }
 

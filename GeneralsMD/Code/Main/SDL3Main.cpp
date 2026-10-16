@@ -16,6 +16,15 @@
 extern "C" void ggc_ws_connect(void);
 #endif
 
+#if defined(_WIN32)
+// TheSuperHackers @build githubawn 16/10/2026 Windows/UWP SDL3 entry: the engine
+// headers expect windows.h (CRITICAL_SECTION etc.) to already be included.
+#include <windows.h>
+#include <io.h>
+#include <cstdio>
+#include <cstdlib>
+#endif
+
 #include <SDL3/SDL.h>
 // TheSuperHackers @build bobtista 13/06/2026 On Android SDLActivity invokes the
 // "SDL_main" symbol via JNI; SDL_main.h remaps main->SDL_main so the entry point
@@ -152,8 +161,11 @@ namespace
 	const int kDefaultWindowHeight = 600;
 }
 
+#if !defined(_WIN32)
+// The MSVC CRT already provides __argc/__argv.
 int __argc = 0;
 char **__argv = NULL;
+#endif
 
 // TheSuperHackers @build bobtista 13/06/2026 String/CSF file paths normally
 // defined in WinMain.cpp (Windows entry); provide them here for the SDL entry.
@@ -166,7 +178,12 @@ SDL_Window *TheSDL3Window = NULL;
 // BgfxBackend reads it from this global (declared extern there). Defined
 // unconditionally so the symbol exists on every platform; only set on Apple.
 void *TheSDL3MetalLayer = NULL;
+#if defined(_WIN32)
+// The engine declares this as HWND on Windows.
+HWND ApplicationHWnd = NULL;
+#else
 void *ApplicationHWnd = NULL;
+#endif
 
 extern Int GameMain();
 // TheSuperHackers @build bobtista 13/06/2026 Defined in CommandLine.cpp; creates
@@ -202,10 +219,81 @@ static bool GGC_DirHasBigArchive(const char *dir)
 }
 #endif
 
+#if defined(GGC_PLATFORM_UWP)
+// TheSuperHackers @build githubawn 16/10/2026 Xbox has no debugger attached in Dev
+// Mode sideloading, so log unhandled exceptions (code, faulting RVA and a stack of
+// module RVAs) to ggc_log.txt; resolve them against generalszh.pdb on the PC.
+static void ggcLogAddress(const char *tag, void *addr)
+{
+	HMODULE mod = NULL;
+	char name[MAX_PATH] = "?";
+	if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)addr, &mod) && mod != NULL)
+	{
+		GetModuleFileNameA(mod, name, sizeof(name));
+		const char *leaf = strrchr(name, '\\');
+		printf("[ggc]   %s %p %s+0x%llx\n", tag, addr, leaf ? leaf + 1 : name, (unsigned long long)((char *)addr - (char *)mod));
+	}
+	else
+	{
+		printf("[ggc]   %s %p\n", tag, addr);
+	}
+}
+
+static LONG WINAPI ggcUnhandledExceptionFilter(EXCEPTION_POINTERS *info)
+{
+	printf("[ggc] CRASH: exception 0x%08lx at %p\n", info->ExceptionRecord->ExceptionCode, info->ExceptionRecord->ExceptionAddress);
+	if (info->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && info->ExceptionRecord->NumberParameters >= 2)
+	{
+		printf("[ggc]   access violation %s address %p\n", info->ExceptionRecord->ExceptionInformation[0] ? "writing" : "reading", (void *)info->ExceptionRecord->ExceptionInformation[1]);
+	}
+	ggcLogAddress("fault", info->ExceptionRecord->ExceptionAddress);
+	// Walk the faulting context with RtlVirtualUnwind (x64 unwind tables).
+	CONTEXT ctx = *info->ContextRecord;
+	for (int frame = 0; frame < 48 && ctx.Rip != 0; ++frame)
+	{
+		ggcLogAddress("frame", (void *)ctx.Rip);
+		DWORD64 imageBase = 0;
+		PRUNTIME_FUNCTION fn = RtlLookupFunctionEntry(ctx.Rip, &imageBase, NULL);
+		if (fn == NULL)
+		{
+			// Leaf function: return address is at [rsp].
+			ctx.Rip = *(DWORD64 *)ctx.Rsp;
+			ctx.Rsp += 8;
+			continue;
+		}
+		PVOID handlerData = NULL;
+		DWORD64 establisher = 0;
+		RtlVirtualUnwind(UNW_FLAG_NHANDLER, imageBase, ctx.Rip, fn, &ctx, &handlerData, &establisher, NULL);
+	}
+	fflush(stdout);
+	return EXCEPTION_CONTINUE_SEARCH;
+}
+#endif
+
 int main(int argc, char **argv)
 {
+#if !defined(_WIN32)
 	__argc = argc;
 	__argv = argv;
+#elif defined(GGC_PLATFORM_UWP)
+	// TheSuperHackers @bugfix githubawn 16/10/2026 Under the UWP entry the CRT never
+	// builds __argv/__wargv, and OpenAL Soft reads __wargv[0] to find its config next
+	// to the exe (a null dereference on Xbox). Point them at this process.
+	{
+		static wchar_t exePathW[MAX_PATH];
+		static wchar_t *wargv[2] = { exePathW, NULL };
+		GetModuleFileNameW(NULL, exePathW, MAX_PATH);
+		if (__wargv == NULL)
+		{
+			__wargv = wargv;
+		}
+		if (__argv == NULL)
+		{
+			__argc = argc;
+			__argv = argv;
+		}
+	}
+#endif
 
 #if defined(__SWITCH__)
 	ggcSwitchLog("[ggc] main: entered\n");
@@ -250,6 +338,102 @@ int main(int argc, char **argv)
 		SDL_Log("SDL_Init failed: %s", SDL_GetError());
 		return 1;
 	}
+
+#if defined(GGC_PLATFORM_UWP)
+	// TheSuperHackers @build githubawn 16/10/2026 UWP activates the CoreWindow from its
+	// Activated event, which is only dispatched while events are pumped. Engine init
+	// takes many seconds without pumping, so the shell would kill the app for not
+	// activating in time; pump briefly first so the splash screen is dismissed.
+	for (int i = 0; i < 50; ++i)
+	{
+		SDL_PumpEvents();
+		SDL_Delay(10);
+	}
+
+	// TheSuperHackers @build githubawn 16/10/2026 UWP (Xbox): the game data ships in
+	// the package (read-only install dir, the engine's relative paths resolve from
+	// there) and user data (Options.ini, saves, replays) goes to LocalState.
+	{
+		// The data can instead be uploaded once into LocalState\data (Device Portal file
+		// explorer) so code-only package updates stay small; prefer it when present.
+		const char *basePath = SDL_GetBasePath();
+		char *prefPath = SDL_GetPrefPath("GGC", "GeneralsZH");
+		char dataDir[1024];
+		dataDir[0] = '\0';
+		if (prefPath != NULL)
+		{
+			char probe[1024];
+			snprintf(probe, sizeof(probe), "%s..\\..\\data\\INIZH.big", prefPath);
+			if (GetFileAttributesA(probe) != INVALID_FILE_ATTRIBUTES)
+			{
+				snprintf(dataDir, sizeof(dataDir), "%s..\\..\\data\\", prefPath);
+			}
+		}
+		if (dataDir[0] == '\0' && basePath != NULL)
+		{
+			snprintf(dataDir, sizeof(dataDir), "%s", basePath);
+		}
+		if (dataDir[0] != '\0')
+		{
+			SetCurrentDirectoryA(dataDir);
+		}
+		if (prefPath != NULL)
+		{
+			_putenv_s("GENERALS_USER_DIR", prefPath);
+			// No console on Xbox: keep stdout/stderr (bgfx + engine logging) in a file
+			// that Device Portal's file explorer can download.
+			char logPath[1024];
+			snprintf(logPath, sizeof(logPath), "%sggc_log.txt", prefPath);
+			freopen(logPath, "w", stdout);
+			setvbuf(stdout, NULL, _IONBF, 0);
+			// A UWP process starts without a valid stderr descriptor, so _dup2 onto it
+			// fails silently; give stderr its own file instead.
+			snprintf(logPath, sizeof(logPath), "%sggc_err.txt", prefPath);
+			freopen(logPath, "w", stderr);
+			setvbuf(stderr, NULL, _IONBF, 0);
+			SetUnhandledExceptionFilter(ggcUnhandledExceptionFilter);
+			SDL_free(prefPath);
+		}
+		printf("[ggc] UWP base=%s data=%s user=%s\n", basePath ? basePath : "(null)", dataDir, getenv("GENERALS_USER_DIR"));
+
+		// TheSuperHackers @feature githubawn 16/10/2026 A UWP app gets no command line, so
+		// read extra arguments from LocalState\cmdline.txt (uploadable through Device
+		// Portal). Whitespace-separated; "ENV:NAME=VALUE" sets an environment variable.
+		{
+			static char cmdBuf[4096];
+			static char *uwpArgv[64];
+			int uwpArgc = 0;
+			uwpArgv[uwpArgc++] = (char *)"generalszh.exe";
+			char cmdPath[1024];
+			const char *user = getenv("GENERALS_USER_DIR");
+			snprintf(cmdPath, sizeof(cmdPath), "%s..\\..\\cmdline.txt", user ? user : "");
+			FILE *cf = fopen(cmdPath, "rb");
+			if (cf != NULL)
+			{
+				const size_t n = fread(cmdBuf, 1, sizeof(cmdBuf) - 1, cf);
+				fclose(cf);
+				cmdBuf[n] = '\0';
+				char *ctx = NULL;
+				for (char *tok = strtok_s(cmdBuf, " \t\r\n", &ctx); tok != NULL && uwpArgc < 63; tok = strtok_s(NULL, " \t\r\n", &ctx))
+				{
+					if (strncmp(tok, "ENV:", 4) == 0)
+					{
+						_putenv(tok + 4);
+					}
+					else
+					{
+						uwpArgv[uwpArgc++] = tok;
+					}
+					printf("[ggc] cmdline.txt: %s\n", tok);
+				}
+			}
+			uwpArgv[uwpArgc] = NULL;
+			__argc = uwpArgc;
+			__argv = uwpArgv;
+		}
+
+	}
+#endif
 
 #if defined(__SWITCH__)
 	// TheSuperHackers @bugfix githubawn 03/07/2026 Locate the loose .big archives on
@@ -586,7 +770,18 @@ int main(int argc, char **argv)
 	}
 #endif
 
+#if defined(_WIN32)
+	// TheSuperHackers @build githubawn 16/10/2026 Desktop Windows has a real HWND for
+	// the engine's Win32 calls; UWP has none, so fall back to the SDL window pointer
+	// like the other SDL3 ports.
+	ApplicationHWnd = (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(TheSDL3Window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
+	if (ApplicationHWnd == NULL)
+	{
+		ApplicationHWnd = (HWND)TheSDL3Window;
+	}
+#else
 	ApplicationHWnd = TheSDL3Window;
+#endif
 
 	Int result = GameMain();
 
