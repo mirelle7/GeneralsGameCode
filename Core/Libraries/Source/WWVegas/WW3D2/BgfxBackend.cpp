@@ -44,6 +44,7 @@
 #include <cstring>
 #include <d3d8.h>
 
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -230,6 +231,21 @@ static bool g_ggcUseVulkanShaders = false;
 
 #include "BgfxBackendState.h"
 
+// TheSuperHackers @performance githubawn 17/10/2026 Many diagnostic switches below are read
+// with getenv() on every draw. The environment does not change once the renderer is up, and
+// getenv() is not free (it locks and scans the environment block; on the Xbox One UWP CRT it
+// was ~25% of the main thread), so look each name up once and cache the result.
+static const char * GgcGetenv(const char * name)
+{
+    static std::unordered_map<std::string, const char *> s_cache;
+    auto it = s_cache.find(name);
+    if (it == s_cache.end())
+    {
+        it = s_cache.emplace(name, std::getenv(name)).first;
+    }
+    return it->second;
+}
+
 #ifdef RTS_ZEROHOUR
 extern "C" void GGC_GetBgfxPostProcessParams(float * params);
 extern "C" void GGC_GetBgfxDiagnosticFlags(int * logStats, int * noSceneFramebuffer, int * noPostFx);
@@ -380,7 +396,7 @@ enum class BgfxShadowMode
 
 static BgfxShadowMode GetBgfxShadowMode()
 {
-    if (const char * mode = std::getenv("GGC_BGFX_SHADOW_MODE"))
+    if (const char * mode = GgcGetenv("GGC_BGFX_SHADOW_MODE"))
     {
         if (std::strcmp(mode, "stencil") == 0)
         {
@@ -1108,7 +1124,7 @@ bgfx::RendererType::Enum GetConfiguredRendererType()
     // at different rates per launch. OpenGL backend goes through a
     // separate (older, deprecated, but stable) driver path so it is
     // useful as a fallback. "metal" / "gl" / "vulkan" supported.
-    const char *override_ = std::getenv("GGC_BGFX_RENDERER");
+    const char *override_ = GgcGetenv("GGC_BGFX_RENDERER");
     if (override_ != nullptr)
     {
         if (std::strcmp(override_, "gl") == 0 || std::strcmp(override_, "opengl") == 0)
@@ -1132,7 +1148,7 @@ bgfx::RendererType::Enum GetConfiguredRendererType()
     // TheSuperHackers @feature githubawn 22/06/2026 Prefer Vulkan on Android (lower GLES
     // draw-call overhead); InitBgfx falls back to OpenGLES if Vulkan init fails or the device
     // lacks a usable driver. GGC_BGFX_FORCE_GLES=1 forces the GLES path for A/B testing.
-    if (std::getenv("GGC_BGFX_FORCE_GLES") != nullptr)
+    if (GgcGetenv("GGC_BGFX_FORCE_GLES") != nullptr)
         return bgfx::RendererType::OpenGLES;
     return bgfx::RendererType::Vulkan;
 #else
@@ -1179,7 +1195,7 @@ void *GetNativeWindowHandle(void *window)
     // GL drawable -> blank screen). Fall through to the SDL_PROP_WINDOW_COCOA_WINDOW
     // path below for GL; Metal/MoltenVK keep using the CAMetalLayer.
 #if !defined(GGC_BGFX_RENDERER_GLSL)
-    if (::TheSDL3MetalLayer != NULL && std::getenv("GGC_MACOS_USE_NSWINDOW") == nullptr)
+    if (::TheSDL3MetalLayer != NULL && GgcGetenv("GGC_MACOS_USE_NSWINDOW") == nullptr)
     {
         return ::TheSDL3MetalLayer;
     }
@@ -2349,7 +2365,7 @@ static void SubmitSceneComposite()
 void BgfxBackend::Initialize(void * hwnd, int /*width*/, int /*height*/)
 {
 #if defined(__APPLE__)
-    if (std::getenv("GGC_TRACE") != nullptr)
+    if (GgcGetenv("GGC_TRACE") != nullptr)
     {
         std::fprintf(stderr, "[ggc] BgfxBackend::Initialize hwnd=%p\n", hwnd);
         std::fflush(stderr);
@@ -2427,7 +2443,7 @@ void BgfxBackend::Initialize(void * hwnd, int /*width*/, int /*height*/)
     initArgs.resolution.width = static_cast<uint32_t>(g_device.width);
     initArgs.resolution.height = static_cast<uint32_t>(g_device.height);
     initArgs.resolution.reset = BGFX_RESET_NONE;
-    if (std::getenv("GGC_BGFX_NO_DEPTH_CLAMP") == nullptr)
+    if (GgcGetenv("GGC_BGFX_NO_DEPTH_CLAMP") == nullptr)
     {
         initArgs.resolution.reset |= BGFX_RESET_DEPTH_CLAMP;
     }
@@ -2439,7 +2455,7 @@ void BgfxBackend::Initialize(void * hwnd, int /*width*/, int /*height*/)
     // each render call lets the background compile queue drain. The flag
     // costs ~1 frame of latency but is harmless. GGC_MACOS_NO_FLUSH=1
     // disables it for A/B testing.
-    if (std::getenv("GGC_MACOS_NO_FLUSH") == nullptr)
+    if (GgcGetenv("GGC_MACOS_NO_FLUSH") == nullptr)
     {
         initArgs.resolution.reset |= BGFX_RESET_FLUSH_AFTER_RENDER;
     }
@@ -2451,7 +2467,7 @@ void BgfxBackend::Initialize(void * hwnd, int /*width*/, int /*height*/)
     // reach shellmap or command-line save loads.
     // TheSuperHackers @build bobtista 30/04/2026 Allow GGC_BGFX_DEBUG=1 to
     // turn on bgfx's verbose diagnostics for macOS bring-up.
-    initArgs.debug = std::getenv("GGC_BGFX_DEBUG") != nullptr;
+    initArgs.debug = GgcGetenv("GGC_BGFX_DEBUG") != nullptr;
 #if defined(__ANDROID__)
     // TheSuperHackers @diagnostic bobtista 16/06/2026 Force bgfx debug on so the
     // GL backend emits errors/warnings (framebuffer-incomplete, clear failures,
@@ -2464,7 +2480,7 @@ void BgfxBackend::Initialize(void * hwnd, int /*width*/, int /*height*/)
 #endif
 
 #if defined(__APPLE__)
-    if (std::getenv("GGC_TRACE") != nullptr)
+    if (GgcGetenv("GGC_TRACE") != nullptr)
     {
         std::fprintf(stderr, "[ggc] calling bgfx::init nwh=%p\n", pd.nwh);
         std::fflush(stderr);
@@ -2538,7 +2554,7 @@ void BgfxBackend::Initialize(void * hwnd, int /*width*/, int /*height*/)
 #endif
 
 #if defined(__APPLE__)
-    if (std::getenv("GGC_TRACE") != nullptr)
+    if (GgcGetenv("GGC_TRACE") != nullptr)
     {
         std::fprintf(stderr, "[ggc] bgfx::init OK\n");
         std::fflush(stderr);
@@ -2551,7 +2567,7 @@ void BgfxBackend::Initialize(void * hwnd, int /*width*/, int /*height*/)
     // wireframe) or a shading/texture/depth artifact (clean wireframe mesh).
     // Pair with -bgfxNoSceneFramebuffer so the fullscreen composite quad does not
     // turn into two wire triangles and hide the scene. Strip when done.
-    if (std::getenv("GGC_WIREFRAME") != nullptr)
+    if (GgcGetenv("GGC_WIREFRAME") != nullptr)
     {
         bgfx::setDebug(BGFX_DEBUG_WIREFRAME);
     }
@@ -2901,9 +2917,9 @@ void BgfxBackend::Initialize(void * hwnd, int /*width*/, int /*height*/)
     // is exactly the race we were trying to avoid. Disabled by default;
     // GGC_MACOS_PREWARM=1 turns it back on for experimentation.
 #if defined(__APPLE__)
-    if (std::getenv("GGC_MACOS_PREWARM") != nullptr)
+    if (GgcGetenv("GGC_MACOS_PREWARM") != nullptr)
     {
-        const bool trace = std::getenv("GGC_TRACE") != nullptr;
+        const bool trace = GgcGetenv("GGC_TRACE") != nullptr;
         if (trace)
         {
             std::fprintf(stderr, "[ggc] pre-warm loop start\n");
@@ -3292,12 +3308,12 @@ void BgfxBackend::Begin_Scene()
                 g_device.width = w;
                 g_device.height = h;
                 uint32_t resetFlags = BGFX_RESET_NONE;
-                if (std::getenv("GGC_BGFX_NO_DEPTH_CLAMP") == nullptr)
+                if (GgcGetenv("GGC_BGFX_NO_DEPTH_CLAMP") == nullptr)
                 {
                     resetFlags |= BGFX_RESET_DEPTH_CLAMP;
                 }
 #if defined(__APPLE__)
-                if (std::getenv("GGC_MACOS_NO_FLUSH") == nullptr)
+                if (GgcGetenv("GGC_MACOS_NO_FLUSH") == nullptr)
                 {
                     resetFlags |= BGFX_RESET_FLUSH_AFTER_RENDER;
                 }
@@ -3593,11 +3609,11 @@ void BgfxBackend::End_Scene(bool /*flip_frame*/)
     // GGC_FORCE_SHOT=<basepath>; optional GGC_FORCE_SHOT_INTERVAL frames (default 120).
     // Writes <basepath>.<frame>.bmp via the screenShot callback. Strip when done.
     {
-        const char * forceShotBase = std::getenv("GGC_FORCE_SHOT");
+        const char * forceShotBase = GgcGetenv("GGC_FORCE_SHOT");
         if (forceShotBase != nullptr && forceShotBase[0] != '\0')
         {
             uint32_t forceInterval = 120;
-            if (const char * e = std::getenv("GGC_FORCE_SHOT_INTERVAL"))
+            if (const char * e = GgcGetenv("GGC_FORCE_SHOT_INTERVAL"))
             {
                 const int v = std::atoi(e);
                 if (v > 0) forceInterval = static_cast<uint32_t>(v);
@@ -3625,7 +3641,7 @@ void BgfxBackend::End_Scene(bool /*flip_frame*/)
     {
         const int captureFrame = GGC_GetBgfxScreenshotFrame();
         uint32_t interval = 500;
-        if (const char * intervalEnv = std::getenv("GGC_BGFX_SCREENSHOT_INTERVAL"))
+        if (const char * intervalEnv = GgcGetenv("GGC_BGFX_SCREENSHOT_INTERVAL"))
         {
             const int parsedInterval = std::atoi(intervalEnv);
             if (parsedInterval > 0)
@@ -3922,7 +3938,7 @@ static void LogBgfxBufferUpdate(const char *kind,
                                 uint16_t handle_idx,
                                 const bgfx::Memory *mem)
 {
-    if (std::getenv("GGC_BGFX_BUFFER_UPDATE_DIAG") == nullptr)
+    if (GgcGetenv("GGC_BGFX_BUFFER_UPDATE_DIAG") == nullptr)
     {
         return;
     }
@@ -4571,13 +4587,13 @@ static uint64_t ApplyBlendEquation(uint64_t state)
 static bool LegacyStencilShadowsEnabled()
 {
     return BgfxStencilShadowsEnabled()
-        || std::getenv("GGC_ENABLE_LEGACY_STENCIL_SHADOWS") != nullptr;
+        || GgcGetenv("GGC_ENABLE_LEGACY_STENCIL_SHADOWS") != nullptr;
 }
 
 static bool ShouldLogBgfxStencilShadows()
 {
-    return std::getenv("GGC_STENCIL_SHADOW_DIAG") != nullptr
-        || std::getenv("GGC_SHADOW_PATH_DIAG") != nullptr;
+    return GgcGetenv("GGC_STENCIL_SHADOW_DIAG") != nullptr
+        || GgcGetenv("GGC_SHADOW_PATH_DIAG") != nullptr;
 }
 
 static bool BgfxPreMeshStencilShadows()
@@ -4587,7 +4603,7 @@ static bool BgfxPreMeshStencilShadows()
     // by the bgfx path: terrain/projected decals first, stencil darken next,
     // opaque meshes later. That keeps volume shadows on terrain without
     // multiplying the lighting on units/buildings/effects.
-    return std::getenv("GGC_BGFX_LEGACY_POSTMESH_STENCIL_SHADOWS") == nullptr;
+    return GgcGetenv("GGC_BGFX_LEGACY_POSTMESH_STENCIL_SHADOWS") == nullptr;
 }
 
 static bgfx::ViewId BgfxShadowVolumeSubmitView()
@@ -4597,7 +4613,7 @@ static bgfx::ViewId BgfxShadowVolumeSubmitView()
 
 static uint64_t BgfxShadowVolumeDepthState()
 {
-    const char *depth = std::getenv("GGC_BGFX_STENCIL_DEPTH");
+    const char *depth = GgcGetenv("GGC_BGFX_STENCIL_DEPTH");
     if (depth != nullptr && std::strcmp(depth, "less") == 0)
     {
         return BGFX_STATE_DEPTH_TEST_LESS;
@@ -4611,7 +4627,7 @@ static uint64_t BgfxShadowVolumeDepthState()
 
 static bool BgfxTwoSidedStencilVolumes()
 {
-    return std::getenv("GGC_BGFX_STENCIL_TWO_SIDED") != nullptr;
+    return GgcGetenv("GGC_BGFX_STENCIL_TWO_SIDED") != nullptr;
 }
 
 static unsigned BgfxShadowCullModeBits()
@@ -4619,7 +4635,7 @@ static unsigned BgfxShadowCullModeBits()
     // Use the same face selection as the W3D/DX8 shadow-volume pass. The
     // earlier bgfx-only inversion made the default z-pass counts cancel out
     // on useful receivers, leaving vehicles and aircraft without shadows.
-    if (std::getenv("GGC_BGFX_STENCIL_INVERT_CULL") == nullptr)
+    if (GgcGetenv("GGC_BGFX_STENCIL_INVERT_CULL") == nullptr)
     {
         return g_draw.cullModeBits;
     }
@@ -4642,7 +4658,7 @@ static void BindShadowVolumeBiasUniform()
     }
 
     float bias[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-    if (std::getenv("GGC_BGFX_STENCIL_CLAMP_CLIP") != nullptr)
+    if (GgcGetenv("GGC_BGFX_STENCIL_CLAMP_CLIP") != nullptr)
     {
         bias[1] = 1.0f;
     }
@@ -4651,7 +4667,7 @@ static void BindShadowVolumeBiasUniform()
 
 static bool BgfxSwapTwoSidedStencilVolumeOps()
 {
-    const char *algo = std::getenv("GGC_BGFX_STENCIL_ALGO");
+    const char *algo = GgcGetenv("GGC_BGFX_STENCIL_ALGO");
     return algo != nullptr && std::strcmp(algo, "zpass-swap") == 0;
 }
 
@@ -4799,27 +4815,27 @@ static bool IsMissingOrUnavailableTexture(TextureBaseClass * texture, bgfx::Text
 
 static bool ShouldLogBgfxShroudPass()
 {
-    return std::getenv("GGC_BGFX_SHROUD_PASS_DIAG") != nullptr;
+    return GgcGetenv("GGC_BGFX_SHROUD_PASS_DIAG") != nullptr;
 }
 
 static bool ShouldLogBgfxSortedDecals()
 {
-    return std::getenv("GGC_BGFX_SORTED_DECAL_DIAG") != nullptr;
+    return GgcGetenv("GGC_BGFX_SORTED_DECAL_DIAG") != nullptr;
 }
 
 static bool ShouldLogBgfxRevealDiag()
 {
-    return std::getenv("GGC_BGFX_REVEAL_DIAG") != nullptr;
+    return GgcGetenv("GGC_BGFX_REVEAL_DIAG") != nullptr;
 }
 
 static bool ShouldLogBgfxRevealDiagVerbose()
 {
-    return std::getenv("GGC_BGFX_REVEAL_DIAG_VERBOSE") != nullptr;
+    return GgcGetenv("GGC_BGFX_REVEAL_DIAG_VERBOSE") != nullptr;
 }
 
 static bool ShouldAllowBgfxDiagnosticDrawOverrides()
 {
-    return std::getenv("GGC_BGFX_ENABLE_DIAGNOSTIC_OVERRIDES") != nullptr;
+    return GgcGetenv("GGC_BGFX_ENABLE_DIAGNOSTIC_OVERRIDES") != nullptr;
 }
 
 static const char * TextureDebugName(TextureBaseClass * texture)
@@ -5812,7 +5828,7 @@ void BgfxBackend::Submit_Sorted_Draw(const DynamicVBAccessClass & dyn_vb,
                       polygon_count, vertex_count, state, "pre-skip");
 
     if (ShouldAllowBgfxDiagnosticDrawOverrides()
-        && std::getenv("GGC_BGFX_SKIP_REVEAL_GRID") != nullptr
+        && GgcGetenv("GGC_BGFX_SKIP_REVEAL_GRID") != nullptr
         && IsRevealGridTexture(DX8Wrapper::Peek_Render_State().Textures[0]))
     {
         g_stats.skippedDraws++;
@@ -6275,7 +6291,7 @@ void BgfxBackend::End_Water_Overlay()
 
 void BgfxBackend::Begin_Effect_Overlay()
 {
-    if (std::getenv("GGC_NO_EFFECT_OVERLAY") != nullptr)
+    if (GgcGetenv("GGC_NO_EFFECT_OVERLAY") != nullptr)
     {
         return;
     }
@@ -6332,7 +6348,7 @@ void BgfxBackend::Set_Grayscale_Mode(bool enable)
 void BgfxBackend::Set_Cloud_Shadow_Params(bool enable, float scroll_x, float scroll_y,
                                           float stretch, TextureClass * cloud_tex)
 {
-    if (std::getenv("GGC_NO_CLOUD_SHADOWS") != nullptr)
+    if (GgcGetenv("GGC_NO_CLOUD_SHADOWS") != nullptr)
     {
         enable = false;
         cloud_tex = nullptr;
@@ -6613,7 +6629,7 @@ void BgfxBackend::Submit_Shadow_Volume_Triangulated_Caps(
 bool BgfxBackend::Needs_Closed_Shadow_Volumes() const
 {
     return LegacyStencilShadowsEnabled()
-        && std::getenv("GGC_BGFX_CLOSED_SHADOW_VOLUMES") != nullptr;
+        && GgcGetenv("GGC_BGFX_CLOSED_SHADOW_VOLUMES") != nullptr;
 }
 
 void BgfxBackend::Apply_Stencil_Shadow_Darken(unsigned shadow_color,
@@ -6622,7 +6638,7 @@ void BgfxBackend::Apply_Stencil_Shadow_Darken(unsigned shadow_color,
 {
     DX8Backend::Apply_Stencil_Shadow_Darken(shadow_color, stencil_read_mask, stencil_ref);
     if (!LegacyStencilShadowsEnabled()
-        || std::getenv("GGC_BGFX_STENCIL_NO_APPLY") != nullptr
+        || GgcGetenv("GGC_BGFX_STENCIL_NO_APPLY") != nullptr
         || !g_device.initialized
         || !bgfx::isValid(g_device.shadowApplyProgram))
     {
@@ -7127,22 +7143,22 @@ void SubmitEngineDraw(unsigned short start_index,
     // TheSuperHackers @diagnostic ggc-bisect: env-gated per-view skip to localize
     // the periodic full-screen shatter (translucent diagonal streaks). Strip when done.
     {
-        if ((submitView == kBgfxEngineSortView   && ::getenv("GGC_SKIP_SORT"))
-         || (submitView == kBgfxWaterView         && ::getenv("GGC_SKIP_WATER"))
-         || (submitView == kBgfxEffectOverlayView && ::getenv("GGC_SKIP_EFFECT"))
-         || (submitView == kBgfxSmudgeView        && ::getenv("GGC_SKIP_SMUDGE"))
-         || (submitView == kBgfxShadowVolumeView  && ::getenv("GGC_SKIP_SHADOW"))
-         || (submitView == kBgfxRTTView           && ::getenv("GGC_SKIP_RTT"))
-         || (submitView == kBgfxEngineView        && ::getenv("GGC_SKIP_OPAQUE"))
+        if ((submitView == kBgfxEngineSortView   && GgcGetenv("GGC_SKIP_SORT"))
+         || (submitView == kBgfxWaterView         && GgcGetenv("GGC_SKIP_WATER"))
+         || (submitView == kBgfxEffectOverlayView && GgcGetenv("GGC_SKIP_EFFECT"))
+         || (submitView == kBgfxSmudgeView        && GgcGetenv("GGC_SKIP_SMUDGE"))
+         || (submitView == kBgfxShadowVolumeView  && GgcGetenv("GGC_SKIP_SHADOW"))
+         || (submitView == kBgfxRTTView           && GgcGetenv("GGC_SKIP_RTT"))
+         || (submitView == kBgfxEngineView        && GgcGetenv("GGC_SKIP_OPAQUE"))
          || (submitView == kBgfxEngineView && g_draw.useTransientVB
-                && ::getenv("GGC_SKIP_OQ_TRANS"))
+                && GgcGetenv("GGC_SKIP_OQ_TRANS"))
          || (submitView == kBgfxEngineView && !g_draw.useTransientVB
-                && ::getenv("GGC_SKIP_OQ_STATIC"))
+                && GgcGetenv("GGC_SKIP_OQ_STATIC"))
          || (submitView == kBgfxEngineView && g_draw.currentFVF == 0x242
-                && ::getenv("GGC_SKIP_TERRAIN"))
+                && GgcGetenv("GGC_SKIP_TERRAIN"))
          || (submitView == kBgfxEngineView && !g_draw.useTransientVB
                 && g_draw.currentFVF != 0x242
-                && ::getenv("GGC_SKIP_OQ_RIGID")))
+                && GgcGetenv("GGC_SKIP_OQ_RIGID")))
         {
             bgfx::discard(BGFX_DISCARD_ALL);
             return;
@@ -7258,7 +7274,7 @@ void SubmitEngineDraw(unsigned short start_index,
         default:                   g_stats.worldDraws++; break;
     }
     if (ShouldAllowBgfxDiagnosticDrawOverrides()
-        && std::getenv("GGC_BGFX_SKIP_EFFECT_OVERLAY_DRAWS") != nullptr
+        && GgcGetenv("GGC_BGFX_SKIP_EFFECT_OVERLAY_DRAWS") != nullptr
         && submitView == kBgfxEffectOverlayView)
     {
         g_stats.skippedDraws++;
@@ -7885,7 +7901,7 @@ void SubmitEngineDraw(unsigned short start_index,
             g_draw.texcoordSelect[2] = 0.0f;
         }
         else if (ShouldAllowBgfxDiagnosticDrawOverrides()
-            && std::getenv("GGC_BGFX_SKIP_SHROUD_OVERLAY") != nullptr)
+            && GgcGetenv("GGC_BGFX_SKIP_SHROUD_OVERLAY") != nullptr)
         {
             bgfx::discard(BGFX_DISCARD_ALL);
             return;
@@ -7935,7 +7951,7 @@ void SubmitEngineDraw(unsigned short start_index,
                       polygon_count, vertex_count, state, "pre-skip");
 
     if (ShouldAllowBgfxDiagnosticDrawOverrides()
-        && std::getenv("GGC_BGFX_SKIP_REVEAL_GRID") != nullptr
+        && GgcGetenv("GGC_BGFX_SKIP_REVEAL_GRID") != nullptr
         && IsRevealGridTexture(DX8Wrapper::Peek_Render_State().Textures[0]))
     {
         g_stats.skippedDraws++;
