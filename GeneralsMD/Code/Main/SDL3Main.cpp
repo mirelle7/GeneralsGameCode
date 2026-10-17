@@ -15,6 +15,15 @@
 // (compat/win32_shims/windows.h maps it to strcasecmp on non-Win).
 #include <windows.h>
 
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#include <emscripten/html5.h>
+// Defined in Core/GameEngine/Source/GameNetwork/udp.cpp: opens the WebSocket the LAN
+// transport tunnels through. UDP::Bind opens it too, but the handshake is asynchronous, so
+// connecting at startup gives it time to be ready before LAN discovery starts announcing.
+extern "C" void ggc_ws_connect(void);
+#endif
+
 #include <SDL3/SDL.h>
 #if defined(__APPLE__)
 #include <SDL3/SDL_metal.h>
@@ -246,6 +255,31 @@ int main(int argc, char **argv)
 	}
 	GGC_TRACE("SDL_Init OK");
 
+#if defined(__EMSCRIPTEN__)
+	// TheSuperHackers @feature githubawn 29/07/2026 The browser's in-memory filesystem
+	// is thrown away on reload, so options, saves and replays would never survive a
+	// refresh. Mount IndexedDB (IDBFS) at /preferences and point the Unix user-data
+	// lookup (GlobalData::BuildUserDataPathFromRegistry, XDG_DATA_HOME branch) at it,
+	// which keeps the engine side unchanged. The initial syncfs(true) loads whatever
+	// IndexedDB already holds; the interval flushes writes back out.
+	setenv("XDG_DATA_HOME", "/preferences", 1);
+	EM_ASM({
+		FS.mkdir('/preferences');
+		FS.mount(IDBFS, {}, '/preferences');
+		FS.syncfs(true, function(err) {
+			if (err) { console.error('IDBFS load failed:', err); }
+		});
+		setInterval(function() { FS.syncfs(false, function() {}); }, 5000);
+	});
+
+	// TheSuperHackers @feature githubawn 30/07/2026 Open the LAN relay socket now rather
+	// than on the first UDP::Bind: the WebSocket handshake is asynchronous, so a bind
+	// followed straight away by a LAN announce would send it before the socket was up and
+	// lose it. The ?ip=N identity override is applied later, in
+	// IPEnumeration::getAddresses, because a GlobalData re-init would clobber it here.
+	ggc_ws_connect();
+#endif
+
 	int windowW = kDefaultWindowWidth;
 	int windowH = kDefaultWindowHeight;
 	bool wantWindowed = wantHeadless;
@@ -266,6 +300,27 @@ int main(int argc, char **argv)
 			requestedH = atoi(argv[argi + 1]);
 		}
 	}
+#if defined(__EMSCRIPTEN__)
+	// TheSuperHackers @bugfix 31/07/2026 Never ask for fullscreen on the web. The canvas is the
+	// window here, and a browser only grants real fullscreen from a user gesture, so the request
+	// did not produce a fullscreen page - it just sized the drawing buffer to the reported
+	// desktop mode while the page kept presenting the canvas at its CSS box. The two disagreed,
+	// so the cursor landed somewhere other than where it was drawn. Run windowed at the canvas'
+	// own CSS size instead, which keeps the drawing buffer and the presented size in step.
+	wantWindowed = true;
+	if (requestedW <= 0 && requestedH <= 0)
+	{
+		double cssWidth = 0.0;
+		double cssHeight = 0.0;
+		if (emscripten_get_element_css_size("#canvas", &cssWidth, &cssHeight) == EMSCRIPTEN_RESULT_SUCCESS
+			&& cssWidth >= 1.0 && cssHeight >= 1.0)
+		{
+			requestedW = (int)cssWidth;
+			requestedH = (int)cssHeight;
+		}
+	}
+#endif
+
 	{
 		const SDL_DisplayID primaryDisplay = SDL_GetPrimaryDisplay();
 		const SDL_DisplayMode *desktopMode = SDL_GetDesktopDisplayMode(primaryDisplay);
@@ -275,6 +330,7 @@ int main(int argc, char **argv)
 			windowH = desktopMode->h;
 		}
 	}
+
 	// TheSuperHackers @bugfix bobtista 28/05/2026 Honor -xres/-yres when -win is set so '-win -xres 1600 -yres 1200' produces a 1600x1200 window instead of 800x600.
 	if (wantWindowed)
 	{

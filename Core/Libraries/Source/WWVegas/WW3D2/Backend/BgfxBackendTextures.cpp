@@ -363,7 +363,13 @@ static bgfx::TextureFormat::Enum GetBgfxTextureUploadFormat(WW3DFormat fmt)
         // uploaded with a different packed layout than D3D's A1R5G5B5. The terrain atlas
         // - the game's only large A1R5G5B5 surface - then reaches the screen as coloured
         // speckle. Expand to BGRA8 up front, like the A4R4G4B4 path above.
+#if defined(__SWITCH__)
+        // switch-mesa samples BGRA8 as black; upload RGBA8 instead (R/B are swapped
+        // to match in ExpandA1R5G5B5ToBGRA8).
+        return bgfx::TextureFormat::RGBA8;
+#else
         return bgfx::TextureFormat::BGRA8;
+#endif
     }
     return TranslateWW3DFormat(fmt);
 }
@@ -559,9 +565,16 @@ static void ExpandA1R5G5B5ToBGRA8(const uint8_t * srcRow, unsigned srcPitch,
             const uint8_t r8 = static_cast<uint8_t>((r5 << 3) | (r5 >> 2));
             const uint8_t g8 = static_cast<uint8_t>((g5 << 3) | (g5 >> 2));
             const uint8_t b8 = static_cast<uint8_t>((b5 << 3) | (b5 >> 2));
+#if defined(__SWITCH__)
+            // RGBA8 on Switch, see GetBgfxTextureUploadFormat.
+            dst[0] = r8;
+            dst[1] = g8;
+            dst[2] = b8;
+#else
             dst[0] = b8;
             dst[1] = g8;
             dst[2] = r8;
+#endif
             dst[3] = a;
             dst += 4;
         }
@@ -1023,7 +1036,7 @@ static void CopyTextureLevelData(TextureClass *tex2d,
         ExpandA4R4G4B4ToBGRA8(&mip.Data[0], srcPitch, mip.Width, mip.Height, data);
     }
     else if (mip.Format == WW3D_FORMAT_A1R5G5B5
-        && bgfxFmt == bgfx::TextureFormat::BGRA8
+        && (bgfxFmt == bgfx::TextureFormat::BGRA8 || bgfxFmt == bgfx::TextureFormat::RGBA8)
         && !layout.isCompressed)
     {
         ExpandA1R5G5B5ToBGRA8(&mip.Data[0], srcPitch, mip.Width, mip.Height, data);
@@ -1104,7 +1117,7 @@ static bool UploadTerrainAtlasMips(TextureClass * tex2d,
 	bgfx::TextureHandle h, const std::vector<TextureBaseClass::TextureMipSnapshot> & mips,
 	bgfx::TextureFormat::Enum bgfxFmt)
 {
-	const bool expandToBGRA8 = (bgfxFmt == bgfx::TextureFormat::BGRA8);
+	const bool expandToBGRA8 = (bgfxFmt == bgfx::TextureFormat::BGRA8 || bgfxFmt == bgfx::TextureFormat::RGBA8);
 	std::vector<uint16_t> prev;
 	unsigned prevWidth = 0;
 	unsigned prevHeight = 0;

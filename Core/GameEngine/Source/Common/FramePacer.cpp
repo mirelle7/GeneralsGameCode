@@ -63,7 +63,17 @@ FramePacer::~FramePacer()
 void FramePacer::update()
 {
 	// Uses a high resolution counter to cap the frame rate more accurately to the desired limit than retail did.
+#if defined(__EMSCRIPTEN__)
+	// TheSuperHackers @performance githubawn 29/07/2026 The web main loop is driven by
+	// requestAnimationFrame, which already paces to the display refresh. Letting the
+	// busy-wait limiter run on top of that is actively harmful: the spin overruns the
+	// vsync slot so rAF only fires every other refresh (pinning the game near 30fps),
+	// and it burns the one main thread the browser needs back. Run uncapped and just
+	// measure the real frame time for logic time scaling.
+	const UnsignedInt maxFps = RenderFpsPreset::UncappedFpsValue;
+#else
 	const UnsignedInt maxFps = getActualFramesPerSecondLimit();
+#endif
 	m_updateTime = m_frameRateLimit.wait(maxFps);
 
 	if (TheGameLogic != nullptr)

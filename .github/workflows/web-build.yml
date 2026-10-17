@@ -1,0 +1,305 @@
+name: Web (WebAssembly) Build
+
+run-name: web build from ${{ inputs.ref || github.ref_name }}
+
+on:
+  push:
+    branches:
+      - bobtista/topic/trunk
+      # Working branches for build-infrastructure changes, so a push iterates on CI
+      # without opening a pull request first.
+      - 'ci/**'
+    paths:
+      - '.github/workflows/web-build.yml'
+      - 'CMakePresets.json'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'scripts/build/web/**'
+      - 'Core/**'
+      - 'Dependencies/**'
+      - 'GeneralsMD/**'
+  pull_request:
+    paths:
+      - '.github/workflows/web-build.yml'
+      - 'CMakePresets.json'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'scripts/build/web/**'
+      - 'Core/**'
+      - 'Dependencies/**'
+      - 'GeneralsMD/**'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag, or SHA to build"
+        required: false
+        type: string
+
+concurrency:
+  group: web-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # TheSuperHackers @ci githubawn 30/07/2026 Tell a change to the page apart from a change
+  # to the engine. The shell is only stitched into index.html at link time, so editing it
+  # would otherwise cost a seven-minute rebuild of a binary that comes out identical.
+  changes:
+    name: what-changed
+    # A manual run has no before/after to compare, and the filter fails outright when asked
+    # to work one out, so skip it entirely there and let the build job decide on its own.
+    if: ${{ github.event_name != 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    outputs:
+      # No filter output means the step was skipped - a branch's first push has no previous
+      # commit to compare against - and then everything counts as changed.
+      code: ${{ steps.filter.outputs.code || 'true' }}
+      page: ${{ steps.filter.outputs.page }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Classify Changed Paths
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        if: ${{ github.event.before != '0000000000000000000000000000000000000000' }}
+        with:
+          token: ''
+          # Compare against the commit this push moved from. Left to itself the action
+          # compares against the default branch, which this long-lived branch is thousands of
+          # commits away from: it deepened the shallow clone until git gave up ("shallow file
+          # has changed since we read it"), and every path counted as changed anyway, so the
+          # redeploy path could never have been taken. Empty on pull_request, where the
+          # action's own default (the PR base) is what we want.
+          base: ${{ github.event.before }}
+          filters: |
+            code:
+              - '.github/workflows/web-build.yml'
+              - 'CMakePresets.json'
+              - 'CMakeLists.txt'
+              - 'cmake/**'
+              - 'scripts/build/web/build-ffmpeg-wasm.sh'
+              - 'Core/**'
+              - 'Dependencies/**'
+              - 'GeneralsMD/**'
+              - '!GeneralsMD/Code/Main/web/**'
+            page:
+              - 'GeneralsMD/Code/Main/web/**'
+              - 'scripts/build/web/serve.py'
+              - 'scripts/build/web/vercel.json'
+
+  web:
+    name: web-generalsmd-sdl3-bgfx
+    needs: changes
+    # A manual run always rebuilds; otherwise only a change outside the page does. always()
+    # is what lets this run at all on a manual run, where the job above is skipped.
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.code == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    # The Emscripten SDK image carries emcc, cmake, make, node and a host g++ (needed
+    # for the host shaderc the cross build compiles its shaders with).
+    container: emscripten/emsdk:6.0.5
+    env:
+      # Job-level so the deploy step can test for the token in its `if` (the secrets
+      # context is not available there), and so the CLI picks it up from the
+      # environment rather than a command-line flag, which would show up in logs and
+      # process lists. An unset secret expands to an empty string.
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.ref || github.ref_name }}
+
+      - name: Mark Workspace Safe For Git
+        run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+
+      - name: Install Build Tools
+        # The Emscripten image ships cmake and make but not ninja (the generator the
+        # presets use) or zip (used to package the artifact below). The X11 and GL
+        # headers are for the host shaderc build: configuring bgfx.cmake natively on
+        # Linux runs find_package(X11) for the bgfx library target, even though only
+        # the shaderc tool is actually built from that tree.
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ninja-build zip libx11-dev libgl1-mesa-dev
+
+      - name: Cache FFmpeg For wasm
+        id: cache-ffmpeg-wasm
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ${{ github.workspace }}/build/ffmpeg-wasm
+          key: ffmpeg-wasm-${{ hashFiles('scripts/build/web/build-ffmpeg-wasm.sh') }}
+
+      - name: Build FFmpeg For wasm
+        if: steps.cache-ffmpeg-wasm.outputs.cache-hit != 'true'
+        run: |
+          NPROC="$(nproc)" bash scripts/build/web/build-ffmpeg-wasm.sh "${GITHUB_WORKSPACE}/build/ffmpeg-wasm"
+
+      - name: Cache CMake Dependencies
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: |
+            build/web-generalsmd-sdl3-bgfx/_deps
+            build/web-generalsmd-sdl3-bgfx/host-shaderc
+          key: cmake-deps-web-generalsmd-sdl3-bgfx-${{ hashFiles('CMakePresets.json','cmake/**/*.cmake','**/CMakeLists.txt') }}
+          restore-keys: |
+            cmake-deps-web-generalsmd-sdl3-bgfx-
+
+      - name: Configure with CMake
+        run: |
+          FFMPEG_PREFIX="${GITHUB_WORKSPACE}/build/ffmpeg-wasm"
+          cmake --preset web-generalsmd-sdl3-bgfx \
+            -DFFMPEG_INCLUDE_DIR="${FFMPEG_PREFIX}/include" \
+            -DFFMPEG_AVCODEC_LIBRARY="${FFMPEG_PREFIX}/lib/libavcodec.a" \
+            -DFFMPEG_AVFORMAT_LIBRARY="${FFMPEG_PREFIX}/lib/libavformat.a" \
+            -DFFMPEG_AVUTIL_LIBRARY="${FFMPEG_PREFIX}/lib/libavutil.a" \
+            -DFFMPEG_SWSCALE_LIBRARY="${FFMPEG_PREFIX}/lib/libswscale.a"
+
+      - name: Build GeneralsMD
+        run: |
+          cmake --build build/web-generalsmd-sdl3-bgfx --config Release --target z_generals -j"$(nproc)"
+
+      - name: Stage
+        run: |
+          STAGE="${GITHUB_WORKSPACE}/stage-web/GeneralsZH-web"
+          mkdir -p "${STAGE}"
+          # Ninja Multi-Config appends the configuration to the output directory.
+          WEB_DIR="build/web-generalsmd-sdl3-bgfx/web"
+          if [ -d "${WEB_DIR}/Release" ]; then
+            WEB_DIR="${WEB_DIR}/Release"
+          fi
+          cp -r "${WEB_DIR}"/. "${STAGE}/"
+          cp scripts/build/web/serve.py "${STAGE}/serve.py"
+          # Cross-origin isolation headers for a Vercel deployment of this directory, plus
+          # the cache policy for the module. index.wasm must NOT be served immutable: its
+          # URL is the same in every build, so a browser holding a cached copy would pair
+          # it with the freshly revalidated index.js of a later deploy - two halves of
+          # different builds, which trap in callMain long before the engine draws anything
+          # and look exactly like an engine crash.
+          cp scripts/build/web/vercel.json "${STAGE}/vercel.json"
+          {
+            echo "Command & Conquer Generals Zero Hour (GeneralsMD) WebAssembly build"
+            echo "preset: web-generalsmd-sdl3-bgfx (Release, wasm32)"
+            echo "ref: ${{ inputs.ref || github.ref_name }}"
+            echo "commit: $(git rev-parse HEAD)"
+            echo "built: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            echo "Serve this directory over HTTP with cross-origin isolation enabled"
+            echo "(COOP: same-origin, COEP: require-corp); vercel.json sets both for a"
+            echo "Vercel deployment, and serve.py sets them for local runs. The page"
+            echo "will not boot from file://."
+            echo
+            echo "The page ships no game data. Served locally, serve.py streams it from"
+            echo "an install on the same machine; hosted, the page asks the player for"
+            echo "their own installation folder and keeps a copy in browser storage."
+          } > "${STAGE}/BUILD_INFO.txt"
+
+      - name: Zip
+        run: |
+          cd "${GITHUB_WORKSPACE}/stage-web/GeneralsZH-web"
+          zip -ry "${GITHUB_WORKSPACE}/GeneralsZH-web.zip" .
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: GeneralsZH-web
+          path: GeneralsZH-web.zip
+          retention-days: 30
+          if-no-files-found: error
+
+      # Deploying is opt-in and needs nothing but a VERCEL_TOKEN secret: the CLI reads
+      # the token from the environment, creates the named project on the first run and
+      # reuses it afterwards. Without the secret the step is skipped, so forks and pull
+      # requests still build and upload the artifact.
+      #
+      # Deploys into an existing project named by --project. The project is created
+      # once by hand (vercel project add generals-zh-web); CI does not create it,
+      # because --project only selects an existing project and letting the CLI name one
+      # after the deployed directory uses that name verbatim, which Vercel rejects for
+      # not being lowercase.
+      - name: Deploy To Vercel
+        if: ${{ env.VERCEL_TOKEN != '' && github.event_name != 'pull_request' }}
+        run: |
+          npx --yes vercel@latest deploy "${GITHUB_WORKSPACE}/stage-web/GeneralsZH-web" \
+            --prod --yes --archive=tgz --project generals-zh-web
+
+  # TheSuperHackers @ci githubawn 30/07/2026 Republish the page without rebuilding. The
+  # shell is the only source file that ends up in index.html, and emcc's contribution to it
+  # is the one script tag that loads index.js, so the page can be rebuilt around the .js and
+  # .wasm from the last successful run: about a minute instead of seven, for a binary that
+  # would come out the same anyway.
+  page:
+    name: web-page-redeploy
+    needs: changes
+    if: ${{ github.event_name == 'push' && needs.changes.outputs.code != 'true' && needs.changes.outputs.page == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read   # listing runs and downloading their artifacts
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Take The Binary From The Last Build
+        run: |
+          # Not every successful run has a module to offer: a previous page-only redeploy
+          # succeeded without uploading one, and artifacts expire. So walk back through the
+          # recent successful runs and take the first that still carries the artifact.
+          RUN_IDS="$(gh run list --workflow web-build.yml --branch "${GITHUB_REF_NAME}" \
+            --status success --limit 20 --json databaseId --jq '.[].databaseId')"
+          REUSED=""
+          for RUN_ID in ${RUN_IDS}; do
+            if gh run download "${RUN_ID}" -n GeneralsZH-web -D artifact 2>/dev/null; then
+              REUSED="${RUN_ID}"
+              break
+            fi
+            echo "Run ${RUN_ID} has no GeneralsZH-web artifact, looking further back."
+          done
+          if [ -z "${REUSED}" ]; then
+            echo "::error::No build artifact on ${GITHUB_REF_NAME} left to reuse." \
+                 "Run this workflow manually (workflow_dispatch) to rebuild the module."
+            exit 1
+          fi
+          echo "Reusing the module built by run ${REUSED}."
+          mkdir -p "${GITHUB_WORKSPACE}/stage-web/GeneralsZH-web"
+          unzip -q artifact/GeneralsZH-web.zip -d "${GITHUB_WORKSPACE}/stage-web/GeneralsZH-web"
+          echo "REUSED_RUN_ID=${REUSED}" >> "${GITHUB_ENV}"
+
+      - name: Rebuild The Page Around It
+        run: |
+          STAGE="${GITHUB_WORKSPACE}/stage-web/GeneralsZH-web"
+          # Do what emcc's --shell-file step does: swap its placeholder for the tag that
+          # loads the module. Unminified, which only makes index.html a few KB larger.
+          python3 - "GeneralsMD/Code/Main/web/shell.html" "${STAGE}/index.html" <<'PY'
+          import sys
+          src, dst = sys.argv[1], sys.argv[2]
+          with open(src, encoding="utf-8") as f:
+              html = f.read()
+          marker = "{{{ SCRIPT }}}"
+          if marker not in html:
+              sys.exit("%s: no %s placeholder to replace" % (src, marker))
+          html = html.replace(marker, '<script async src="index.js"></script>')
+          with open(dst, "w", encoding="utf-8") as f:
+              f.write(html)
+          PY
+          cp scripts/build/web/serve.py "${STAGE}/serve.py"
+          cp scripts/build/web/vercel.json "${STAGE}/vercel.json"
+          {
+            echo
+            echo "Page redeployed without rebuilding:"
+            echo "  page commit: $(git rev-parse HEAD)"
+            echo "  module from: run ${REUSED_RUN_ID}"
+            echo "  redeployed: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } >> "${STAGE}/BUILD_INFO.txt"
+          ls -la "${STAGE}"
+
+      - name: Deploy To Vercel
+        if: ${{ env.VERCEL_TOKEN != '' }}
+        run: |
+          npx --yes vercel@latest deploy "${GITHUB_WORKSPACE}/stage-web/GeneralsZH-web" \
+            --prod --yes --archive=tgz --project generals-zh-web
