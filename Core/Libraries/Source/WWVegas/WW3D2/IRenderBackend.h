@@ -26,7 +26,6 @@
 // TheSuperHackers @build githubawn 29/06/2026 VC6 has no <cstdint>; use the
 // stdint adapter there while modern toolchains keep <cstdint> unchanged.
 #if defined(_MSC_VER) && _MSC_VER < 1300
-#include <Utility/stdint_adapter.h>
 #else
 #include <cstdint>
 #endif

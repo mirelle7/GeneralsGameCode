@@ -22,7 +22,6 @@
 // CppMacros.h. This header is normally pulled in via the precompiled header,
 // but include it directly so the file also compiles when PCH is disabled
 // (e.g. the iOS Xcode-generator build).
-#include <Utility/CppMacros.h>
 #include <algorithm>
 #include <cstddef>
 #include <map>

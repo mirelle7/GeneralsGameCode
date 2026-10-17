@@ -35,7 +35,6 @@
 // TheSuperHackers @build githubawn 29/06/2026 VC6 has no <cstdint>; pull uintptr_t
 // from the stdint adapter there. Modern toolchains already declare it.
 #if defined(_MSC_VER) && _MSC_VER < 1300
-#include <Utility/stdint_adapter.h>
 #endif
 
 // TheSuperHackers @build githubawn 29/06/2026 on x64 the Windows headers
