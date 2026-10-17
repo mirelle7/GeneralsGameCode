@@ -28,13 +28,17 @@ static inline MMRESULT timeEndPeriod(int) { return TIMERR_NOERROR; }
 inline unsigned int timeGetTime()
 {
   struct timespec ts;
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) || defined(__SWITCH__)
   // TheSuperHackers @bugfix githubawn 29/07/2026 Emscripten's musl declares
   // CLOCK_BOOTTIME but does not implement it, so clock_gettime() fails and leaves ts
   // zeroed and timeGetTime() always returns 0. Every timeGetTime-gated loop then stops
   // making progress - Shell::update's 30Hz gate never opens, so menu update callbacks
   // never run and menus draw but never navigate. CLOCK_MONOTONIC is supported, and is
   // what GetTickCount() below already uses.
+  // TheSuperHackers @bugfix githubawn 06/07/2026 Same on Nintendo Switch: devkitA64/newlib
+  // defines CLOCK_BOOTTIME but libnx does not implement it, so clock_gettime() fails and
+  // timeGetTime() returns 0. This froze Shell::update's runUpdate() calls -> MainMenuUpdate
+  // never ran -> menus drew and took clicks but never navigated (Skirmish/Singleplayer dead).
   clock_gettime(CLOCK_MONOTONIC, &ts);
 #elif defined(CLOCK_BOOTTIME)
   clock_gettime(CLOCK_BOOTTIME, &ts);

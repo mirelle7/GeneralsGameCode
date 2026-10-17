@@ -1157,6 +1157,14 @@ add_library(z_gameengine STATIC)
 
 target_sources(z_gameengine PRIVATE ${GAMEENGINE_SRC})
 
+# TheSuperHackers @build bobtista 13/06/2026 No-op stubs for Windows-only
+# subsystems (minidumper / worker process / IME / busy-cursor / stack dump
+# globals) that are compiled out on non-Windows but still referenced at link.
+if(NOT WIN32)
+    target_sources(z_gameengine PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/Source/Common/AndroidWin32Stubs.cpp)
+endif()
+
 target_include_directories(z_gameengine PUBLIC
     Include
 )
@@ -1177,6 +1185,9 @@ target_link_libraries(z_gameengine PRIVATE
     corei_gameengine_private
     zi_always
 )
+if(SAGE_USE_SDL3)
+    target_link_libraries(z_gameengine PRIVATE sdl3lib)
+endif()
 
 target_link_libraries(z_gameengine PUBLIC
     corei_gameengine_public

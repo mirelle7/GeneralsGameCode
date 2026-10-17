@@ -172,6 +172,45 @@
             }
         },
         {
+            "name": "win64-bgfx-standalone",
+            "inherits": "default-vcpkg",
+            "hidden": false,
+            "displayName": "Windows 64bit Release (bgfx standalone - SDL3 + OpenAL + FFmpeg)",
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            },
+            "cacheVariables": {
+                "RTS_FLAGS": "/W3",
+                "RTS_BUILD_GENERALS": "OFF",
+                "RTS_BUILD_GENERALS_TOOLS": "OFF",
+                "RTS_BUILD_ZEROHOUR": "ON",
+                "RTS_BUILD_ZEROHOUR_TOOLS": "OFF",
+                "RTS_BUILD_CORE_TOOLS": "OFF",
+                "SAGE_USE_SDL3": "ON",
+                "SAGE_USE_OPENAL": "ON",
+                "RTS_BUILD_OPTION_FFMPEG": "ON",
+                "GGC_RENDER_BACKEND": "bgfx",
+                "GGC_BGFX_RENDERER": "dx11",
+                "GGC_BGFX_STANDALONE": "ON",
+                "VCPKG_TARGET_TRIPLET": "x64-windows"
+            },
+            "vendor": {
+                "jetbrains.com/clion": {
+                    "toolchain": "Visual Studio"
+                }
+            }
+        },
+        {
+            "name": "win64-bgfx-standalone-debug",
+            "inherits": "win64-bgfx-standalone",
+            "hidden": false,
+            "displayName": "Windows 64bit Debug (bgfx standalone - SDL3 + OpenAL + FFmpeg)",
+            "cacheVariables": {
+                "RTS_BUILD_OPTION_DEBUG": "ON"
+            }
+        },
+        {
             "name": "unix",
             "inherits": "default-vcpkg",
             "hidden": false,
@@ -287,6 +326,56 @@
             "displayName": "Windows 64bit GeneralsMD SDL3 bgfx Debug",
             "cacheVariables": {
                 "RTS_BUILD_OPTION_DEBUG": "ON"
+            }
+        },
+        {
+            "name": "android-generalsmd-sdl3-bgfx",
+            "inherits": "default",
+            "hidden": false,
+            "displayName": "Android GeneralsMD SDL3 bgfx Release",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "RTS_BUILD_GENERALS": "OFF",
+                "RTS_BUILD_GENERALS_TOOLS": "OFF",
+                "RTS_BUILD_ZEROHOUR": "ON",
+                "RTS_BUILD_ZEROHOUR_TOOLS": "OFF",
+                "RTS_BUILD_CORE_TOOLS": "OFF",
+                "RTS_BUILD_OPTION_FFMPEG": "ON",
+                "SAGE_USE_SDL3": "ON",
+                "SAGE_USE_OPENAL": "ON",
+                "GGC_RENDER_BACKEND": "bgfx",
+                "GGC_BGFX_STANDALONE": "ON",
+                "CMAKE_SYSTEM_NAME": "Android",
+                "CMAKE_ANDROID_ARCH_ABI": "arm64-v8a",
+                "CMAKE_SYSTEM_VERSION": "26",
+                "CMAKE_ANDROID_NDK": "$env{ANDROID_NDK_HOME}",
+                "CMAKE_POSITION_INDEPENDENT_CODE": "ON",
+                "CMAKE_C_FLAGS": "-fPIC",
+                "CMAKE_CXX_FLAGS": "-fPIC"
+            }
+        },
+        {
+            "name": "switch-generalsmd-sdl3-bgfx",
+            "inherits": "default",
+            "hidden": false,
+            "displayName": "Nintendo Switch GeneralsMD SDL3 bgfx Release",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "RTS_BUILD_GENERALS": "OFF",
+                "RTS_BUILD_GENERALS_TOOLS": "OFF",
+                "RTS_BUILD_ZEROHOUR": "ON",
+                "RTS_BUILD_ZEROHOUR_TOOLS": "OFF",
+                "RTS_BUILD_CORE_TOOLS": "OFF",
+                "RTS_BUILD_OPTION_FFMPEG": "ON",
+                "SAGE_USE_SDL3": "ON",
+                "SAGE_USE_OPENAL": "ON",
+                "GGC_RENDER_BACKEND": "bgfx",
+                "GGC_BGFX_RENDERER": "essl",
+                "GGC_BGFX_STANDALONE": "ON",
+                "CMAKE_SYSTEM_NAME": "NintendoSwitch",
+                "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/nintendo-switch.cmake"
             }
         },
         {
@@ -445,6 +534,26 @@
             "configuration": "Debug"
         },
         {
+            "name": "win64-bgfx-standalone",
+            "configurePreset": "win64-bgfx-standalone",
+            "displayName": "Build Windows 64bit Release (bgfx standalone)",
+            "description": "Build Windows 64bit Release (bgfx standalone - SDL3 + OpenAL + FFmpeg)",
+            "configuration": "Release",
+            "targets": [
+                "z_generals"
+            ]
+        },
+        {
+            "name": "win64-bgfx-standalone-debug",
+            "configurePreset": "win64-bgfx-standalone-debug",
+            "displayName": "Build Windows 64bit Debug (bgfx standalone)",
+            "description": "Build Windows 64bit Debug (bgfx standalone - SDL3 + OpenAL + FFmpeg)",
+            "configuration": "Debug",
+            "targets": [
+                "z_generals"
+            ]
+        },
+        {
             "name": "unix",
             "configurePreset": "unix",
             "displayName": "Build Unix 32bit VCPKG Release",
@@ -468,6 +577,16 @@
             "configurePreset": "mingw-w64-i686-profile",
             "displayName": "Build MinGW-w64 32-bit (i686) Profile",
             "description": "Build MinGW-w64 32-bit (i686) Profile"
+        },
+        {
+            "name": "switch-generalsmd-sdl3-bgfx",
+            "configurePreset": "switch-generalsmd-sdl3-bgfx",
+            "displayName": "Build Nintendo Switch GeneralsMD SDL3 bgfx Release",
+            "description": "Build Nintendo Switch GeneralsMD SDL3 bgfx Release",
+            "configuration": "Release",
+            "targets": [
+                "z_generals"
+            ]
         }
     ],
     "workflowPresets": [
@@ -663,6 +782,32 @@
                 {
                     "type": "build",
                     "name": "win32-vcpkg-debug"
+                }
+            ]
+        },
+        {
+            "name": "win64-bgfx-standalone",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "win64-bgfx-standalone"
+                },
+                {
+                    "type": "build",
+                    "name": "win64-bgfx-standalone"
+                }
+            ]
+        },
+        {
+            "name": "win64-bgfx-standalone-debug",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "win64-bgfx-standalone-debug"
+                },
+                {
+                    "type": "build",
+                    "name": "win64-bgfx-standalone-debug"
                 }
             ]
         },

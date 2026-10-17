@@ -29,6 +29,10 @@
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#if defined(__ANDROID__)
+#include <android/log.h>
+#endif
+
 #include "Common/Debug.h"
 #include "Common/MessageStream.h"
 #include "Common/GameEngine.h"
@@ -188,6 +192,10 @@ void Mouse::updateMouseData()
 //-------------------------------------------------------------------------------------------------
 /** Combine mouse events into the main mouse variables */
 //-------------------------------------------------------------------------------------------------
+#if defined(__SWITCH__)
+extern "C" unsigned int svcOutputDebugString(const char *, unsigned long);
+#endif
+
 void Mouse::processMouseEvent( Int index )
 {
 	Int movementType;
@@ -228,6 +236,16 @@ void Mouse::processMouseEvent( Int index )
 				// Mouse Down
 				m_currMouse.leftEvent = GWM_LEFT_DOWN;
 				m_currMouse.leftState = MBS_Down;
+#if defined(__SWITCH__)
+				{
+					char b[160];
+					int n = snprintf(b, sizeof(b),
+						"[ggc] LEFT_DOWN evPos=(%d,%d) curPos=(%d,%d) maxX=%d maxY=%d\n",
+						m_mouseEvents[index].pos.x, m_mouseEvents[index].pos.y,
+						m_currMouse.pos.x, m_currMouse.pos.y, m_maxX, m_maxY);
+					if (n > 0) svcOutputDebugString(b, (unsigned)n);
+				}
+#endif
 			}
 			else if ( m_mouseEvents[ index ].leftState == MBS_DoubleClick )
 			{
@@ -240,6 +258,16 @@ void Mouse::processMouseEvent( Int index )
 				// Mouse Up
 				m_currMouse.leftEvent = GWM_LEFT_UP;
 				m_currMouse.leftState = MBS_Up;
+#if defined(__SWITCH__)
+				{
+					char b[160];
+					int n = snprintf(b, sizeof(b),
+						"[ggc] LEFT_UP evPos=(%d,%d) curPos=(%d,%d)\n",
+						m_mouseEvents[index].pos.x, m_mouseEvents[index].pos.y,
+						m_currMouse.pos.x, m_currMouse.pos.y);
+					if (n > 0) svcOutputDebugString(b, (unsigned)n);
+				}
+#endif
 			}
 		}
 	}
@@ -346,6 +374,17 @@ void Mouse::processMouseEvent( Int index )
 //		m_displayTooltip = FALSE;
 //	}
 
+
+#if defined(__ANDROID__)
+	if (m_currMouse.leftEvent != MOUSE_EVENT_NONE)
+	{
+		__android_log_print(4, "ggc-mouse",
+			"processMouseEvent idx=%d pos=(%d,%d) leftEvent=%d leftState=%d absMode=%d max=(%d,%d)",
+			index, m_currMouse.pos.x, m_currMouse.pos.y,
+			(int)m_currMouse.leftEvent, (int)m_currMouse.leftState,
+			(int)m_inputMovesAbsolute, m_maxX, m_maxY);
+	}
+#endif
 
 	m_prevMouse = m_currMouse;
 

@@ -29,6 +29,21 @@ endif()
 target_include_directories(core_wwcommon INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
+if(UNIX OR ANDROID)
+    target_include_directories(core_wwcommon INTERFACE compat/win32_shims)
+    # TheSuperHackers @build bobtista 13/06/2026 — Force-include the windows.h
+    # shim so that DX8 SDK headers (d3d8types.h etc.) which use LONG/INT/HWND
+    # without including windows.h themselves compile cleanly on NDK Clang.
+    # TheSuperHackers @build githubawn 18/06/2026 Skip under the Xcode generator:
+    # Xcode emits this -include before its precompiled prefix-header include,
+    # which makes clang ignore the PCH. On Xcode, windows.h is instead supplied
+    # via the core_utility PCH (see Dependencies/Utility/CMakeLists.txt).
+    if(NOT XCODE)
+        target_compile_options(core_wwcommon INTERFACE
+            -include ${CMAKE_CURRENT_SOURCE_DIR}/compat/win32_shims/windows.h
+        )
+    endif()
+endif()
 
 if(NOT WIN32)
     # TheSuperHackers @build bobtista 29/04/2026 BEFORE so the compat shims
@@ -55,6 +70,14 @@ add_library(core_wwvegas INTERFACE)
 target_include_directories(core_wwvegas INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
+if(UNIX OR ANDROID)
+    target_include_directories(core_wwvegas INTERFACE compat/win32_shims)
+    if(NOT XCODE)
+        target_compile_options(core_wwvegas INTERFACE
+            -include ${CMAKE_CURRENT_SOURCE_DIR}/compat/win32_shims/windows.h
+        )
+    endif()
+endif()
 
 # TheSuperHackers @build bobtista 29/04/2026 Propagate the win32 shim include
 # path through core_wwvegas so consumers (z_gameengine, etc.) can resolve

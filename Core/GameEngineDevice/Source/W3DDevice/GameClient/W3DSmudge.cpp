@@ -328,6 +328,10 @@ void W3DSmudgeManager::render(RenderInfoClass &rinfo)
 		return;
 	}
 
+	// TheSuperHackers @diagnostic Render-skip bisect: bit 16 disables smudge/heat-haze rendering.
+	if (TheGlobalData && (TheGlobalData->m_ggcRenderSkip & 16))
+		return;
+
 	RenderBackendSurfaceDescription surface_desc;
 	Bool bgfxSmudgeActive = FALSE;
 

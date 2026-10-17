@@ -64,6 +64,8 @@
 #include <string>
 
 #include <unordered_map>
+#include <vector>
+#include <algorithm>
 
 #include <rts/profile.h>
 // TheSuperHackers @perf bobtista 24/06/2026 rts/profile.h pulls in Tracy.hpp (C++ API) but the bgfx profiler callbacks use the Tracy C API.
@@ -83,6 +85,10 @@
 #include <bimg/bimg.h>
 #ifdef __APPLE__
 #include <dlfcn.h>
+#endif
+#if defined(__ANDROID__)
+#include <android/log.h>
+#include <time.h>
 #endif
 #if defined(SAGE_USE_SDL3)
 #include <SDL3/SDL.h>
@@ -168,6 +174,40 @@ int DX8Wrapper_PreserveFPU = 0;
 #include "vs_smudge_spirv.bin.h"
 #include "fs_smudge_spirv.bin.h"
 #define GGC_BGFX_SHADER(name) name##_spirv
+#elif defined(GGC_BGFX_RENDERER_GLSL)
+// TheSuperHackers @feature githubawn 28/06/2026 Desktop OpenGL (GLSL) backend for
+// macOS. Apple GL caps out at 4.1 core, so shaders are compiled with the glsl 410
+// profile (cmake/bgfx.cmake). Used as an alternative to Metal/MoltenVK. The GL
+// backend takes the NSWindow (not the CAMetalLayer) as its nwh; see
+// GetNativeWindowHandle and SDL3Main's view setup, both gated on this define.
+#include "vs_passthrough_glsl.bin.h"
+#include "fs_passthrough_glsl.bin.h"
+#include "vs_uber_glsl.bin.h"
+#include "vs_uber_instanced_glsl.bin.h"
+#include "vs_trees_glsl.bin.h"
+#include "fs_uber_glsl.bin.h"
+#include "fs_uber_array_glsl.bin.h"
+#include "fs_uber_frameconst_glsl.bin.h"
+#include "vs_uber_array_glsl.bin.h"
+#include "vs_shadow_volume_glsl.bin.h"
+#include "fs_shadow_volume_glsl.bin.h"
+#include "vs_shadow_apply_glsl.bin.h"
+#include "fs_shadow_apply_glsl.bin.h"
+#include "vs_scene_composite_glsl.bin.h"
+#include "fs_scene_composite_glsl.bin.h"
+#include "fs_bloom_bright_glsl.bin.h"
+#include "fs_bloom_blur_glsl.bin.h"
+#include "fs_ssao_glsl.bin.h"
+#include "fs_copy_glsl.bin.h"
+#include "vs_scene_depth_glsl.bin.h"
+#include "vs_scene_depth_instanced_glsl.bin.h"
+#include "fs_scene_depth_glsl.bin.h"
+#include "vs_shadow_caster_glsl.bin.h"
+#include "vs_shadow_caster_instanced_glsl.bin.h"
+#include "fs_shadow_caster_glsl.bin.h"
+#include "vs_smudge_glsl.bin.h"
+#include "fs_smudge_glsl.bin.h"
+#define GGC_BGFX_SHADER(name) name##_glsl
 // TheSuperHackers @build githubawn 29/07/2026 OpenGL ES 3.0 / WebGL 2 bytecode for
 // the Emscripten build.
 #elif defined(GGC_BGFX_RENDERER_ESSL)
@@ -199,6 +239,40 @@ int DX8Wrapper_PreserveFPU = 0;
 #include "vs_smudge_essl.bin.h"
 #include "fs_smudge_essl.bin.h"
 #define GGC_BGFX_SHADER(name) name##_essl
+#if defined(__ANDROID__)
+// TheSuperHackers @feature githubawn 22/06/2026 Also embed the Vulkan (SPIR-V) shader
+// variants on Android so BgfxBackend can run Vulkan when the device supports it, falling
+// back to GLES (essl) otherwise. Renderer is chosen at runtime in Initialize; the
+// GGC_SHADER_DATA/GGC_SHADER_SIZE macros below pick the matching blob per g_ggcUseVulkanShaders.
+#include "vs_passthrough_spirv.bin.h"
+#include "fs_passthrough_spirv.bin.h"
+#include "vs_uber_spirv.bin.h"
+#include "vs_uber_instanced_spirv.bin.h"
+#include "vs_trees_spirv.bin.h"
+#include "fs_uber_spirv.bin.h"
+#include "fs_uber_array_spirv.bin.h"
+#include "fs_uber_frameconst_spirv.bin.h"
+#include "vs_uber_array_spirv.bin.h"
+#include "vs_shadow_volume_spirv.bin.h"
+#include "fs_shadow_volume_spirv.bin.h"
+#include "vs_shadow_apply_spirv.bin.h"
+#include "fs_shadow_apply_spirv.bin.h"
+#include "vs_scene_composite_spirv.bin.h"
+#include "fs_scene_composite_spirv.bin.h"
+#include "fs_bloom_bright_spirv.bin.h"
+#include "fs_bloom_blur_spirv.bin.h"
+#include "fs_ssao_spirv.bin.h"
+#include "fs_copy_spirv.bin.h"
+#include "vs_scene_depth_spirv.bin.h"
+#include "vs_scene_depth_instanced_spirv.bin.h"
+#include "fs_scene_depth_spirv.bin.h"
+#include "vs_shadow_caster_spirv.bin.h"
+#include "vs_shadow_caster_instanced_spirv.bin.h"
+#include "fs_shadow_caster_spirv.bin.h"
+#include "vs_smudge_spirv.bin.h"
+#include "fs_smudge_spirv.bin.h"
+#define GGC_BGFX_DUAL_VK_GLES 1
+#endif
 #else
 #include "vs_passthrough_dx11.bin.h"
 #include "fs_passthrough_dx11.bin.h"
@@ -236,6 +310,19 @@ int DX8Wrapper_PreserveFPU = 0;
 #include "vs_smudge_dx11.bin.h"
 #include "fs_smudge_dx11.bin.h"
 #define GGC_BGFX_SHADER(name) name##_dx11
+#endif
+
+// TheSuperHackers @feature githubawn 22/06/2026 Shader-blob selection. On Android both the
+// GLES (essl) and Vulkan (spirv) variants are embedded; g_ggcUseVulkanShaders (set in Initialize
+// from bgfx::getRendererType()) chooses which to feed createShader. Everywhere else there is a
+// single compiled variant, so the macros resolve to it directly at compile time.
+#if defined(GGC_BGFX_DUAL_VK_GLES)
+static bool g_ggcUseVulkanShaders = false;
+#define GGC_SHADER_DATA(name) (g_ggcUseVulkanShaders ? (name##_spirv) : (name##_essl))
+#define GGC_SHADER_SIZE(name) (g_ggcUseVulkanShaders ? (uint32_t)sizeof(name##_spirv) : (uint32_t)sizeof(name##_essl))
+#else
+#define GGC_SHADER_DATA(name) GGC_BGFX_SHADER(name)
+#define GGC_SHADER_SIZE(name) (uint32_t)sizeof(GGC_BGFX_SHADER(name))
 #endif
 
 #include "Backend/BgfxBackendState.h"
@@ -370,12 +457,69 @@ extern "C" void GGC_RequestBgfxFramebufferRebuild()
 {
     g_requestSceneFramebufferRebuild = true;
 }
+
+// TheSuperHackers @feature githubawn 21/06/2026 Public entry point for the Options menu (and
+// W3DDisplay at startup) to change the 3D render-resolution scale at runtime. Clamps the value
+// and has Begin_Scene rebuild the (now differently sized) scene framebuffer at its safe point
+// and rebind it to the scene views. The 2D UI and composite remain at full window resolution.
+void GGC_BgfxSetRenderScale(float scale)
+{
+    if (!(scale > 0.0f)) scale = 1.0f;
+    if (scale > 1.0f)    scale = 1.0f;
+    if (scale < 0.1f)    scale = 0.1f;
+    if (g_device.renderScale == scale)
+    {
+        return;
+    }
+    g_device.renderScale = scale;
+    if (g_device.initialized)
+    {
+        g_requestSceneFramebufferRebuild = true;
+    }
+}
+
+float GGC_BgfxGetRenderScale()
+{
+    return g_device.renderScale;
+}
 BgfxViewFlags  g_views;
 BgfxFrame      g_frame;
 BgfxStats      g_stats;
 BgfxCaches     g_caches;
 // Asset-ingress resource side-table. id 0 is reserved invalid.
 BgfxResourceRegistry g_resourceRegistry = { {}, 1 };
+
+#if defined(__ANDROID__)
+// TheSuperHackers @diagnostic githubawn 18/06/2026 Per-frame count of W3D mesh
+// polygon-batch renders (DX8PolygonRendererClass::Render / Render_Sorted, the
+// mesh-only submit path; terrain/water use other paths). Incremented from
+// dx8polygonrenderer.h, reset each frame in ResetFrameStats, logged in ggc-3d.
+// Tells us whether unit/structure mesh geometry is even being issued.
+unsigned g_ggcMeshPolyRenders = 0;
+unsigned g_ggcMeshSortedRenders = 0;
+// DX8TextureCategoryClass::Render entries, render-tasks walked, and tasks
+// skipped for VERTEX_BUFFER_OVERFLOW (mesh vertices not yet in the VB).
+unsigned g_ggcTexCatRenders = 0;
+unsigned g_ggcMeshTasksSeen = 0;
+unsigned g_ggcMeshTasksOverflow = 0;
+// MeshClass::Render call breakdown + DX8MeshRendererClass::Flush state.
+unsigned g_ggcMeshClassRender = 0;   // total MeshClass::Render entries
+unsigned g_ggcMeshClassHidden = 0;   // returned early (hidden)
+unsigned g_ggcMeshClassSortList = 0; // deferred to static sort list
+unsigned g_ggcMeshClassVisible = 0;  // reached the visible-render branch
+unsigned g_ggcFlushCalls = 0;        // DX8MeshRendererClass::Flush entries
+unsigned g_ggcFlushNoCamera = 0;     // Flush early-return on null camera
+// RTS3DScene render-object traversal breakdown.
+unsigned g_ggcRenderListSeen = 0;    // objects iterated in the main RenderList loop
+unsigned g_ggcReallyVisible = 0;     // passed robj->Is_Really_Visible()
+unsigned g_ggcRenderOneObject = 0;   // RTS3DScene::renderOneObject entries
+// Visibility_Check branch breakdown (why objects are marked (in)visible).
+unsigned g_ggcVisForced = 0;   // Is_Force_Visible
+unsigned g_ggcVisHidden = 0;   // Is_Hidden -> invisible
+unsigned g_ggcVisCulled = 0;   // Cull_Sphere culled it
+unsigned g_ggcVisPassed = 0;   // survived frustum cull
+unsigned g_ggcHlodSeen = 0;    // HLOD render objects present in the scene RenderList
+#endif
 
 // Defined in BgfxBackendTextures.cpp.
 bgfx::TextureFormat::Enum TranslateWW3DFormat(WW3DFormat fmt);
@@ -479,6 +623,29 @@ static void ResetFrameStats()
     const uint32_t nextFrame = g_stats.frameIndex + 1;
     std::memset(&g_stats, 0, sizeof(g_stats));
     g_stats.frameIndex = nextFrame;
+#if defined(__ANDROID__)
+    // Reset the global mesh-render diagnostic counters (defined at global scope
+    // above, before the anonymous namespace).
+    ::g_ggcMeshPolyRenders = 0;
+    ::g_ggcMeshSortedRenders = 0;
+    ::g_ggcTexCatRenders = 0;
+    ::g_ggcMeshTasksSeen = 0;
+    ::g_ggcMeshTasksOverflow = 0;
+    ::g_ggcMeshClassRender = 0;
+    ::g_ggcMeshClassHidden = 0;
+    ::g_ggcMeshClassSortList = 0;
+    ::g_ggcMeshClassVisible = 0;
+    ::g_ggcFlushCalls = 0;
+    ::g_ggcFlushNoCamera = 0;
+    ::g_ggcRenderListSeen = 0;
+    ::g_ggcReallyVisible = 0;
+    ::g_ggcRenderOneObject = 0;
+    ::g_ggcVisForced = 0;
+    ::g_ggcVisHidden = 0;
+    ::g_ggcVisCulled = 0;
+    ::g_ggcVisPassed = 0;
+    ::g_ggcHlodSeen = 0;
+#endif
 }
 
 struct BgfxDiagnosticFlags
@@ -499,6 +666,15 @@ static BgfxDiagnosticFlags GetBgfxDiagnosticFlags()
     flags.logStats = logStats != 0;
     flags.noSceneFramebuffer = noSceneFramebuffer != 0;
     flags.noPostFx = noPostFx != 0;
+#endif
+#if defined(__ANDROID__)
+    // TheSuperHackers @feature githubawn 21/06/2026 Android normally renders the 3D
+    // scene directly to the backbuffer (no scene framebuffer/composite). That path
+    // cannot downscale, so when the user selects a reduced render resolution we
+    // enable the scene framebuffer purely so the composite pass can upscale the
+    // smaller 3D render back to the full window. At native scale, keep the cheaper
+    // direct path.
+    flags.noSceneFramebuffer = (g_device.renderScale >= 0.999f);
 #endif
     return flags;
 }
@@ -557,6 +733,117 @@ static bool BgfxUseRenderThread()
     }
     return cached != 0;
 }
+
+// TheSuperHackers @performance githubawn 17/10/2026 On the Xbox One UWP D3D11 driver every
+// bgfx dynamic-buffer update is a map+copy that stalls on the previous copy from the same
+// staging buffer, and the engine issues ~200 small updates per frame (dynamic VB/IB ring
+// writes). bgfx applies all of a frame's buffer updates before any of its draws anyway, so
+// on UWP the updates are mirrored into a CPU copy per buffer and uploaded once per frame as
+// one dirty range (GgcFlushBufferUpdates, before bgfx::frame and before any destroy).
+#if defined(GGC_PLATFORM_UWP)
+#define GGC_COALESCE_BUFFER_UPDATES 1
+struct GgcBufferShadow
+{
+    std::vector<uint8_t> data;
+    uint32_t dirtyBegin = 0xffffffffu;
+    uint32_t dirtyEnd = 0;
+    uint32_t stride = 1;
+    uint16_t idx = 0;
+    bool isIndex = false;
+};
+static std::unordered_map<uint32_t, GgcBufferShadow> g_ggcBufferShadows;
+static std::vector<uint32_t> g_ggcPendingShadows;
+
+static inline uint32_t GgcShadowKey(bool isIndex, uint16_t idx)
+{
+    return (isIndex ? 0x10000u : 0u) | idx;
+}
+
+static void GgcForgetBufferShadow(bool isIndex, uint16_t idx)
+{
+    g_ggcBufferShadows.erase(GgcShadowKey(isIndex, idx));
+}
+
+// Mirror a write of size_bytes at byte_offset into the buffer's CPU copy and grow its
+// dirty range; the GPU upload happens in GgcFlushBufferUpdates. total_bytes is the bgfx
+// buffer's capacity (the grow-only dynamic buffers can be larger than the live engine count).
+static void GgcQueueBufferUpdate(bool isIndex, uint16_t idx, uint32_t stride, uint32_t total_bytes,
+                                 uint32_t byte_offset, const void * data, uint32_t size_bytes)
+{
+    GgcBufferShadow & sh = g_ggcBufferShadows[GgcShadowKey(isIndex, idx)];
+    if (sh.data.size() != total_bytes || sh.stride != stride)
+    {
+        sh.data.assign(total_bytes, 0);
+        sh.stride = stride;
+        sh.idx = idx;
+        sh.isIndex = isIndex;
+    }
+    std::memcpy(&sh.data[byte_offset], data, size_bytes);
+    if (sh.dirtyBegin == 0xffffffffu)
+    {
+        g_ggcPendingShadows.push_back(GgcShadowKey(isIndex, idx));
+    }
+    sh.dirtyBegin = std::min(sh.dirtyBegin, byte_offset);
+    sh.dirtyEnd = std::max(sh.dirtyEnd, byte_offset + size_bytes);
+}
+
+static void GgcFlushBufferUpdates()
+{
+    for (uint32_t key : g_ggcPendingShadows)
+    {
+        auto it = g_ggcBufferShadows.find(key);
+        if (it == g_ggcBufferShadows.end() || it->second.dirtyBegin == 0xffffffffu)
+        {
+            continue;
+        }
+        GgcBufferShadow & sh = it->second;
+        // Single-threaded, bgfx::frame() consumes the update before the engine can write this
+        // shadow again, so reference it instead of copying. With the bgfx render thread the frame
+        // is consumed while the engine writes the next one, so the update needs its own copy.
+        const bgfx::Memory * mem = BgfxUseRenderThread()
+            ? bgfx::copy(&sh.data[sh.dirtyBegin], sh.dirtyEnd - sh.dirtyBegin)
+            : bgfx::makeRef(&sh.data[sh.dirtyBegin], sh.dirtyEnd - sh.dirtyBegin);
+        if (sh.isIndex)
+        {
+            bgfx::DynamicIndexBufferHandle h = { sh.idx };
+            bgfx::update(h, sh.dirtyBegin / sh.stride, mem);
+        }
+        else
+        {
+            bgfx::DynamicVertexBufferHandle h = { sh.idx };
+            bgfx::update(h, sh.dirtyBegin / sh.stride, mem);
+        }
+        sh.dirtyBegin = 0xffffffffu;
+        sh.dirtyEnd = 0;
+    }
+    g_ggcPendingShadows.clear();
+}
+
+static void GgcQueueVertexBufferUpdate(const VertexBufferClass * vb, bgfx::DynamicVertexBufferHandle h,
+                                       uint32_t start_vertex, const void * data, uint32_t size_bytes)
+{
+    const uint32_t stride = vb->FVF_Info().Get_FVF_Size();
+    auto it = g_caches.vb.find(vb);
+    const uint32_t capacity = (it != g_caches.vb.end())
+        ? it->second.num_verts
+        : static_cast<uint32_t>(vb->Get_Vertex_Count());
+    GgcQueueBufferUpdate(false, h.idx, stride, capacity * stride, start_vertex * stride, data, size_bytes);
+}
+
+static void GgcQueueIndexBufferUpdate(const IndexBufferClass * ib, bgfx::DynamicIndexBufferHandle h,
+                                      uint32_t start_index, const void * data, uint32_t size_bytes)
+{
+    auto it = g_caches.ib.find(ib);
+    const uint32_t capacity = (it != g_caches.ib.end())
+        ? it->second.num_indices
+        : static_cast<uint32_t>(ib->Get_Index_Count());
+    GgcQueueBufferUpdate(true, h.idx, sizeof(uint16_t), capacity * static_cast<uint32_t>(sizeof(uint16_t)),
+                         start_index * static_cast<uint32_t>(sizeof(uint16_t)), data, size_bytes);
+}
+#else
+static inline void GgcFlushBufferUpdates() {}
+static inline void GgcForgetBufferShadow(bool, uint16_t) {}
+#endif
 
 static bool g_triangleDrawEnabled = true;
 
@@ -1081,8 +1368,56 @@ static void UpdateBgfxStatsLog()
     }
 }
 
+#if defined(__SWITCH__)
+// TheSuperHackers @build githubawn 03/07/2026 Route bgfx diagnostics to the emulator
+// guest log (svcOutputDebugString) so we can see the GLES/EGL backend bring-up on
+// Switch (stderr does not reach the emulator log).
+extern "C" unsigned int svcOutputDebugString(const char *, unsigned long);
+static inline void ggcSwLog(const char *m) { svcOutputDebugString(m, std::strlen(m)); }
+#endif
+
 static void LogFrameStats()
 {
+#if defined(__ANDROID__)
+    // TheSuperHackers @diagnostic bobtista 15/06/2026 Shell-map render triage:
+    // is the 3D scene being submitted (world/sorted>0) and composited, and is
+    // the offscreen scene framebuffer valid?
+    if (g_stats.frameIndex <= 5 || (g_stats.frameIndex % 120) == 0)
+    {
+        __android_log_print(4, "ggc-3d",
+            "f=%u world=%u ui=%u sorted=%u effect=%u water=%u base=%u comp=%u drawCalls=%u skipped=%u skipProg=%u skipBuf=%u meshRender=%u meshSorted=%u texCat=%u taskSeen=%u taskOvf=%u mcRender=%u mcHidden=%u mcSortList=%u mcVisible=%u flush=%u flushNoCam=%u rlSeen=%u rlVisible=%u r1Obj=%u visForced=%u visHidden=%u visCulled=%u visPassed=%u hlodSeen=%u sceneFB=%d sceneColor=%d noSceneFB=%d",
+            g_stats.frameIndex, g_stats.worldDraws, g_stats.uiDraws,
+            g_stats.sortedDraws, g_stats.effectDraws, g_stats.waterDraws,
+            g_stats.baseSubmits, g_stats.sceneCompositeSubmits,
+            g_stats.drawCalls, g_stats.skippedDraws,
+            g_stats.skipNoProgram, g_stats.skipNoBuffer,
+            g_ggcMeshPolyRenders, g_ggcMeshSortedRenders,
+            g_ggcTexCatRenders, g_ggcMeshTasksSeen, g_ggcMeshTasksOverflow,
+            g_ggcMeshClassRender, g_ggcMeshClassHidden, g_ggcMeshClassSortList,
+            g_ggcMeshClassVisible, g_ggcFlushCalls, g_ggcFlushNoCamera,
+            g_ggcRenderListSeen, g_ggcReallyVisible, g_ggcRenderOneObject,
+            g_ggcVisForced, g_ggcVisHidden, g_ggcVisCulled, g_ggcVisPassed, g_ggcHlodSeen,
+            (int)bgfx::isValid(g_device.sceneFB), (int)bgfx::isValid(g_device.sceneColor),
+            (int)GetBgfxDiagnosticFlags().noSceneFramebuffer);
+    }
+#endif
+#if defined(__SWITCH__)
+    // Shell-map render triage: are terrain (world/base) and water draws actually
+    // being submitted, or discarded/skipped? Emit the key counts every ~2s.
+    if (g_stats.frameIndex <= 5 || (g_stats.frameIndex % 120) == 0)
+    {
+        char b[256];
+        std::snprintf(b, sizeof(b),
+            "[ggc] 3d f=%u world=%u sorted=%u water=%u base=%u comp=%u draws=%u skipped=%u skipProg=%u skipBuf=%u sceneFB=%d noSceneFB=%d\n",
+            g_stats.frameIndex, g_stats.worldDraws, g_stats.sortedDraws,
+            g_stats.waterDraws, g_stats.baseSubmits, g_stats.sceneCompositeSubmits,
+            g_stats.drawCalls, g_stats.skippedDraws,
+            g_stats.skipNoProgram, g_stats.skipNoBuffer,
+            (int)bgfx::isValid(g_device.sceneFB),
+            (int)GetBgfxDiagnosticFlags().noSceneFramebuffer);
+        ggcSwLog(b);
+    }
+#endif
 #ifdef RTS_DEBUG
     // TheSuperHackers @perf bobtista 03/06/2026 Default off; opt in via
     // GGC_BGFX_PERF_LOG=1 (interval in frames, default 300). The big
@@ -1157,6 +1492,19 @@ public:
         std::fprintf(stderr, "[bgfx] FATAL code=%d at %s:%u: %s\n",
                      static_cast<int>(code), filePath ? filePath : "?", line, str ? str : "?");
         std::fflush(stderr);
+#if defined(__SWITCH__)
+        {
+            char b[512];
+            std::snprintf(b, sizeof(b), "[bgfx] FATAL code=%d %s:%u: %s\n",
+                          (int)code, filePath ? filePath : "?", line, str ? str : "?");
+            ggcSwLog(b);
+        }
+#endif
+#if defined(__ANDROID__)
+        // stderr does not reach logcat on Android; route bgfx fatals there.
+        __android_log_print(6, "ggc-bgfxlog", "FATAL code=%d %s:%u: %s",
+                            (int)code, filePath ? filePath : "?", line, str ? str : "?");
+#endif
     }
     void traceVargs(const char * filePath, uint16_t line, const char * format, va_list argList) override
     {
@@ -1183,11 +1531,35 @@ public:
         {
             return;
         }
+#if defined(__ANDROID__)
+        // TheSuperHackers @bugfix githubawn 21/06/2026 The Adreno GL driver spams a
+        // "Too much alias space, unable to rename" performance warning ~160x/sec via
+        // GL debug output. Formatting it and pushing it to logcat+stderr every frame
+        // dominated the main-menu CPU time. Cap total trace emissions so startup
+        // diagnostics are still captured but the per-frame flood stops. Fatals are
+        // handled separately in fatal() and are never suppressed.
+        static int s_traceCount = 0;
+        if (s_traceCount >= 250)
+        {
+            return;
+        }
+        ++s_traceCount;
+#endif
         char buf[512];
         std::vsnprintf(buf, sizeof(buf), format, argList);
         size_t len = std::strlen(buf);
         while (len > 0 && (buf[len-1] == '\n' || buf[len-1] == '\r')) { buf[--len] = '\0'; }
         std::fprintf(stderr, "[bgfx] %s:%u: %s\n", filePath ? filePath : "?", line, buf);
+#if defined(__SWITCH__)
+        {
+            char lb[600];
+            std::snprintf(lb, sizeof(lb), "[bgfx] %s:%u: %s\n", filePath ? filePath : "?", line, buf);
+            ggcSwLog(lb);
+        }
+#endif
+#if defined(__ANDROID__)
+        __android_log_print(4, "ggc-bgfxlog", "%s:%u: %s", filePath ? filePath : "?", line, buf);
+#endif
         // Flush important lines so they survive a subsequent crash; let the opt-in verbose
         // flood rely on normal stdio buffering to avoid a syscall per line.
         if (isImportant)
@@ -1467,6 +1839,17 @@ bgfx::RendererType::Enum GetConfiguredRendererType()
     return bgfx::RendererType::Metal;
 #elif defined(GGC_BGFX_RENDERER_VULKAN)
     return bgfx::RendererType::Vulkan;
+#elif defined(GGC_BGFX_RENDERER_GLSL)
+    return bgfx::RendererType::OpenGL;
+#elif defined(GGC_BGFX_DUAL_VK_GLES)
+    // TheSuperHackers @feature githubawn 22/06/2026 Prefer Vulkan on Android (lower GLES
+    // draw-call overhead); Initialize falls back to OpenGLES if Vulkan init fails or the device
+    // lacks a usable driver. GGC_BGFX_FORCE_GLES=1 forces the GLES path for A/B testing.
+    if (std::getenv("GGC_BGFX_FORCE_GLES") != nullptr)
+    {
+        return bgfx::RendererType::OpenGLES;
+    }
+    return bgfx::RendererType::Vulkan;
 #elif defined(GGC_BGFX_RENDERER_ESSL)
     return bgfx::RendererType::OpenGLES;
 #else
@@ -1474,8 +1857,22 @@ bgfx::RendererType::Enum GetConfiguredRendererType()
 #endif
 }
 
+#if defined(__SWITCH__)
+// libnx: the default NWindow is the main display surface switch-mesa/EGL render to.
+extern "C" void *nwindowGetDefault(void);
+#endif
+
 void *GetNativeWindowHandle(void *window)
 {
+#if defined(__SWITCH__)
+    // TheSuperHackers @feature githubawn 03/07/2026 On Switch bgfx renders via the
+    // OpenGL ES backend on switch-mesa. Its EGL glcontext creates an EGL window surface
+    // from this native window handle; libnx's default NWindow is that surface. SDL's
+    // Switch video driver does not create its own GL context (we never call
+    // SDL_GL_CreateContext), so bgfx owns the single default NWindow with no conflict.
+    (void)window;
+    return nwindowGetDefault();
+#endif
     if (window == NULL)
     {
         return NULL;
@@ -1498,15 +1895,36 @@ void *GetNativeWindowHandle(void *window)
     // driver in AGCDeserializedReply during pipeline-state compile.
     // GGC_MACOS_USE_NSWINDOW=1 forces the legacy NSWindow path so we
     // can A/B-test which form the local Apple Silicon variant prefers.
+    // TheSuperHackers @feature githubawn 28/06/2026 The OpenGL backend creates its
+    // own NSOpenGLContext on the Cocoa window's contentView, so it must receive the
+    // NSWindow, NOT the CAMetalLayer (handing it the layer would leave bgfx with no
+    // GL drawable -> blank screen). Fall through to the SDL_PROP_WINDOW_COCOA_WINDOW
+    // path below for GL; Metal/MoltenVK keep using the CAMetalLayer.
+#if !defined(GGC_BGFX_RENDERER_GLSL)
     if (::TheSDL3MetalLayer != NULL && !GgcFlags::Enabled(GgcFlag_MacosUseNsWindow))
     {
         return ::TheSDL3MetalLayer;
     }
 #endif
+#endif
     SDL_Window *sdlWindow = static_cast<SDL_Window *>(window);
     SDL_PropertiesID props = SDL_GetWindowProperties(sdlWindow);
 #if defined(__APPLE__)
     void *nativeWindow = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, NULL);
+    if (nativeWindow != NULL)
+    {
+        return nativeWindow;
+    }
+#elif defined(GGC_PLATFORM_UWP)
+    // TheSuperHackers @build githubawn 16/10/2026 UWP (Xbox) has no HWND; bgfx's WinRT
+    // path takes the CoreWindow (IInspectable*) and creates a CoreWindow swap chain.
+    void *nativeWindow = SDL_GetPointerProperty(props, "SDL.window.winrt.window", NULL);
+    if (nativeWindow != NULL)
+    {
+        return nativeWindow;
+    }
+#elif defined(__ANDROID__)
+    void *nativeWindow = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, NULL);
     if (nativeWindow != NULL)
     {
         return nativeWindow;
@@ -2430,6 +2848,40 @@ void W3DMatrix4ToBgfx(const Matrix4x4 & m, float * out)
     out[3]  = m[3][0]; out[7]  = m[3][1]; out[11] = m[3][2]; out[15] = m[3][3];
 }
 
+// TheSuperHackers @bugfix bobtista 15/06/2026 The engine builds a Direct3D
+// projection (clip-space Z in [0,w] -> NDC [0,1]). OpenGL/GLES clip-space Z is
+// [-w,w] -> NDC [-1,1]. bgfx exposes this via getCaps()->homogeneousDepth. When
+// the D3D projection is used unmodified on GLES, depth values are wrong for ALL
+// 3D geometry (terrain/units/effects/water) and most of it depth-fails, so only
+// scattered fragments survive. Remap the Z row from [0,1] to [-1,1] on
+// homogeneous-depth backends: z' = 2*z - w. Column-major: z-row = {2,6,10,14},
+// w-row = {3,7,11,15}.
+// TheSuperHackers @bugfix githubawn 28/06/2026 Only remap when the backend
+// actually uses OpenGL-style homogeneous depth (NDC z in [-1,1]). Metal,
+// Vulkan and D3D report homogeneousDepth=false and already want the engine's
+// native D3D [0,1] projection; remapping there shoves the near half of the
+// depth range below the near-clip plane (the macOS/iOS "shatter").
+// Android keeps its exact prior behavior (always remap, GLES or Vulkan).
+// Other platforms (Windows, UWP, Linux, Emscripten) keep the unmodified
+// projection the trunk renderer was built and verified with.
+static void AdjustProjForBgfxDepth(float * p)
+{
+#if defined(__ANDROID__) || defined(__APPLE__) || defined(__SWITCH__)
+#if !defined(__ANDROID__)
+    if (!bgfx::getCaps()->homogeneousDepth)
+    {
+        return;
+    }
+#endif
+    p[2]  = 2.0f * p[2]  - p[3];
+    p[6]  = 2.0f * p[6]  - p[7];
+    p[10] = 2.0f * p[10] - p[11];
+    p[14] = 2.0f * p[14] - p[15];
+#else
+    (void)p;
+#endif
+}
+
 // W3D Matrix3D stores Vector4 Row[3] - the bottom row is implicitly
 // (0,0,0,1). Same transpose convention as Matrix4x4 but the missing
 // row needs to be filled in.
@@ -2687,6 +3139,14 @@ static float GetSceneRenderScale()
 #endif
     if (scale < 1.0f) { scale = 1.0f; }
     if (scale > 2.0f) { scale = 2.0f; }
+    // TheSuperHackers @feature githubawn 21/06/2026 A runtime render-resolution scale below
+    // native (GGC_BgfxSetRenderScale, Options menu) downscales the 3D scene instead; the
+    // composite upscales it to the window. At the default 1.0 the supersampling scale above
+    // applies unchanged.
+    if (g_device.renderScale < 1.0f)
+    {
+        scale = g_device.renderScale;
+    }
     return scale;
 }
 
@@ -4337,12 +4797,69 @@ void BgfxBackend::Initialize(void * hwnd, int /*width*/, int /*height*/)
 
     if (!bgfx::init(initArgs))
     {
-        WWDEBUG_SAY(("[BgfxBackend] bgfx::init FAILED. Backend will remain dormant."));
-        g_device.window = nullptr;
-        return;
+#if defined(GGC_BGFX_DUAL_VK_GLES)
+        // TheSuperHackers @feature githubawn 22/06/2026 Vulkan init can fail on devices with no
+        // (or a broken) Vulkan driver. Fall back to OpenGLES, which every Android 8+/arm64 device
+        // we support has. The essl shader blobs are embedded alongside the spirv ones for exactly
+        // this case.
+        if (initArgs.type == bgfx::RendererType::Vulkan)
+        {
+            WWDEBUG_SAY(("[BgfxBackend] Vulkan init failed; falling back to OpenGLES."));
+            initArgs.type = bgfx::RendererType::OpenGLES;
+            if (!bgfx::init(initArgs))
+            {
+                WWDEBUG_SAY(("[BgfxBackend] bgfx::init FAILED (GLES fallback too). Backend dormant."));
+                g_device.window = nullptr;
+                return;
+            }
+        }
+        else
+#endif
+        {
+            WWDEBUG_SAY(("[BgfxBackend] bgfx::init FAILED. Backend will remain dormant."));
+#if defined(__SWITCH__)
+            ggcSwLog("[ggc] bgfx::init FAILED -> backend dormant (no rendering)\n");
+#endif
+            g_device.window = nullptr;
+            return;
+        }
     }
 
     g_device.initialized = true;
+#if defined(__SWITCH__)
+    {
+        char b[128];
+        std::snprintf(b, sizeof(b), "[ggc] bgfx::init OK renderer=%s nwh=%p\n",
+                      bgfx::getRendererName(bgfx::getRendererType()), pd.nwh);
+        ggcSwLog(b);
+    }
+    {
+        // Log which texture/RT formats switch-mesa actually reports, to see which
+        // ones the terrain/water/RT paths use that are unsupported (emulator format=247).
+        const bgfx::Caps *c = bgfx::getCaps();
+        auto t2d = [&](bgfx::TextureFormat::Enum f) {
+            return (c->formats[f] & BGFX_CAPS_FORMAT_TEXTURE_2D) ? 1 : 0; };
+        auto rt = [&](bgfx::TextureFormat::Enum f) {
+            return (c->formats[f] & BGFX_CAPS_FORMAT_TEXTURE_FRAMEBUFFER) ? 1 : 0; };
+        char b[320];
+        std::snprintf(b, sizeof(b),
+            "[ggc] fmt2d RGBA8=%d BGRA8=%d R5G6B5=%d BGRA4=%d RGB5A1=%d BC1=%d BC2=%d BC3=%d | rt RGBA8=%d D24S8=%d D32F=%d D16=%d\n",
+            t2d(bgfx::TextureFormat::RGBA8), t2d(bgfx::TextureFormat::BGRA8),
+            t2d(bgfx::TextureFormat::R5G6B5), t2d(bgfx::TextureFormat::BGRA4),
+            t2d(bgfx::TextureFormat::RGB5A1), t2d(bgfx::TextureFormat::BC1),
+            t2d(bgfx::TextureFormat::BC2), t2d(bgfx::TextureFormat::BC3),
+            rt(bgfx::TextureFormat::RGBA8), rt(bgfx::TextureFormat::D24S8),
+            rt(bgfx::TextureFormat::D32F), rt(bgfx::TextureFormat::D16));
+        ggcSwLog(b);
+    }
+#endif
+
+#if defined(GGC_BGFX_DUAL_VK_GLES)
+    // Select the shader blob set matching whatever renderer actually initialized.
+    g_ggcUseVulkanShaders = (bgfx::getRendererType() == bgfx::RendererType::Vulkan);
+    __android_log_print(4, "ggc-perf", "bgfx renderer=%s useVulkanShaders=%d",
+        bgfx::getRendererName(bgfx::getRendererType()), (int)g_ggcUseVulkanShaders);
+#endif
 
     static const bool s_exitHandlerRegistered = (std::atexit(MarkExitTeardownActive) == 0);
     (void)s_exitHandlerRegistered;
@@ -4568,39 +5085,39 @@ void BgfxBackend::Initialize(void * hwnd, int /*width*/, int /*height*/)
     BuildStandardVertexLayouts();
 
     g_device.passthroughProgram = CreateShaderProgram(
-        GGC_BGFX_SHADER(vs_passthrough), sizeof(GGC_BGFX_SHADER(vs_passthrough)), "vs_passthrough",
-        GGC_BGFX_SHADER(fs_passthrough), sizeof(GGC_BGFX_SHADER(fs_passthrough)), "fs_passthrough");
+        GGC_SHADER_DATA(vs_passthrough), GGC_SHADER_SIZE(vs_passthrough), "vs_passthrough",
+        GGC_SHADER_DATA(fs_passthrough), GGC_SHADER_SIZE(fs_passthrough), "fs_passthrough");
 
     g_device.sceneCompositeProgram = CreateShaderProgram(
-        GGC_BGFX_SHADER(vs_scene_composite), sizeof(GGC_BGFX_SHADER(vs_scene_composite)), "vs_scene_composite",
-        GGC_BGFX_SHADER(fs_scene_composite), sizeof(GGC_BGFX_SHADER(fs_scene_composite)), "fs_scene_composite");
+        GGC_SHADER_DATA(vs_scene_composite), GGC_SHADER_SIZE(vs_scene_composite), "vs_scene_composite",
+        GGC_SHADER_DATA(fs_scene_composite), GGC_SHADER_SIZE(fs_scene_composite), "fs_scene_composite");
     g_device.bloomBrightProgram = CreateShaderProgram(
-        GGC_BGFX_SHADER(vs_scene_composite), sizeof(GGC_BGFX_SHADER(vs_scene_composite)), "vs_scene_composite",
-        GGC_BGFX_SHADER(fs_bloom_bright), sizeof(GGC_BGFX_SHADER(fs_bloom_bright)), "fs_bloom_bright");
+        GGC_SHADER_DATA(vs_scene_composite), GGC_SHADER_SIZE(vs_scene_composite), "vs_scene_composite",
+        GGC_SHADER_DATA(fs_bloom_bright), GGC_SHADER_SIZE(fs_bloom_bright), "fs_bloom_bright");
     g_device.bloomBlurProgram = CreateShaderProgram(
-        GGC_BGFX_SHADER(vs_scene_composite), sizeof(GGC_BGFX_SHADER(vs_scene_composite)), "vs_scene_composite",
-        GGC_BGFX_SHADER(fs_bloom_blur), sizeof(GGC_BGFX_SHADER(fs_bloom_blur)), "fs_bloom_blur");
+        GGC_SHADER_DATA(vs_scene_composite), GGC_SHADER_SIZE(vs_scene_composite), "vs_scene_composite",
+        GGC_SHADER_DATA(fs_bloom_blur), GGC_SHADER_SIZE(fs_bloom_blur), "fs_bloom_blur");
     g_device.ssaoProgram = CreateShaderProgram(
-        GGC_BGFX_SHADER(vs_scene_composite), sizeof(GGC_BGFX_SHADER(vs_scene_composite)), "vs_scene_composite",
-        GGC_BGFX_SHADER(fs_ssao), sizeof(GGC_BGFX_SHADER(fs_ssao)), "fs_ssao");
+        GGC_SHADER_DATA(vs_scene_composite), GGC_SHADER_SIZE(vs_scene_composite), "vs_scene_composite",
+        GGC_SHADER_DATA(fs_ssao), GGC_SHADER_SIZE(fs_ssao), "fs_ssao");
     g_device.copyProgram = CreateShaderProgram(
-        GGC_BGFX_SHADER(vs_scene_composite), sizeof(GGC_BGFX_SHADER(vs_scene_composite)), "vs_scene_composite",
-        GGC_BGFX_SHADER(fs_copy), sizeof(GGC_BGFX_SHADER(fs_copy)), "fs_copy");
+        GGC_SHADER_DATA(vs_scene_composite), GGC_SHADER_SIZE(vs_scene_composite), "vs_scene_composite",
+        GGC_SHADER_DATA(fs_copy), GGC_SHADER_SIZE(fs_copy), "fs_copy");
     g_device.sceneDepthProgram = CreateShaderProgram(
-        GGC_BGFX_SHADER(vs_scene_depth), sizeof(GGC_BGFX_SHADER(vs_scene_depth)), "vs_scene_depth",
-        GGC_BGFX_SHADER(fs_scene_depth), sizeof(GGC_BGFX_SHADER(fs_scene_depth)), "fs_scene_depth");
+        GGC_SHADER_DATA(vs_scene_depth), GGC_SHADER_SIZE(vs_scene_depth), "vs_scene_depth",
+        GGC_SHADER_DATA(fs_scene_depth), GGC_SHADER_SIZE(fs_scene_depth), "fs_scene_depth");
     g_device.sceneDepthInstancedProgram = CreateShaderProgram(
-        GGC_BGFX_SHADER(vs_scene_depth_instanced), sizeof(GGC_BGFX_SHADER(vs_scene_depth_instanced)), "vs_scene_depth_instanced",
-        GGC_BGFX_SHADER(fs_scene_depth), sizeof(GGC_BGFX_SHADER(fs_scene_depth)), "fs_scene_depth");
+        GGC_SHADER_DATA(vs_scene_depth_instanced), GGC_SHADER_SIZE(vs_scene_depth_instanced), "vs_scene_depth_instanced",
+        GGC_SHADER_DATA(fs_scene_depth), GGC_SHADER_SIZE(fs_scene_depth), "fs_scene_depth");
     g_device.shadowCasterProgram = CreateShaderProgram(
-        GGC_BGFX_SHADER(vs_shadow_caster), sizeof(GGC_BGFX_SHADER(vs_shadow_caster)), "vs_shadow_caster",
-        GGC_BGFX_SHADER(fs_shadow_caster), sizeof(GGC_BGFX_SHADER(fs_shadow_caster)), "fs_shadow_caster");
+        GGC_SHADER_DATA(vs_shadow_caster), GGC_SHADER_SIZE(vs_shadow_caster), "vs_shadow_caster",
+        GGC_SHADER_DATA(fs_shadow_caster), GGC_SHADER_SIZE(fs_shadow_caster), "fs_shadow_caster");
     g_device.shadowCasterInstancedProgram = CreateShaderProgram(
-        GGC_BGFX_SHADER(vs_shadow_caster_instanced), sizeof(GGC_BGFX_SHADER(vs_shadow_caster_instanced)), "vs_shadow_caster_instanced",
-        GGC_BGFX_SHADER(fs_shadow_caster), sizeof(GGC_BGFX_SHADER(fs_shadow_caster)), "fs_shadow_caster");
+        GGC_SHADER_DATA(vs_shadow_caster_instanced), GGC_SHADER_SIZE(vs_shadow_caster_instanced), "vs_shadow_caster_instanced",
+        GGC_SHADER_DATA(fs_shadow_caster), GGC_SHADER_SIZE(fs_shadow_caster), "fs_shadow_caster");
     g_device.smudgeProgram = CreateShaderProgram(
-        GGC_BGFX_SHADER(vs_smudge), sizeof(GGC_BGFX_SHADER(vs_smudge)), "vs_smudge",
-        GGC_BGFX_SHADER(fs_smudge), sizeof(GGC_BGFX_SHADER(fs_smudge)), "fs_smudge");
+        GGC_SHADER_DATA(vs_smudge), GGC_SHADER_SIZE(vs_smudge), "vs_smudge",
+        GGC_SHADER_DATA(fs_smudge), GGC_SHADER_SIZE(fs_smudge), "fs_smudge");
     ApplySceneFramebufferToViews();
 
     // Fullscreen-clear VB. Single triangle in NDC that covers the entire
@@ -4702,24 +5219,24 @@ void BgfxBackend::Initialize(void * hwnd, int /*width*/, int /*height*/)
         bgfx::copy(kTransparentPixel, sizeof(kTransparentPixel)));
 
     g_device.uberProgram = CreateShaderProgram(
-        GGC_BGFX_SHADER(vs_uber), sizeof(GGC_BGFX_SHADER(vs_uber)), "vs_uber",
-        GGC_BGFX_SHADER(fs_uber), sizeof(GGC_BGFX_SHADER(fs_uber)), "fs_uber");
+        GGC_SHADER_DATA(vs_uber), GGC_SHADER_SIZE(vs_uber), "vs_uber",
+        GGC_SHADER_DATA(fs_uber), GGC_SHADER_SIZE(fs_uber), "fs_uber");
 
     g_device.uberInstancedProgram = CreateShaderProgram(
-        GGC_BGFX_SHADER(vs_uber_instanced), sizeof(GGC_BGFX_SHADER(vs_uber_instanced)), "vs_uber_instanced",
-        GGC_BGFX_SHADER(fs_uber), sizeof(GGC_BGFX_SHADER(fs_uber)), "fs_uber");
+        GGC_SHADER_DATA(vs_uber_instanced), GGC_SHADER_SIZE(vs_uber_instanced), "vs_uber_instanced",
+        GGC_SHADER_DATA(fs_uber), GGC_SHADER_SIZE(fs_uber), "fs_uber");
 
     g_device.sortedArrayProgram = CreateShaderProgram(
-        GGC_BGFX_SHADER(vs_uber_array), sizeof(GGC_BGFX_SHADER(vs_uber_array)), "vs_uber_array",
-        GGC_BGFX_SHADER(fs_uber_array), sizeof(GGC_BGFX_SHADER(fs_uber_array)), "fs_uber_array");
+        GGC_SHADER_DATA(vs_uber_array), GGC_SHADER_SIZE(vs_uber_array), "vs_uber_array",
+        GGC_SHADER_DATA(fs_uber_array), GGC_SHADER_SIZE(fs_uber_array), "fs_uber_array");
 
     // TheSuperHackers @performance bobtista Frame-constant uber variant: same vs_uber, but the
     // fragment shader reads the global per-frame constants (sun/point shadow + scene ambient)
     // from frameConstTexture rather than per-draw uniforms, shrinking the fs_uber constant
     // buffer by ~352B/draw so heavy scenes stay under bgfx's fixed 8MB Metal uniform arena.
     g_device.uberFrameConstProgram = CreateShaderProgram(
-        GGC_BGFX_SHADER(vs_uber), sizeof(GGC_BGFX_SHADER(vs_uber)), "vs_uber",
-        GGC_BGFX_SHADER(fs_uber_frameconst), sizeof(GGC_BGFX_SHADER(fs_uber_frameconst)), "fs_uber_frameconst");
+        GGC_SHADER_DATA(vs_uber), GGC_SHADER_SIZE(vs_uber), "vs_uber",
+        GGC_SHADER_DATA(fs_uber_frameconst), GGC_SHADER_SIZE(fs_uber_frameconst), "fs_uber_frameconst");
     g_uniforms.sFrameConst = bgfx::createUniform("s_frameConst", bgfx::UniformType::Sampler);
     g_device.frameConstTexture = bgfx::createTexture2D(
         kFrameConstTexels, 1, false, 1,
@@ -4727,16 +5244,16 @@ void BgfxBackend::Initialize(void * hwnd, int /*width*/, int /*height*/)
         BGFX_TEXTURE_NONE | BGFX_SAMPLER_POINT | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP);
 
     g_device.treeProgram = CreateShaderProgram(
-        GGC_BGFX_SHADER(vs_trees), sizeof(GGC_BGFX_SHADER(vs_trees)), "vs_trees",
-        GGC_BGFX_SHADER(fs_uber), sizeof(GGC_BGFX_SHADER(fs_uber)), "fs_uber");
+        GGC_SHADER_DATA(vs_trees), GGC_SHADER_SIZE(vs_trees), "vs_trees",
+        GGC_SHADER_DATA(fs_uber), GGC_SHADER_SIZE(fs_uber), "fs_uber");
 
     g_device.shadowVolumeProgram = CreateShaderProgram(
-        GGC_BGFX_SHADER(vs_shadow_volume), sizeof(GGC_BGFX_SHADER(vs_shadow_volume)), "vs_shadow_volume",
-        GGC_BGFX_SHADER(fs_shadow_volume), sizeof(GGC_BGFX_SHADER(fs_shadow_volume)), "fs_shadow_volume");
+        GGC_SHADER_DATA(vs_shadow_volume), GGC_SHADER_SIZE(vs_shadow_volume), "vs_shadow_volume",
+        GGC_SHADER_DATA(fs_shadow_volume), GGC_SHADER_SIZE(fs_shadow_volume), "fs_shadow_volume");
 
     g_device.shadowApplyProgram = CreateShaderProgram(
-        GGC_BGFX_SHADER(vs_shadow_apply), sizeof(GGC_BGFX_SHADER(vs_shadow_apply)), "vs_shadow_apply",
-        GGC_BGFX_SHADER(fs_shadow_apply), sizeof(GGC_BGFX_SHADER(fs_shadow_apply)), "fs_shadow_apply");
+        GGC_SHADER_DATA(vs_shadow_apply), GGC_SHADER_SIZE(vs_shadow_apply), "vs_shadow_apply",
+        GGC_SHADER_DATA(fs_shadow_apply), GGC_SHADER_SIZE(fs_shadow_apply), "fs_shadow_apply");
     g_uniforms.uShadowColor = bgfx::createUniform("u_shadowColor", bgfx::UniformType::Vec4);
     g_uniforms.uShadowBias  = bgfx::createUniform("u_shadowBias",  bgfx::UniformType::Vec4);
     g_uniforms.uPostParams = bgfx::createUniform("u_postParams", bgfx::UniformType::Vec4);
@@ -4847,6 +5364,7 @@ void BgfxBackend::Shutdown()
         const int kShutdownDrainFrames = 4;
         for (int prep = 0; prep < kShutdownDrainFrames; ++prep)
         {
+            GgcFlushBufferUpdates();
             bgfx::frame();
         }
 
@@ -4964,6 +5482,7 @@ void BgfxBackend::Shutdown()
         g_caches.framebuffer.clear();
         // Cached engine buffers. Destroy before bgfx::shutdown
         // so the handles outlive nothing.
+        GgcFlushBufferUpdates();
         for (auto & kv : g_caches.vb)
         {
             if (bgfx::isValid(kv.second.handle))
@@ -5102,6 +5621,7 @@ void BgfxBackend::Shutdown()
         const int kShutdownFlushFrames = 4;
         for (int flush = 0; flush < kShutdownFlushFrames; ++flush)
         {
+            GgcFlushBufferUpdates();
             bgfx::frame();
         }
         bgfx::shutdown();
@@ -5763,6 +6283,18 @@ void BgfxBackend::Begin_Scene()
     {
         return;
     }
+#if defined(__SWITCH__)
+    {
+        static unsigned s_ggcBegin = 0;
+        if (s_ggcBegin <= 3 || (s_ggcBegin % 30) == 0)
+        {
+            char b[64];
+            std::snprintf(b, sizeof(b), "[ggc] Begin_Scene #%u\n", s_ggcBegin);
+            ggcSwLog(b);
+        }
+        ++s_ggcBegin;
+    }
+#endif
 
     ResolveTimingEnv();
     long long prev_t3 = g_timing.t3_post_frame;
@@ -5797,10 +6329,12 @@ void BgfxBackend::Begin_Scene()
     g_caches.deferredDestroysPrev.clear();
     // TheSuperHackers @bugfix bobtista 02/06/2026 Same one-frame-delayed destroy for
     // dynamic VB/IB handles orphaned by a resize last frame.
+    GgcFlushBufferUpdates();
     for (auto & h : g_caches.deferredDestroyVBPrev)
     {
         if (bgfx::isValid(h))
         {
+            GgcForgetBufferShadow(false, h.idx);
             bgfx::destroy(h);
         }
     }
@@ -5809,6 +6343,7 @@ void BgfxBackend::Begin_Scene()
     {
         if (bgfx::isValid(h))
         {
+            GgcForgetBufferShadow(true, h.idx);
             bgfx::destroy(h);
         }
     }
@@ -6267,7 +6802,67 @@ void BgfxBackend::End_Scene(bool /*flip_frame*/)
     if (TimingActive()) {
         g_timing.t2_pre_frame = QueryNow();
     }
+#if defined(__ANDROID__)
+    // TheSuperHackers @diagnostic ggc-perf: frame CPU/GPU time + draw count, to trace
+    // the main-menu slowdown after enabling the scene framebuffer for render scaling.
+    {
+        static int s_pf = 0;
+        const bgfx::Stats * st = bgfx::getStats();
+        if (st != nullptr && (++s_pf % 60 == 0))
+        {
+            const double cpuMs = st->cpuTimerFreq > 0
+                ? (double)st->cpuTimeFrame * 1000.0 / (double)st->cpuTimerFreq : -1.0;
+            const double gpuMs = st->gpuTimerFreq > 0
+                ? (double)(st->gpuTimeEnd - st->gpuTimeBegin) * 1000.0 / (double)st->gpuTimerFreq : -1.0;
+            const double submitMs = st->cpuTimerFreq > 0
+                ? (double)(st->cpuTimeEnd - st->cpuTimeBegin) * 1000.0 / (double)st->cpuTimerFreq : -1.0;
+            __android_log_print(4, "ggc-perf",
+                "scale=%.2f noSceneFB=%d numDraw=%u cpuFrameMs=%.2f submitMs=%.2f gpuFrameMs=%.2f world=%u ui=%u",
+                (double)g_device.renderScale, (int)GetBgfxDiagnosticFlags().noSceneFramebuffer,
+                (unsigned)st->numDraw, cpuMs, submitMs, gpuMs,
+                (unsigned)g_stats.worldDraws, (unsigned)g_stats.uiDraws);
+        }
+    }
+    // TheSuperHackers @diagnostic Time bgfx::frame() itself. If this dominates, the
+    // VeryHigh cost is GL/GPU, not engine CPU render-traversal.
+    {
+        struct timespec _t0; clock_gettime(CLOCK_MONOTONIC, &_t0);
+        GgcFlushBufferUpdates();
+        bgfx::frame();
+        struct timespec _t1; clock_gettime(CLOCK_MONOTONIC, &_t1);
+        static int s_ff = 0; static double acc = 0.0;
+        acc += (double)(_t1.tv_sec - _t0.tv_sec) * 1000.0 + (double)(_t1.tv_nsec - _t0.tv_nsec) / 1.0e6;
+        if (++s_ff % 60 == 0)
+        {
+            const bgfx::Stats * st = bgfx::getStats();
+            const double waitR = (st && st->cpuTimerFreq > 0)
+                ? (double)st->waitRender * 1000.0 / (double)st->cpuTimerFreq : -1.0;
+            __android_log_print(4, "ggc-perf", "bgfx::frame() avg=%.1fms waitRender=%.1fms", acc / 60.0, waitR);
+            acc = 0.0;
+        }
+    }
+#elif defined(__SWITCH__)
+    // TheSuperHackers @diagnostic githubawn 03/07/2026 Confirm the present loop runs
+    // and the engine submits draws. If this never logs, the engine is stalled before
+    // rendering; if it logs with numDraw==0, nothing is being drawn to the backbuffer.
+    {
+        static unsigned s_ggcFrames = 0;
+        ++s_ggcFrames;
+        GgcFlushBufferUpdates();
+        bgfx::frame();
+        if (s_ggcFrames <= 3 || (s_ggcFrames % 30) == 0)
+        {
+            const bgfx::Stats *st = bgfx::getStats();
+            char b[128];
+            std::snprintf(b, sizeof(b), "[ggc] present frame=%u numDraw=%u backbufW=%u\n",
+                          s_ggcFrames, (unsigned)(st ? st->numDraw : 0), (unsigned)(st ? st->width : 0));
+            ggcSwLog(b);
+        }
+    }
+#else
+    GgcFlushBufferUpdates();
     bgfx::frame();
+#endif
     // TheSuperHackers @perf bobtista 24/06/2026 Feed per-frame bgfx stats to
     // Tracy plots so CPU time, draw count, and GPU time share one timeline.
 #if defined(RTS_PROFILE_TRACY)
@@ -7320,6 +7915,7 @@ bgfx::DynamicVertexBufferHandle EnsureDynamicVertexBuffer(const VertexBufferClas
         return BGFX_INVALID_HANDLE;
     }
     bgfx::DynamicVertexBufferHandle h = bgfx::createDynamicVertexBuffer(num_verts, layout);
+    GgcForgetBufferShadow(false, h.idx);
     g_stats.dynamicVbAllocations++;
     BgfxVbCacheEntry e{ h, num_verts, engine_stride };
     g_caches.vb[vb] = e;
@@ -7355,6 +7951,7 @@ bgfx::DynamicIndexBufferHandle EnsureDynamicIndexBuffer(const IndexBufferClass *
         return BGFX_INVALID_HANDLE;
     }
     bgfx::DynamicIndexBufferHandle h = bgfx::createDynamicIndexBuffer(num_indices);
+    GgcForgetBufferShadow(true, h.idx);
     g_stats.dynamicIbAllocations++;
     BgfxIbCacheEntry e{ h, num_indices };
     g_caches.ib[ib] = e;
@@ -7440,9 +8037,13 @@ void FlushPendingVertexRangeUpload(const VertexBufferClass * vb)
     const uint32_t start_vertex = start_byte / stride;
     const uint32_t size_bytes = end_byte - start_byte;
     const unsigned char * src = vb->Peek_CPU_Buffer_Data() + start_byte;
+#if defined(GGC_COALESCE_BUFFER_UPDATES)
+    GgcQueueVertexBufferUpdate(vb, h, start_vertex, src, size_bytes);
+#else
     const bgfx::Memory * mem = bgfx::copy(src, size_bytes);
     LogBgfxBufferUpdate("vb-range-flush", vb, src, start_vertex, size_bytes, h.idx, mem);
     bgfx::update(h, start_vertex, mem);
+#endif
 }
 
 void FlushPendingIndexRangeUpload(const IndexBufferClass * ib)
@@ -7496,9 +8097,13 @@ void FlushPendingIndexRangeUpload(const IndexBufferClass * ib)
     const uint32_t start_index = start_byte / index_size;
     const uint32_t size_bytes = end_byte - start_byte;
     const unsigned char * src = ib->Peek_CPU_Buffer_Data() + start_byte;
+#if defined(GGC_COALESCE_BUFFER_UPDATES)
+    GgcQueueIndexBufferUpdate(ib, h, start_index, src, size_bytes);
+#else
     const bgfx::Memory * mem = bgfx::copy(src, size_bytes);
     LogBgfxBufferUpdate("ib-range-flush", ib, src, start_index, size_bytes, h.idx, mem);
     bgfx::update(h, start_index, mem);
+#endif
 }
 }
 
@@ -7547,9 +8152,13 @@ void BgfxBackend::Upload_Vertex_Buffer_Data(const VertexBufferClass * vb,
     {
         return;
     }
+#if defined(GGC_COALESCE_BUFFER_UPDATES)
+    GgcQueueVertexBufferUpdate(vb, h, 0, data, size_bytes);
+#else
     const bgfx::Memory * mem = bgfx::copy(data, size_bytes);
     LogBgfxBufferUpdate("vb-full", vb, data, 0, size_bytes, h.idx, mem);
     bgfx::update(h, 0, mem);
+#endif
 }
 
 void BgfxBackend::Upload_Index_Buffer_Data(const IndexBufferClass * ib,
@@ -7582,9 +8191,13 @@ void BgfxBackend::Upload_Index_Buffer_Data(const IndexBufferClass * ib,
     {
         return;
     }
+#if defined(GGC_COALESCE_BUFFER_UPDATES)
+    GgcQueueIndexBufferUpdate(ib, h, 0, data, size_bytes);
+#else
     const bgfx::Memory * mem = bgfx::copy(data, size_bytes);
     LogBgfxBufferUpdate("ib-full", ib, data, 0, size_bytes, h.idx, mem);
     bgfx::update(h, 0, mem);
+#endif
 }
 
 void BgfxBackend::Upload_Vertex_Buffer_Sub_Range(const VertexBufferClass * vb,
@@ -7645,9 +8258,13 @@ void BgfxBackend::Upload_Vertex_Buffer_Sub_Range(const VertexBufferClass * vb,
         LogBgfxBufferUpdate("vb-range-defer", vb, data, start_vertex, size_bytes, h.idx, nullptr);
         return;
     }
+#if defined(GGC_COALESCE_BUFFER_UPDATES)
+    GgcQueueVertexBufferUpdate(vb, h, start_vertex, data, size_bytes);
+#else
     const bgfx::Memory * mem = bgfx::copy(data, size_bytes);
     LogBgfxBufferUpdate("vb-range", vb, data, start_vertex, size_bytes, h.idx, mem);
     bgfx::update(h, start_vertex, mem);
+#endif
 
 }
 
@@ -7697,9 +8314,13 @@ void BgfxBackend::Upload_Index_Buffer_Sub_Range(const IndexBufferClass * ib,
         LogBgfxBufferUpdate("ib-range-defer", ib, data, start_index, size_bytes, h.idx, nullptr);
         return;
     }
+#if defined(GGC_COALESCE_BUFFER_UPDATES)
+    GgcQueueIndexBufferUpdate(ib, h, start_index, data, size_bytes);
+#else
     const bgfx::Memory * mem = bgfx::copy(data, size_bytes);
     LogBgfxBufferUpdate("ib-range", ib, data, start_index, size_bytes, h.idx, mem);
     bgfx::update(h, start_index, mem);
+#endif
 
 }
 
@@ -8616,9 +9237,26 @@ static bool ShouldHideMissingTextureForCurrentDraw(uint64_t state)
     // diagnosable. In blended/sorted/effect passes, the checker texture becomes
     // the artifact itself, e.g. missing spy-satellite smoke particles drawing
     // black radiating blocks.
+#if defined(__ANDROID__) || defined(__SWITCH__)
+    // TheSuperHackers @bugfix githubawn 16/06/2026 An ONE/ZERO blend func is
+    // opaque-replace (dst is discarded), so it must count as opaque here. The
+    // terrain base pass uses the SC_DETAIL_BLEND shader (LEQUAL, write-Z,
+    // SRCBLEND_ONE/DSTBLEND_ZERO), which has non-zero blend bits but is fully
+    // opaque. Treating it as blended made the whole shell-map terrain get
+    // discarded whenever its unused cloud/noise textures (stages 2/3) were
+    // unbound, leaving a black 3D scene.
+    const uint64_t kOpaqueOneZero = BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE,
+                                                          BGFX_STATE_BLEND_ZERO);
+    const uint64_t blend = state & BGFX_STATE_BLEND_MASK;
+    const bool isBlended = blend != 0 && blend != kOpaqueOneZero;
+    return isBlended
+        || g_views.inSortFlush
+        || g_views.effectOverlayActive;
+#else
     return (state & BGFX_STATE_BLEND_MASK) != 0
         || g_views.inSortFlush
         || g_views.effectOverlayActive;
+#endif
 }
 
 static bool ShouldSkipHiddenMissingTextureDraw(uint64_t state)
@@ -12892,6 +13530,7 @@ void BgfxBackend::Set_Transform(TransformKind transform, const Matrix4x4 & m)
             break;
         case RB_TRANSFORM_PROJECTION:
             W3DMatrix4ToBgfx(m, g_frame.proj);
+            AdjustProjForBgfxDepth(g_frame.proj);
             g_frame.cameraProjDirty = true;
             break;
         default:
@@ -12957,6 +13596,7 @@ void BgfxBackend::Set_Projection_Transform_With_Z_Bias(const Matrix4x4 & matrix,
     (void)zfar;
     CacheTransform(RB_TRANSFORM_PROJECTION, matrix);
     W3DMatrix4ToBgfx(matrix, g_frame.proj);
+    AdjustProjForBgfxDepth(g_frame.proj);
     g_frame.cameraProjDirty = true;
 
 }
@@ -13089,6 +13729,7 @@ void SubmitEngineDraw(unsigned short start_index,
                             g_draw.state,
                             "skip-no-program");
         g_stats.skippedDraws++;
+        g_stats.skipNoProgram++;
         // TheSuperHackers @bugfix bobtista 17/07/2026 Discard pending encoder state like every
         // other skip path in this function. An instanced batch has already bound its instance
         // buffer by the time this runs; without the discard that state leaks into the next
@@ -13112,6 +13753,7 @@ void SubmitEngineDraw(unsigned short start_index,
                             g_draw.state,
                             !have_vb && !have_ib ? "skip-no-vb-ib" : (!have_vb ? "skip-no-vb" : "skip-no-ib"));
         g_stats.skippedDraws++;
+        g_stats.skipNoBuffer++;
         bgfx::discard(BGFX_DISCARD_ALL);
         return;
     }
@@ -14539,9 +15181,12 @@ void BgfxBackend::Set_Pixel_Shader(unsigned long pixel_shader)
 //
 namespace {
 
-unsigned __int64 AllocResourceId()
+// TheSuperHackers @build bobtista 13/06/2026 Use uint64_t instead of the
+// MSVC-ism 'unsigned __int64'; the win32_shims typedef __int64 so the
+// 'unsigned' prefix fails to parse under NDK Clang.
+uint64_t AllocResourceId()
 {
-    const unsigned __int64 id = g_resourceRegistry.next_id++;
+    const uint64_t id = g_resourceRegistry.next_id++;
     if (g_resourceRegistry.next_id == 0) {
         // Roll-over guard — rarely hit; start back at 1 to avoid colliding
         // with kInvalidRenderResource.
@@ -14597,6 +15242,49 @@ const bgfx::Memory * CopySliceToBgfxMemory(const TextureDesc & desc, const MipSl
     }
     return mem;
 }
+
+#if defined(__SWITCH__)
+// TheSuperHackers @bugfix githubawn 05/07/2026 switch-mesa cannot create BGR5A1
+// (A1R5G5B5) or BGRA4 (A4R4G4B4) textures - bgfx caps report both unsupported and
+// the yuzu/Citron lineage asserts "video_core/surface.cpp: Unimplemented format=247".
+// The TextureClass path already expands these via GetBgfxTextureUploadFormat, but the
+// TextureDesc Create_Texture path used raw TranslateWW3DFormat and emitted the 16-bit
+// formats directly. Expand each mip to RGBA8 (the known-good 32-bit format on this GLES
+// driver, same as the A8R8G8B8 path) so the texture can be created and sampled.
+const bgfx::Memory * GGC_Expand16BitToRGBA8(const TextureDesc & desc, const MipSlice & s)
+{
+    if (s.data == nullptr) {
+        return nullptr;
+    }
+    const unsigned w = s.width;
+    const unsigned h = s.height;
+    const bgfx::Memory * mem = bgfx::alloc(w * h * 4);
+    const uint16_t * src = static_cast<const uint16_t *>(s.data);
+    const unsigned srcPitchPix = (s.pitch >= 2) ? (s.pitch / 2) : w;
+    uint8_t * dst = mem->data;
+    for (unsigned y = 0; y < h; ++y) {
+        const uint16_t * row = src + y * srcPitchPix;
+        for (unsigned x = 0; x < w; ++x) {
+            const uint16_t p = row[x];
+            uint8_t r, g, b, a;
+            if (desc.format == WW3D_FORMAT_A1R5G5B5) {
+                a = (p & 0x8000) ? 255 : 0;
+                r = static_cast<uint8_t>(((p >> 10) & 0x1F) << 3);
+                g = static_cast<uint8_t>(((p >> 5)  & 0x1F) << 3);
+                b = static_cast<uint8_t>(( p        & 0x1F) << 3);
+            } else { // WW3D_FORMAT_A4R4G4B4
+                a = static_cast<uint8_t>(((p >> 12) & 0xF) * 17);
+                r = static_cast<uint8_t>(((p >> 8)  & 0xF) * 17);
+                g = static_cast<uint8_t>(((p >> 4)  & 0xF) * 17);
+                b = static_cast<uint8_t>(( p        & 0xF) * 17);
+            }
+            uint8_t * o = dst + (y * w + x) * 4;
+            o[0] = r; o[1] = g; o[2] = b; o[3] = a; // RGBA8 byte order
+        }
+    }
+    return mem;
+}
+#endif
 
 RenderResource RegisterResourceEntry(const BgfxResourceEntry & entry)
 {
@@ -14710,7 +15398,25 @@ RenderResource BgfxBackend::Create_Texture(const TextureDesc & desc)
             }
         }
     } else if (desc.mips != nullptr && desc.mip_count > 0) {
-        const bgfx::TextureFormat::Enum bgfxFmt = TranslateWW3DFormat(desc.format);
+        bgfx::TextureFormat::Enum bgfxFmt = TranslateWW3DFormat(desc.format);
+#if defined(__SWITCH__)
+        {
+            static int s_ctLog = 0;
+            if (s_ctLog < 24) {
+                char b[128];
+                std::snprintf(b, sizeof(b), "[ggc] Create_Texture fmt=%d %dx%d mips=%d\n",
+                    (int)desc.format, (int)desc.width, (int)desc.height, (int)desc.mip_count);
+                ggcSwLog(b);
+                ++s_ctLog;
+            }
+        }
+        const bool expand16BitToRGBA8 =
+            desc.format == WW3D_FORMAT_A1R5G5B5 || desc.format == WW3D_FORMAT_A4R4G4B4;
+        if (expand16BitToRGBA8) {
+            // switch-mesa cannot create BGR5A1/BGRA4; expand to RGBA8 (see helper).
+            bgfxFmt = bgfx::TextureFormat::RGBA8;
+        }
+#endif
         if (bgfxFmt != bgfx::TextureFormat::Unknown) {
             const uint64_t texFlags = BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
             entry.texture = bgfx::createTexture2D(
@@ -14721,7 +15427,13 @@ RenderResource BgfxBackend::Create_Texture(const TextureDesc & desc)
                 bool uploadedAllLevels = true;
                 for (unsigned mip = 0; mip < desc.mip_count; ++mip) {
                     const MipSlice & slice = desc.mips[mip];
+#if defined(__SWITCH__)
+                    const bgfx::Memory * mem = expand16BitToRGBA8
+                        ? GGC_Expand16BitToRGBA8(desc, slice)
+                        : CopySliceToBgfxMemory(desc, slice);
+#else
                     const bgfx::Memory * mem = CopySliceToBgfxMemory(desc, slice);
+#endif
                     if (mem == nullptr) {
                         uploadedAllLevels = false;
                         break;

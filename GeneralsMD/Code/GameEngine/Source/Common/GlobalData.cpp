@@ -37,6 +37,10 @@
 #include <stdlib.h>
 #endif
 
+#if defined(__ANDROID__)
+#include <android/log.h>   // TheSuperHackers @diagnostic temporary render-skip confirmation
+#endif
+
 #include "WW3D2/ww3d.h"
 #include "WW3D2/texturefilter.h"
 
@@ -1144,6 +1148,8 @@ GlobalData::GlobalData()
 	m_windowed = 0;
 	m_xResolution = DEFAULT_DISPLAY_WIDTH;
 	m_yResolution = DEFAULT_DISPLAY_HEIGHT;
+	m_renderResolutionScale = 1.0f;
+	m_ggcRenderSkip = 0;
 	m_maxShellScreens = 0;
 	m_useCloudMap = FALSE;
 	m_use3WayTerrainBlends = 1;
@@ -1827,6 +1833,14 @@ void GlobalData::parseGameDataDefinition( INI* ini )
 
 	TheWritableGlobalData->m_xResolution = xres;
 	TheWritableGlobalData->m_yResolution = yres;
+
+	TheWritableGlobalData->m_renderResolutionScale = optionPref.getRenderResolutionScale();
+	TheWritableGlobalData->m_ggcRenderSkip = optionPref.getGgcRenderSkip();
+#if defined(__ANDROID__)
+	// TheSuperHackers @diagnostic confirm the render-skip bitmask was read from Options.ini.
+	__android_log_print(4, "ggc-perf", "GgcRenderSkip = %d (renderScale=%.2f)",
+		TheWritableGlobalData->m_ggcRenderSkip, TheWritableGlobalData->m_renderResolutionScale);
+#endif
 }
 
 void GlobalData::parseCustomDefinition()
@@ -1944,6 +1958,14 @@ AsciiString GlobalData::BuildUserDataPathFromRegistry()
 	}
 #endif
 
+	// TheSuperHackers @build bobtista 13/06/2026 The launcher (Android, iOS, Switch,
+	// Emscripten) can point GENERALS_USER_DIR at its own writable user-data root.
+	const char *userDirOverride = getenv("GENERALS_USER_DIR");
+	if (userDirOverride != nullptr && userDirOverride[0] != '\0')
+	{
+		basePath = std::filesystem::path(userDirOverride);
+	}
+
 	if (basePath.empty())
 	{
 		basePath = ".";
@@ -1967,9 +1989,22 @@ AsciiString GlobalData::BuildUserDataPathFromRegistry()
 	const DWORD KF_FLAG_DEFAULT = 0;
 #endif
 
-	typedef HRESULT(WINAPI* PFN_SHGetKnownFolderPath)(const GUID& rfid, DWORD dwFlags, HANDLE hToken, PWSTR* ppszPath);
-
 	AsciiString myDocumentsDirectory;
+	// TheSuperHackers @build bobtista 13/06/2026 The Windows shell known-folder
+	// API is Windows-only. On other platforms (Android) derive the user-data root
+	// from the environment; the launcher can point GENERALS_USER_DIR at its
+	// external files dir.
+	// TheSuperHackers @build githubawn 16/10/2026 UWP (Xbox) has no Documents folder
+	// or shell32; SDL3Main points GENERALS_USER_DIR at the app's LocalState.
+#if defined(GGC_PLATFORM_UWP)
+	{
+		const char *base = getenv("GENERALS_USER_DIR");
+		if (base == nullptr || base[0] == '\0') base = getenv("HOME");
+		if (base == nullptr || base[0] == '\0') base = ".";
+		myDocumentsDirectory = base;
+	}
+#else
+	typedef HRESULT(WINAPI* PFN_SHGetKnownFolderPath)(const GUID& rfid, DWORD dwFlags, HANDLE hToken, PWSTR* ppszPath);
 	HMODULE shell32module = GetModuleHandleA("shell32.dll");
 	PFN_SHGetKnownFolderPath pSHGetKnownFolderPath = nullptr;
 
@@ -1995,6 +2030,7 @@ AsciiString GlobalData::BuildUserDataPathFromRegistry()
 			myDocumentsDirectory = temp;
 		}
 	}
+#endif // _WIN32
 
 	if (!myDocumentsDirectory.isEmpty()) {
 		// Now build the full path string

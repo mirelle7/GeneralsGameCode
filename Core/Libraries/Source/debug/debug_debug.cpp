@@ -34,8 +34,11 @@
 #include <stdlib.h>
 #include <windows.h>
 // TheSuperHackers @build bobtista 12/06/2026 _ReturnAddress intrinsic for the x64 frame capture.
-#if defined(_MSC_VER)
+// TheSuperHackers @build githubawn 29/06/2026 Only needed on non-x86 MSVC; x86 MSVC (VC6, win32 VS2022)
+// uses inline _asm and VC6 ships no <intrin.h>.
+#if defined(_MSC_VER) && !defined(_M_IX86)
 #include <intrin.h>
+#pragma intrinsic(_ReturnAddress)
 #endif
 #include <WWLib/WWCommon.h>
 #include <new>      // needed for placement new prototype
@@ -328,8 +331,11 @@ bool Debug::SkipNext()
     :
     : "memory"
   );
+#elif defined(__GNUC__) || defined(__clang__)
+  // TheSuperHackers @build githubawn 29/06/2026 Non-x86 GCC/Clang: no x86 inline asm, use the builtin.
+  help = (unsigned)(size_t)__builtin_return_address(0);
 #else
-  #error "Unsupported compiler or architecture for inline assembly"
+  #error "Unsupported compiler or architecture for return address capture"
 #endif
   curStackFrame=help;
 

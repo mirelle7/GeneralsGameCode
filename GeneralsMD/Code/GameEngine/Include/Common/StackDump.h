@@ -27,7 +27,10 @@
 #ifndef IG_DEBUG_STACKTRACE
 #define IG_DEBUG_STACKTRACE	1
 #endif // Unsure about this one -ML 3/25/03
-#if defined(RTS_DEBUG) || defined(IG_DEBUG_STACKTRACE)
+// TheSuperHackers @build bobtista 13/06/2026 The real stack-dump implementation
+// uses DbgHelp and is Windows-only; other platforms fall through to the inline
+// no-op stubs below.
+#if (defined(RTS_DEBUG) || defined(IG_DEBUG_STACKTRACE)) && defined(_WIN32)
 
 // Writes a stackdump (provide a callback : gets called per line)
 // If callback is nullptr then will write using OuputDebugString
@@ -35,7 +38,8 @@ void StackDump(void (*callback)(const char*));
 
 // Writes a stackdump (provide a callback : gets called per line)
 // If callback is nullptr then will write using OuputDebugString
-void StackDumpFromContext(DWORD eip,DWORD esp,DWORD ebp, void (*callback)(const char*));
+// TheSuperHackers @build githubawn 29/06/2026 DWORD_PTR so addresses are not truncated on x64
+void StackDumpFromContext(DWORD_PTR eip,DWORD_PTR esp,DWORD_PTR ebp, void (*callback)(const char*));
 
 // Gets count* addresses from the current stack
 void FillStackAddresses(void**addresses, unsigned int count, unsigned int skip = 0);

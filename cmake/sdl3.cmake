@@ -1,7 +1,7 @@
 # cmake/sdl3.cmake
 #
 # TheSuperHackers @build bobtista 28/04/2026 SDL3 dependency for the
-# GeneralsMD macOS-native platform branch. SDL3 is currently used only for
+# GeneralsMD macOS-native platform backend. SDL3 is currently used only for
 # windowing, event pumping, and input.
 
 if(SAGE_USE_SDL3)
@@ -15,8 +15,10 @@ if(SAGE_USE_SDL3)
 
     # TheSuperHackers @build githubawn 29/07/2026 Emscripten has no dynamic loader for
     # the game to resolve a shared SDL3 through, so link it statically into the wasm
-    # module. Every other platform keeps the shared build.
-    if(EMSCRIPTEN)
+    # module. Nintendo Switch (fully static libnx link) and iOS (no Frameworks/ in the
+    # .app to embed a dylib into) link it statically too. Every other platform keeps
+    # the shared build.
+    if(EMSCRIPTEN OR CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch" OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
         set(SDL_SHARED OFF CACHE BOOL "" FORCE)
         set(SDL_STATIC ON CACHE BOOL "" FORCE)
     else()
@@ -26,13 +28,95 @@ if(SAGE_USE_SDL3)
     set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
     set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
 
-    FetchContent_Declare(
-        SDL3
-        URL ${GGC_SDL3_URL}
-        URL_HASH ${GGC_SDL3_URL_HASH}
-    )
-    FetchContent_MakeAvailable(SDL3)
+    # Disable tests and examples for Switch builds
+    if(CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+        set(SDL_TESTS OFF CACHE BOOL "" FORCE)
+        set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
+    endif()
+
+    if(CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
+        # TheSuperHackers @build githubawn 16/10/2026 Upstream SDL3 removed WinRT/UWP;
+        # the Xbox (UWP) build uses the maintained SDL3-uwp fork (SDL 3.4.16 + UWP).
+        FetchContent_Declare(
+            SDL3
+            GIT_REPOSITORY https://github.com/XboxEmulationHub/SDL3-uwp.git
+            GIT_TAG        ddd5d4f99a26ac95d4620ccf489c07fcf5f08636
+        )
+    else()
+        FetchContent_Declare(
+            SDL3
+            URL ${GGC_SDL3_URL}
+            URL_HASH ${GGC_SDL3_URL_HASH}
+        )
+    endif()
+
+    FetchContent_GetProperties(SDL3)
+    if(NOT sdl3_POPULATED)
+        FetchContent_Populate(SDL3)
+
+        if(CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
+            if(NOT EXISTS "${sdl3_SOURCE_DIR}/src/audio/switch/SDL_switchaudio.c")
+                # TheSuperHackers @build githubawn 05/07/2026 Clone from our own fork
+                # (githubawn/sdl3-switch) rather than the upstream neomody77 repo, so a
+                # clean build cannot break if upstream disappears or force-pushes. The
+                # fork is a mirror of neomody77/sdl3-switch and carries the same patch.
+                message(STATUS "Patching SDL3 for NintendoSwitch support using githubawn/sdl3-switch...")
+
+                # 1. Clone the patch repository
+                set(PATCH_REPO_DIR "${CMAKE_BINARY_DIR}/sdl3-patch-repo")
+                if(NOT EXISTS "${PATCH_REPO_DIR}")
+                    execute_process(
+                        COMMAND git clone https://github.com/githubawn/sdl3-switch.git "${PATCH_REPO_DIR}"
+                        RESULT_VARIABLE CLONE_RES
+                    )
+                    if(NOT CLONE_RES EQUAL 0)
+                        message(FATAL_ERROR "Failed to clone SDL3 patch repository!")
+                    endif()
+                endif()
+
+                # 2. Init temporary git repo in the extracted SDL3 source directory to allow git apply to run
+                execute_process(
+                    COMMAND git init
+                    WORKING_DIRECTORY "${sdl3_SOURCE_DIR}"
+                    RESULT_VARIABLE INIT_RES
+                    OUTPUT_QUIET
+                )
+
+                # 3. Apply the patch (strip the a/external/SDL3/ prefix and ignore CRLF/LF line endings)
+                execute_process(
+                    COMMAND git apply -p3 --ignore-whitespace --ignore-space-change "${PATCH_REPO_DIR}/sdl3-switch.patch"
+                    WORKING_DIRECTORY "${sdl3_SOURCE_DIR}"
+                    RESULT_VARIABLE PATCH_RES
+                )
+                if(NOT PATCH_RES EQUAL 0)
+                    message(FATAL_ERROR "Failed to apply SDL3 Switch patch!")
+                endif()
+                
+                message(STATUS "Successfully applied SDL3 Switch patch.")
+            else()
+                message(STATUS "SDL3 is already patched for NintendoSwitch.")
+            endif()
+        endif()
+
+        add_subdirectory(${sdl3_SOURCE_DIR} ${sdl3_BINARY_DIR})
+    endif()
 
     add_library(sdl3lib INTERFACE)
     target_link_libraries(sdl3lib INTERFACE SDL3::SDL3)
+endif()
+
+# TheSuperHackers @build githubawn 16/10/2026 GGC_SDL3_MAIN uses the SDL3 entry
+# (SDL3Main.cpp + SDL3GameEngine) on Windows instead of WinMain/Win32GameEngine.
+# UWP (Xbox) has no Win32 window or message loop, so it is forced on there.
+if(WIN32 AND SAGE_USE_SDL3 AND CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
+    set(GGC_SDL3_MAIN ON CACHE BOOL "" FORCE)
+endif()
+option(GGC_SDL3_MAIN "Use the SDL3 entry point on Windows instead of WinMain" OFF)
+if(CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
+    add_compile_definitions(GGC_PLATFORM_UWP=1)
+endif()
+if(WIN32 AND NOT GGC_SDL3_MAIN)
+    set(GGC_USE_WINMAIN ON)
+else()
+    set(GGC_USE_WINMAIN OFF)
 endif()

@@ -106,7 +106,7 @@ void StackDump(void (*callback)(const char*))
 
 //*****************************************************************************
 //*****************************************************************************
-void StackDumpFromContext(DWORD eip,DWORD esp,DWORD ebp, void (*callback)(const char*))
+void StackDumpFromContext(DWORD_PTR eip,DWORD_PTR esp,DWORD_PTR ebp, void (*callback)(const char*))
 {
 	if (callback == nullptr)
 	{

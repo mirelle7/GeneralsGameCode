@@ -20,6 +20,10 @@
 #include <cstring>
 #include <vector>
 
+#if defined(__ANDROID__)
+#include <android/log.h>
+#endif
+
 #include "Common/FileSystem.h"
 #include "GgcRuntimeFlags.h"
 #include "SDL3GameEngine.h"
@@ -179,7 +183,13 @@ void SDL3Mouse::draw()
 	if (m_visible && m_currentCursor != NONE)
 	{
 		const Int frame = getCursorTextureFrame(m_currentCursor);
+#if defined(GGC_PLATFORM_UWP)
+		// TheSuperHackers @feature githubawn 16/10/2026 The Xbox shell shows no OS cursor
+		// for UWP games, so always draw the game's own 2D cursor images (Mouse.ini) each frame.
+		SDL_Cursor *sdlCursor = nullptr;
+#else
 		SDL_Cursor *sdlCursor = getSDLColorCursor(m_currentCursor, frame);
+#endif
 		const Image *image = nullptr;
 		TextureClass *texture = nullptr;
 		if (sdlCursor == nullptr)
@@ -515,6 +525,55 @@ void SDL3Mouse::addSDL3WheelEvent(const SDL_MouseWheelEvent &event)
 	io.deltaPos.y = 0;
 	io.wheelPos = static_cast<Int>(event.y * MOUSE_WHEEL_DELTA);
 	io.time = SDL_GetTicks();
+	pushEvent(io);
+}
+
+void SDL3Mouse::addSDL3FingerEvent(const SDL_TouchFingerEvent &event, int phase)
+{
+	// SDL touch coordinates are normalized 0..1 relative to the window. The
+	// game's mouse coordinates are in render-resolution (== device pixel) space,
+	// which we force to the window pixel size on boot, so scale by window pixels.
+	int winW = 0, winH = 0;
+	if (TheSDL3Window != NULL)
+	{
+		SDL_GetWindowSizeInPixels(TheSDL3Window, &winW, &winH);
+	}
+	if (winW <= 0) winW = 1;
+	if (winH <= 0) winH = 1;
+
+	const Int px = static_cast<Int>(event.x * static_cast<float>(winW) + 0.5f);
+	const Int py = static_cast<Int>(event.y * static_cast<float>(winH) + 0.5f);
+
+#if defined(__ANDROID__)
+	__android_log_print(4, "ggc-touch",
+		"finger phase=%d norm=(%.3f,%.3f) win=%dx%d -> px=(%d,%d)",
+		phase, event.x, event.y, winW, winH, px, py);
+#endif
+
+	MouseIO io;
+	io.leftState = MBS_None;
+	io.rightState = MBS_None;
+	io.middleState = MBS_None;
+	io.leftEvent = MOUSE_EVENT_NONE;
+	io.rightEvent = MOUSE_EVENT_NONE;
+	io.middleEvent = MOUSE_EVENT_NONE;
+	io.pos.x = px;
+	io.pos.y = py;
+	io.deltaPos.x = 0;
+	io.deltaPos.y = 0;
+	io.wheelPos = 0;
+	io.time = SDL_GetTicks();
+
+	// Always move the cursor to the touch pixel first; on down/up also drive the
+	// left button. (phase: 0=down, 1=up, 2=motion)
+	if (phase == 0)
+	{
+		io.leftState = MBS_Down;
+	}
+	else if (phase == 1)
+	{
+		io.leftState = MBS_Up;
+	}
 	pushEvent(io);
 }
 
@@ -1281,6 +1340,34 @@ Int SDL3Mouse::getCursorTextureFrame(MouseCursor cursor)
 
 void SDL3Mouse::drawFallbackCursor(MouseCursor cursor)
 {
+#if defined(GGC_PLATFORM_UWP)
+	// TheSuperHackers @feature githubawn 16/10/2026 No OS cursor on Xbox. Most cursors are
+	// .ani (OS) cursors or W3D models with no 2D mapped image, so fall back to a plain
+	// arrow drawn from filled spans: black outline, white body.
+	(void)cursor;
+	if (TheDisplay == nullptr)
+	{
+		return;
+	}
+	const Int scale = (TheDisplay->getHeight() >= 1000) ? 2 : 1;
+	const Int rows = 16;
+	const Int x0 = m_currMouse.pos.x;
+	const Int y0 = m_currMouse.pos.y;
+	const Color outline = GameMakeColor(0, 0, 0, 255);
+	const Color body = GameMakeColor(255, 255, 255, 255);
+	for (Int r = 0; r < rows; ++r)
+	{
+		// Arrow head widens one pixel per row; the last third narrows into the tail.
+		Int w = (r < 11) ? (r + 1) : (r < 13 ? 4 : 2);
+		Int xoff = (r < 11) ? 0 : (r < 13 ? 2 : 4);
+		TheDisplay->drawFillRect(x0 + xoff * scale, y0 + r * scale, (w + 1) * scale, scale, outline);
+		if (w > 1)
+		{
+			TheDisplay->drawFillRect(x0 + (xoff + 1) * scale, y0 + r * scale, (w - 1) * scale, scale, body);
+		}
+	}
+	TheDisplay->drawFillRect(x0, y0 + rows * scale, 3 * scale, scale, outline);
+#else
 	if (!GgcFlags::Enabled(GgcFlag_SdlSoftwareCursor))
 	{
 		return;
@@ -1317,6 +1404,7 @@ void SDL3Mouse::drawFallbackCursor(MouseCursor cursor)
 	TheDisplay->drawLine(x + 10, y + 20, x + 6, y + 22, 1.0f, white);
 	TheDisplay->drawLine(x + 6, y + 22, x + 2, y + 14, 1.0f, white);
 	TheDisplay->drawLine(x + 2, y + 14, x, y + 19, 1.0f, white);
+#endif
 }
 
 void SDL3Mouse::logCursorLookup(MouseCursor cursor, const Image *image, TextureClass *texture)

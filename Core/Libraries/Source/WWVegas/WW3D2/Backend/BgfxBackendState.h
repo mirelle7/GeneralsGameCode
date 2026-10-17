@@ -116,6 +116,11 @@ struct BgfxDevice
     // placeholder masked uninitialized-use bugs.
     int  width       = 0;
     int  height      = 0;
+    // TheSuperHackers @feature githubawn 21/06/2026 Runtime 3D render-resolution scale set
+    // by GGC_BgfxSetRenderScale (Options menu, 1.0 = native, 0.5 = quarter pixels). Below
+    // 1.0 it downscales the scene framebuffer (see GetSceneRenderScale); the composite pass
+    // upscales it to the window and the 2D UI view stays at full resolution.
+    float renderScale = 1.0f;
     // TheSuperHackers @feature bobtista 08/06/2026 Letterbox present. width/height are the CONTENT
     // (render) size; when letterboxing, the swapchain is larger (swapWidth/swapHeight == window) and
     // the content is drawn at presentOffsetX/Y with black bars filling the rest. When not
@@ -625,6 +630,10 @@ struct BgfxStats
     uint32_t frameIndex = 0;
     uint32_t drawCalls = 0;
     uint32_t skippedDraws = 0;
+    // TheSuperHackers @diagnostic githubawn 18/06/2026 Per-frame discard reasons in
+    // SubmitEngineDraw, to localize why W3D mesh (unit/structure) draws go missing.
+    uint32_t skipNoProgram = 0;
+    uint32_t skipNoBuffer = 0;
 
     uint32_t baseSubmits = 0;
     uint32_t sceneDepthSubmits = 0;

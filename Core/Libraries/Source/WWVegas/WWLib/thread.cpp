@@ -28,6 +28,14 @@
 #ifdef _WIN32
 #include <process.h>
 #include <windows.h>
+#else
+// TheSuperHackers @bugfix bobtista 14/06/2026 Real thread support on non-Windows
+// via pthreads. Previously ThreadClass was stubbed out (Execute() just returned),
+// so worker threads such as the W3D texture loader never ran — leaving all
+// textures unloaded (a black screen on Android).
+#include <pthread.h>
+#include <unistd.h>
+#include <sched.h>
 #endif
 
 ThreadClass::ThreadClass(const char *thread_name, ExceptionHandlerType exception_handler) : handle(0), running(false), thread_priority(0)
@@ -84,12 +92,29 @@ void __cdecl ThreadClass::Internal_Thread_Function(void* params)
 	tc->ThreadID = 0;
 }
 
+#ifdef _UNIX
+void *ThreadClass::Internal_Thread_Entry(void *params)
+{
+	Internal_Thread_Function(params);
+	return nullptr;
+}
+#endif
+
 void ThreadClass::Execute()
 {
 	WWASSERT(!handle);	// Only one thread at a time!
 	#ifdef _UNIX
-		// assert(0);
-		return;
+		#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+			// Emscripten with pthreads disabled: run synchronously or stub
+			handle = 0;
+			running = false;
+		#else
+			pthread_t tid = 0;
+			if (pthread_create(&tid, nullptr, &Internal_Thread_Entry, this) == 0)
+			{
+				handle = (unsigned long)tid;
+			}
+		#endif
 	#else
 		handle=_beginthread(&Internal_Thread_Function,0,this);
 		SetThreadPriority((HANDLE)handle,THREAD_PRIORITY_NORMAL+thread_priority);
@@ -111,7 +136,17 @@ void ThreadClass::Set_Priority(int priority)
 void ThreadClass::Stop(unsigned ms)
 {
 	#ifdef _UNIX
-		// assert(0);
+		running = false;
+		(void)ms;
+		#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+			handle = 0;
+		#else
+			if (handle)
+			{
+				pthread_join((pthread_t)handle, nullptr);
+				handle = 0;
+			}
+		#endif
 		return;
 	#else
 		running=false;
@@ -140,6 +175,7 @@ HANDLE test_event = ::CreateEvent (nullptr, FALSE, FALSE, "");
 void ThreadClass::Switch_Thread()
 {
 	#ifdef _UNIX
+		sched_yield();
 		return;
 	#else
 		//	::SwitchToThread ();
@@ -152,7 +188,11 @@ void ThreadClass::Switch_Thread()
 unsigned ThreadClass::_Get_Current_Thread_ID()
 {
 	#ifdef _UNIX
-		return 0;
+		#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+			return 1;
+		#else
+			return (unsigned)(uintptr_t)pthread_self();
+		#endif
 	#else
 		return GetCurrentThreadId();
 	#endif

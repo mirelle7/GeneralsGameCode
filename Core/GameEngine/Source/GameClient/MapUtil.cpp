@@ -29,6 +29,9 @@
 
 // INCLUDES ///////////////////////////////////////////////////////////////////////////////////////
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
+#if defined(__ANDROID__)
+#include <android/log.h>
+#endif
 
 #include "Common/crc.h"
 #include "Common/FileSystem.h"
@@ -1207,6 +1210,11 @@ Image *getMapPreviewImage( AsciiString mapName )
 	// copy source tgaName, to name
 
 	Image *image = (Image *)TheMappedImageCollection->findImageByName(tempName);
+#if defined(__ANDROID__)
+	__android_log_print(4, "ggc-mapprev", "getMapPreviewImage map='%s' tga='%s' cached=%d exists=%d",
+		mapName.str(), tgaName.str(), image ? 1 : 0,
+		TheFileSystem->doesFileExist(tgaName.str()) ? 1 : 0);
+#endif
 	if(!image)
 	{
 
@@ -1220,6 +1228,9 @@ Image *getMapPreviewImage( AsciiString mapName )
 		mapPreviewDir.concat(name);
 
 		Bool success = false;
+#if defined(__ANDROID__)
+		__android_log_print(4, "ggc-mapprev", "copy '%s' -> '%s'", tgaName.str(), mapPreviewDir.str());
+#endif
 		try
 		{
 			copyFromBigToDir(tgaName, mapPreviewDir);
@@ -1229,7 +1240,11 @@ Image *getMapPreviewImage( AsciiString mapName )
 		{
 			success = false;	// no rethrow
 		}
+#if defined(__ANDROID__)
+		__android_log_print(4, "ggc-mapprev", "copy success=%d -> imageFilename='%s'", (int)success, name.str());
+#endif
 
+#if defined(_WIN32)
 		if (success)
 		{
 			image = newInstance(Image);
@@ -1251,6 +1266,29 @@ Image *getMapPreviewImage( AsciiString mapName )
 		{
 			image = nullptr;
 		}
+#else
+		// TheSuperHackers @bugfix githubawn 21/06/2026 The user-data copy is unreliable
+		// on non-Windows (Windows-style backslash user-data paths + non-recursive
+		// createDirectory mean the MapPreviews dir is never created and the copy
+		// fails, so no preview Image was ever created -> blank map preview / load
+		// screen). The preview .tga already exists in the archive and the texture
+		// loader reads archives directly, so reference it in place when the copy
+		// fails instead of giving up.
+		image = newInstance(Image);
+		image->setName(tempName);
+		//image->setFullPath("mission.tga");
+		image->setFilename(success ? name : tgaName);
+		image->setStatus(IMAGE_STATUS_NONE);
+		Region2D uv;
+		uv.hi.x = 1.0f;
+		uv.hi.y = 1.0f;
+		uv.lo.x	= 0.0f;
+		uv.lo.y = 0.0f;
+		image->setUV(&uv);
+		image->setTextureHeight(128);
+		image->setTextureWidth(128);
+		TheMappedImageCollection->addImage(image);
+#endif
 	}
 
 	return image;

@@ -76,7 +76,12 @@ enum { WIN_COLOR_UNDEFINED = GAME_COLOR_UNDEFINED };
 // TheSuperHackers @build bobtista 29/04/2026 uintptr_t so callers that stuff
 // pointers through WindowMsgData (e.g. GadgetTextEntrySetText casting a
 // UnicodeString*) don't lose the upper 32 bits on 64-bit builds.
+// TheSuperHackers @bugfix bobtista 13/06/2026 Pointer-sized so window messages
+// can carry pointers (e.g. GadgetTextEntry passes &UnicodeString) without
+// truncation on 64-bit targets. Stays 32-bit on 32-bit Windows (retail).
+#if !defined(_MSC_VER) || _MSC_VER >= 1300
 #include <cstdint>
+#endif
 typedef uintptr_t WindowMsgData;
 
 //-----------------------------------------------------------------------------

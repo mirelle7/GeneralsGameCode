@@ -28,6 +28,13 @@
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#if defined(__ANDROID__)
+#include <android/log.h>
+#include <cxxabi.h>
+#include <typeinfo>
+#include <exception>
+#endif
+
 #include "Common/ActionManager.h"
 #include "Common/AudioAffect.h"
 #include "Common/BuildAssistant.h"
@@ -156,6 +163,22 @@ GameEngine *TheGameEngine = nullptr;
 SubsystemInterfaceList* TheSubsystemList = nullptr;
 
 //-------------------------------------------------------------------------------------------------
+#if defined(__SWITCH__)
+#include <cstdio>
+extern "C" unsigned int svcOutputDebugString(const char *, unsigned long);
+static void ggc_switch_trace(const char *a, const char *b, const char *c)
+{
+	char buf[192];
+	int n = snprintf(buf, sizeof(buf), "%s%s%s", a, b ? b : "?", c);
+	if (n > 0) svcOutputDebugString(buf, (unsigned)n);
+	// Also append to a file on the SD (flushed immediately) so emulators that do
+	// NOT capture svcOutputDebugString (e.g. Eden) still leave a boot trace to read.
+	// The game has chdir'd into the data dir, so a relative path lands in generalszh/.
+	FILE *f = std::fopen("ggc_boot.txt", "a");
+	if (f) { std::fwrite(buf, 1, (size_t)(n > 0 ? n : 0), f); std::fflush(f); std::fclose(f); }
+}
+#endif
+
 template<class SUBSYSTEM>
 void initSubsystem(
 	SUBSYSTEM*& sysref,
@@ -166,7 +189,16 @@ void initSubsystem(
 	const char* path2 = nullptr)
 {
 	sysref = sys;
+#if defined(__SWITCH__)
+	// TheSuperHackers @diagnostic githubawn 03/07/2026 Trace subsystem init so we can
+	// see exactly which one hangs after bgfx::init on Switch (boot never reaches the
+	// main loop / first rendered frame).
+	ggc_switch_trace("[ggc] initSubsystem: ", name.str(), " ...\n");
+#endif
 	TheSubsystemList->initSubsystem(sys, path1, path2, pXfer, name);
+#if defined(__SWITCH__)
+	ggc_switch_trace("[ggc] initSubsystem: ", name.str(), " DONE\n");
+#endif
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -620,6 +652,44 @@ void GameEngine::init()
 #endif
 
 		initSubsystem(TheUpgradeCenter,"TheUpgradeCenter", MSGNEW("GameEngineSubsystem") UpgradeCenter, &xferCRC, "Data\\INI\\Default\\Upgrade", "Data\\INI\\Upgrade");
+
+#if defined(__ANDROID__) || defined(__SWITCH__)
+		// TheSuperHackers @feature bobtista 14/06/2026 Force the game's render
+		// resolution to the phone's native screen resolution on every boot, before
+		// the display/GameClient initializes (Android has no meaningful Options.ini
+		// display mode). The window was created full-screen at the device size.
+		// TheSuperHackers @bugfix githubawn 04/07/2026 Also on Switch: the window/touch
+		// are 1280x720 but m_xResolution defaulted to something else, so the UI hit-test
+		// coords did not match the touch coords and menu clicks missed. Force display
+		// res = window size so click coords line up (and the scene renders at native res).
+		{
+			extern bool GGC_GetDeviceResolution_SDL3(int *w, int *h);
+			int devW = 0, devH = 0;
+			if (GGC_GetDeviceResolution_SDL3(&devW, &devH) && TheWritableGlobalData != nullptr)
+			{
+				TheWritableGlobalData->m_xResolution = devW;
+				TheWritableGlobalData->m_yResolution = devH;
+			}
+		}
+#if !defined(SAGE_USE_OPENAL)
+		// TheSuperHackers @feature bobtista 15/06/2026 No real audio backend on
+		// Android yet (DummyAudioManager). The -noaudio command-line flag is gated
+		// behind RTS_DEBUG, so disable audio directly here so audio/speech INI and
+		// EVA data paths do not run.
+		// TheSuperHackers @bugfix githubawn 28/06/2026 Only force-disable audio when
+		// there is no real backend. With SAGE_USE_OPENAL the OpenAL+FFmpeg backend is
+		// functional on Android, so leaving audio enabled here restores music/sound
+		// (otherwise the OpenSL device opens but every channel is muted by m_audioOn).
+		if (TheWritableGlobalData != nullptr)
+		{
+			TheWritableGlobalData->m_audioOn = false;
+			TheWritableGlobalData->m_speechOn = false;
+			TheWritableGlobalData->m_soundsOn = false;
+			TheWritableGlobalData->m_musicOn = false;
+		}
+#endif
+#endif
+
 		initSubsystem(TheGameClient,"TheGameClient", createGameClient(), nullptr);
 
 
@@ -710,7 +780,13 @@ void GameEngine::init()
 
 		// initialize the MapCache
 		TheMapCache = MSGNEW("GameEngineSubsystem") MapCache;
+#if defined(__SWITCH__)
+		ggc_switch_trace("[ggc] MapCache->updateCache() ...\n", "", "");
+#endif
 		TheMapCache->updateCache();
+#if defined(__SWITCH__)
+		ggc_switch_trace("[ggc] MapCache->updateCache() DONE\n", "", "");
+#endif
 
 
 	#ifdef DUMP_PERF_STATS///////////////////////////////////////////////////////////////////////////
@@ -730,6 +806,14 @@ void GameEngine::init()
 
 		// load the initial shell screen
 		//TheShell->push( "Menus/MainMenu.wnd" );
+
+#if defined(__ANDROID__)
+		// TheSuperHackers @feature bobtista 14/06/2026 Android bring-up: skip only
+		// the intro/logo movies (no video backend), but keep the 3D shell map
+		// enabled so it renders behind the main menu. The Intro state machine then
+		// skips the logo states and goes straight on to the shell.
+		TheWritableGlobalData->m_playIntro = FALSE;
+#endif
 
 		// This allows us to run a map from the command line
 		if (TheGlobalData->m_initialFile.isEmpty() == FALSE)
@@ -793,9 +877,18 @@ void GameEngine::init()
 		RELEASE_CRASH(("Uncaught Exception during initialization."));
 	}
 
+#if defined(__SWITCH__)
+	ggc_switch_trace("[ggc] GameEngine::init resetSubsystems() ...\n", "", "");
+#endif
 	resetSubsystems();
+#if defined(__SWITCH__)
+	ggc_switch_trace("[ggc] GameEngine::init resetSubsystems() DONE\n", "", "");
+#endif
 
 	HideControlBar();
+#if defined(__SWITCH__)
+	ggc_switch_trace("[ggc] GameEngine::init RETURNING (main loop next)\n", "", "");
+#endif
 }
 
 /** -----------------------------------------------------------------------------------------------
@@ -922,6 +1015,10 @@ DECLARE_PERF_TIMER(GameEngine_update)
  */
 void GameEngine::update()
 {
+#if defined(__SWITCH__)
+	static int s_ggcFirstUpd = 3;   // trace the first 3 frames
+	{ static bool s_ggcEnt = true; if (s_ggcEnt) { ggc_switch_trace("[ggc] GE::update ENTERED\n", "", ""); s_ggcEnt = false; } }
+#endif
 	USE_PERF_TIMER(GameEngine_update)
 	{
 		{
@@ -929,13 +1026,28 @@ void GameEngine::update()
 			// VERIFY CRC needs to be in this code block.  Please to not pull TheGameLogic->update() inside this block.
 			VERIFY_CRC
 
+#if defined(__SWITCH__)
+			if (s_ggcFirstUpd) ggc_switch_trace("[ggc] GE::update frame1: before Radar\n", "", "");
+#endif
 			TheRadar->UPDATE();
 
 			/// @todo Move audio init, update, etc, into GameClient update
 
+#if defined(__SWITCH__)
+			if (s_ggcFirstUpd) ggc_switch_trace("[ggc] GE::update frame1: before Audio\n", "", "");
+#endif
 			TheAudio->UPDATE();
+#if defined(__SWITCH__)
+			if (s_ggcFirstUpd) ggc_switch_trace("[ggc] GE::update frame1: before GameClient\n", "", "");
+#endif
 			TheGameClient->UPDATE();
+#if defined(__SWITCH__)
+			if (s_ggcFirstUpd) ggc_switch_trace("[ggc] GE::update frame1: after GameClient\n", "", "");
+#endif
 			TheMessageStream->propagateMessages();
+#if defined(__SWITCH__)
+			if (s_ggcFirstUpd) ggc_switch_trace("[ggc] GE::update frame1: after propagateMessages\n", "", "");
+#endif
 
 			if (TheNetwork != nullptr)
 			{
@@ -943,15 +1055,24 @@ void GameEngine::update()
 			}
 		}
 
+#if defined(__SWITCH__)
+		if (s_ggcFirstUpd) ggc_switch_trace("[ggc] GE::update frame1: after Net\n", "", "");
+#endif
 		// TheSuperHackers @info Ignores frozen time because the script engine needs updating in the logic update regardless.
 		if (canUpdateGameLogic(FramePacer::IgnoreFrozenTime))
 		{
 			PROFILER_SECTION_NAME("logic update");
 			TheGameLogic->UPDATE();
+#if defined(__SWITCH__)
+			if (s_ggcFirstUpd) ggc_switch_trace("[ggc] GE::update frame1: after GameLogic->UPDATE\n", "", "");
+#endif
 
 			if (!TheFramePacer->isTimeFrozen())
 			{
 				TheGameClient->step();
+#if defined(__SWITCH__)
+				if (s_ggcFirstUpd) ggc_switch_trace("[ggc] GE::update frame1: after GameClient->step\n", "", "");
+#endif
 			}
 		}
 
@@ -974,6 +1095,9 @@ void GameEngine::update()
 		{
 			TheFramePacer->setTimeFrozen(TRUE);
 		}
+#if defined(__SWITCH__)
+		if (s_ggcFirstUpd) { ggc_switch_trace("[ggc] GE::update frameN: END OF FRAME\n", "", ""); s_ggcFirstUpd--; }
+#endif
 	}
 }
 
@@ -986,10 +1110,21 @@ extern HWND ApplicationHWnd;
  */
 void GameEngine::execute()
 {
+#if defined(__SWITCH__)
+	ggc_switch_trace("[ggc] GameEngine::execute() entered (main loop)\n", "", "");
+#endif
 #if defined(RTS_DEBUG)
 	DWORD startTime = timeGetTime() / 1000;
 #endif
 
+#if defined(__SWITCH__)
+	{
+		char b[128];
+		int n = snprintf(b, sizeof(b), "[ggc] execute: reached while, m_quitting=%d loadSaveEmpty=%d\n",
+			(int)m_quitting, (int)TheGlobalData->m_loadSaveGame.isEmpty());
+		if (n > 0) svcOutputDebugString(b, (unsigned)n);
+	}
+#endif
 	// pretty basic for now
 	while( !m_quitting )
 	{
@@ -1041,6 +1176,21 @@ void GameEngine::execute()
 				}
 				catch (...)
 				{
+#if defined(__ANDROID__)
+					// TheSuperHackers @diagnostic bobtista 15/06/2026 Identify the
+					// exception type/message so shell-map load failures are debuggable.
+					try { throw; }
+					catch (const std::exception& se) {
+						__android_log_print(6, "ggc-crash", "update std::exception: %s", se.what());
+					}
+					catch (ErrorCode ec) {
+						__android_log_print(6, "ggc-crash", "update threw ErrorCode: 0x%08x", (unsigned)ec);
+					}
+					catch (...) {
+						const std::type_info *ti = abi::__cxa_current_exception_type();
+						__android_log_print(6, "ggc-crash", "update threw type: %s", ti ? ti->name() : "(unknown)");
+					}
+#endif
 					// try to save info off
 					try
 					{
@@ -1054,7 +1204,13 @@ void GameEngine::execute()
 				}
 			}
 
+#if defined(__SWITCH__)
+			{ static int f=0; if (f<5) { char t[72]; snprintf(t,sizeof(t),"[ggc] execute: frame %d update() returned\n", f); ggc_switch_trace(t,"",""); } }
+#endif
 			TheFramePacer->update();
+#if defined(__SWITCH__)
+			{ static int f=0; if (f<5) { char t[72]; snprintf(t,sizeof(t),"[ggc] execute: frame %d FramePacer done\n", f++); ggc_switch_trace(t,"",""); } }
+#endif
 		}
 
 #ifdef PERF_TIMERS
@@ -1067,6 +1223,9 @@ void GameEngine::execute()
 #endif
 
 	}
+#if defined(__SWITCH__)
+	ggc_switch_trace("[ggc] execute: loop EXITED (game quitting)\n", "", "");
+#endif
 }
 
 /** -----------------------------------------------------------------------------------------------
@@ -1095,6 +1254,13 @@ Bool GameEngine::isMultiplayerSession()
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 #define CONVERT_EXEC1	"..\\Build\\nvdxt -list buildDDS.txt -dxt5 -full -outdir Art\\Textures > buildDDS.out"
+
+// TheSuperHackers @build githubawn 17/06/2026 TARGET_OS_IPHONE detection so the
+// dev-time TGA->DDS pipeline (which shells out via system()) can be excluded on
+// iOS, where system() is marked unavailable by the SDK.
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
 
 void updateTGAtoDDS()
 {
@@ -1155,5 +1321,10 @@ void updateTGAtoDDS()
 
 	fp->close();
 
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+	// system() is unavailable on iOS; the nvdxt TGA->DDS dev pipeline does not
+	// apply to mobile builds. Skip it.
+#else
 	system(CONVERT_EXEC1);
+#endif
 }

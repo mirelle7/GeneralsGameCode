@@ -45,6 +45,14 @@
 #include "WW3D2/ww3d.h"
 #endif
 
+// TheSuperHackers @build githubawn 17/10/2026 Font rasterizer per platform: CoreText on
+// Apple, FreeType + Fontconfig on Linux and Emscripten, GDI on Windows. UWP (no GDI),
+// Android and Switch (no Fontconfig, no system font directories to match against) use
+// stb_truetype with system font files or the font embedded in the binary.
+#if defined(GGC_PLATFORM_UWP) || defined(__ANDROID__) || defined(__SWITCH__)
+#define GGC_FONT_STB 1
+#endif
+
 #if defined(__APPLE__)
 #if defined(interface)
 #define GGC_RESTORE_INTERFACE_MACRO
@@ -63,7 +71,7 @@
 #include <vector>
 #endif
 
-#if !defined(_WIN32) && !defined(__APPLE__)
+#if !defined(_WIN32) && !defined(__APPLE__) && !defined(GGC_FONT_STB)
 #include <ft2build.h>
 #include FT_FREETYPE_H
 // TheSuperHackers @build githubawn 29/07/2026 Emscripten has a FreeType port but no
@@ -73,6 +81,73 @@
 #include <fontconfig/fontconfig.h>
 #endif
 #endif
+
+#if defined(GGC_FONT_STB)
+// TheSuperHackers @feature bobtista 14/06/2026 No GDI on non-Windows, so glyphs
+// are rasterized with stb_truetype (vendored by bgfx) against a system TrueType
+// font. Defining the implementation here keeps it in a single translation unit.
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+#define STB_TRUETYPE_IMPLEMENTATION
+#define STBTT_STATIC
+#include <stb/stb_truetype.h>
+#if defined(__SWITCH__) || defined(GGC_PLATFORM_UWP)
+// TheSuperHackers @feature githubawn 04/07/2026 Switch has no system TTF, so embed a
+// UI font directly in the binary (self-contained NRO, no SD/system font needed).
+#include "ggc_embedded_font.h"
+#endif
+
+namespace {
+struct GGCStbFont {
+	stbtt_fontinfo info;
+	unsigned char *data;   // owned TTF file bytes
+	float          scale;  // pixels per font unit for the requested point size
+	int            ascent; // scaled, pixels above baseline
+};
+
+// Candidate system fonts. First that loads wins. Paths are tried in order and a
+// missing file simply falls through, so listing other platforms' paths is
+// harmless on a given OS.
+static const char *kGGCFontCandidates[] = {
+#if defined(__EMSCRIPTEN__)
+	// TheSuperHackers @feature githubawn 23/06/2026 The browser has no system font
+	// files in MEMFS, so UI text rendered blank. A free TTF (Droid Sans, Apache-2.0)
+	// is embedded into the build at /fonts/droidsans.ttf via --embed-file (see
+	// GeneralsMD/Code/Main/CMakeLists.txt).
+	"/fonts/droidsans.ttf",
+#endif
+#if defined(__APPLE__) && TARGET_OS_OSX
+	// TheSuperHackers @bugfix githubawn 28/06/2026 macOS has no GDI and the list
+	// below held only Android /system/fonts paths, so no font loaded on macOS and
+	// every UI glyph rasterized blank -> menu button text disappeared. Add the
+	// macOS system fonts. The engine maps the UI "Generals" font to Arial, so
+	// prefer Arial, then fall back to Helvetica/Verdana/Geneva. macOS only
+	// (TARGET_OS_OSX) so iOS, which sandboxes these paths, is untouched.
+	"/System/Library/Fonts/Supplemental/Arial.ttf",
+	"/System/Library/Fonts/Supplemental/Verdana.ttf",
+	"/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+	"/System/Library/Fonts/Helvetica.ttc",
+	"/System/Library/Fonts/Geneva.ttf",
+#endif
+#if defined(__SWITCH__)
+	// TheSuperHackers @bugfix githubawn 04/07/2026 Switch has no /system/fonts, so no
+	// font loaded and all UI text rasterized blank (menu had no text). Ship droidsans.ttf
+	// alongside the loose game data on the SD card (cwd is the data dir), so a relative
+	// path resolves. Absolute forms are listed as fallbacks.
+	"droidsans.ttf",
+	"Data/droidsans.ttf",
+	"sdmc:/generalszh/droidsans.ttf",
+#endif
+	"/system/fonts/Roboto-Regular.ttf",
+	"/system/fonts/DroidSans.ttf",
+	"/system/fonts/NotoSans-Regular.ttf",
+};
+} // namespace
+#endif // GGC_FONT_STB
 
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -1294,6 +1369,9 @@ FontCharsClass::FontCharsClass () :
 {
 	AlternateUnicodeFont = nullptr;
 	::memset( ASCIICharArray, 0, sizeof (ASCIICharArray) );
+#if !defined(_WIN32) || defined(GGC_PLATFORM_UWP)
+	TTFontState = nullptr;
+#endif
 }
 
 
@@ -1438,7 +1516,73 @@ FontCharsClass::Blit_Char (WCHAR ch, uint16 *dest_ptr, int dest_stride, int x, i
 const FontCharsClassCharDataStruct *
 FontCharsClass::Store_GDI_Char (WCHAR ch)
 {
-#if defined(__APPLE__)
+#if defined(GGC_FONT_STB)
+	// TheSuperHackers @feature bobtista 14/06/2026 No GDI on non-Windows. When a
+	// system TrueType font loaded (Create_GDI_Font), rasterize the glyph with
+	// stb_truetype into the ARGB4444 glyph buffer (RGB = white, alpha = coverage)
+	// so text is visible. Otherwise fall back to a blank advancing glyph.
+	{
+		GGCStbFont *ttf = static_cast<GGCStbFont *>( TTFontState );
+
+		int advance_w = 0, left_bearing = 0;
+		int cell_w = 0;
+		int gw = 0, gh = 0, xoff = 0, yoff = 0;
+		unsigned char *coverage = nullptr;
+
+		if ( ttf != nullptr ) {
+			stbtt_GetCodepointHMetrics( &ttf->info, ch, &advance_w, &left_bearing );
+			int adv_px = (int)(advance_w * ttf->scale + 0.5f);
+			coverage = stbtt_GetCodepointBitmap( &ttf->info, 0, ttf->scale, ch,
+												 &gw, &gh, &xoff, &yoff );
+			// Width carries the advance plus PixelOverlap (Get_Char_Spacing
+			// subtracts PixelOverlap back off), mirroring the GDI path.
+			cell_w = adv_px + PixelOverlap;
+			if ( xoff + gw > cell_w ) cell_w = xoff + gw;
+			if ( cell_w <= 0 ) cell_w = (gw > 0) ? gw : 1;
+		} else {
+			cell_w = (PointSize > 0) ? (PointSize / 2 + 1) : 6;
+			cell_w += PixelOverlap;
+		}
+		if ( cell_w < 1 ) cell_w = 1;
+
+		Update_Current_Buffer( cell_w );
+		uint16 *buffer = BufferList[BufferList.Count () - 1].Buffer + CurrPixelOffset;
+		const int pixels = cell_w * CharHeight;
+		for ( int i = 0; i < pixels; i++ ) {
+			buffer[i] = 0;
+		}
+
+		if ( coverage != nullptr ) {
+			// Place the coverage bitmap at the glyph's baseline position.
+			for ( int gy = 0; gy < gh; ++gy ) {
+				int dy = ttf->ascent + yoff + gy;
+				if ( dy < 0 || dy >= CharHeight ) continue;
+				for ( int gx = 0; gx < gw; ++gx ) {
+					int dx = xoff + gx;
+					if ( dx < 0 || dx >= cell_w ) continue;
+					unsigned char c = coverage[gy * gw + gx];
+					if ( c == 0 ) continue;
+					uint8 alpha4 = (uint8)(c >> 4);
+					buffer[dy * cell_w + dx] = (uint16)(0x0FFF | (alpha4 << 12));
+				}
+			}
+			stbtt_FreeBitmap( coverage, nullptr );
+		}
+
+		FontCharsClassCharDataStruct *char_data = W3DNEW FontCharsClassCharDataStruct;
+		char_data->Value  = ch;
+		char_data->Width  = cell_w;
+		char_data->Advance = cell_w;
+		char_data->Buffer = buffer;
+		if ( ch < 256 ) {
+			ASCIICharArray[ch] = char_data;
+		} else {
+			UnicodeCharArray[ch - FirstUnicodeChar] = char_data;
+		}
+		CurrPixelOffset += (cell_w * CharHeight);
+		return char_data;
+	}
+#elif defined(__APPLE__)
 	CTFontRef font = Create_Apple_Font(GDIFontName.Peek_Buffer(), PointSize, IsBold);
 	if (font == nullptr) {
 		return nullptr;
@@ -1776,7 +1920,76 @@ FontCharsClass::Update_Current_Buffer (int char_width)
 bool
 FontCharsClass::Create_GDI_Font (const char *font_name)
 {
-#if defined(__APPLE__)
+#if defined(GGC_FONT_STB)
+	(void)font_name;
+	// The GDI path below derives these from the 96 dpi cell height; mirror it here.
+	const int dotsPerInch = 96; // always use 96.	jba.
+	PixelOverlap = ((PointSize * dotsPerInch + 36) / 72) / 8;
+	if (PixelOverlap<0) PixelOverlap = 0;
+	if (PixelOverlap>4) PixelOverlap = 4;
+
+	// TheSuperHackers @feature bobtista 14/06/2026 No GDI on non-Windows. Load a
+	// system TrueType font and rasterize glyphs with stb_truetype. Pixel height
+	// matches the GDI cell height (point size at 96 dpi). If no font loads we
+	// fall back to a fixed-height blank glyph so layout still advances.
+	CharHeight = (PointSize * dotsPerInch) / 72;
+	if (CharHeight <= 0) CharHeight = (PointSize > 0) ? PointSize : 12;
+	CharOverhang = 0;
+
+	GGCStbFont *ttf = new GGCStbFont;
+	::memset( ttf, 0, sizeof(*ttf) );
+
+#if defined(__SWITCH__) || defined(GGC_PLATFORM_UWP)
+	// Load the embedded font first (self-contained; no external file). malloc+memcpy so
+	// the later ::free(ttf->data) path is uniform with the fopen case.
+	if ( g_ggcEmbeddedFontSize > 0 ) {
+		ttf->data = static_cast<unsigned char *>( ::malloc( (size_t)g_ggcEmbeddedFontSize ) );
+		if ( ttf->data != nullptr ) {
+			::memcpy( ttf->data, g_ggcEmbeddedFont, (size_t)g_ggcEmbeddedFontSize );
+			if ( !stbtt_InitFont( &ttf->info, ttf->data, stbtt_GetFontOffsetForIndex( ttf->data, 0 ) ) ) {
+				::free( ttf->data );
+				ttf->data = nullptr;
+			}
+		}
+	}
+#endif
+
+	for ( unsigned i = 0; ttf->data == nullptr && i < sizeof(kGGCFontCandidates)/sizeof(kGGCFontCandidates[0]); ++i ) {
+		FILE *fp = ::fopen( kGGCFontCandidates[i], "rb" );
+		if ( fp == nullptr ) {
+			continue;
+		}
+		::fseek( fp, 0, SEEK_END );
+		long size = ::ftell( fp );
+		::fseek( fp, 0, SEEK_SET );
+		if ( size <= 0 ) { ::fclose( fp ); continue; }
+		ttf->data = static_cast<unsigned char *>( ::malloc( (size_t)size ) );
+		if ( ttf->data == nullptr ) { ::fclose( fp ); continue; }
+		size_t got = ::fread( ttf->data, 1, (size_t)size, fp );
+		::fclose( fp );
+		if ( got != (size_t)size ||
+			 !stbtt_InitFont( &ttf->info, ttf->data, stbtt_GetFontOffsetForIndex( ttf->data, 0 ) ) ) {
+			::free( ttf->data );
+			ttf->data = nullptr;
+			continue;
+		}
+		break; // loaded successfully
+	}
+
+	if ( ttf->data != nullptr ) {
+		ttf->scale = stbtt_ScaleForPixelHeight( &ttf->info, (float)CharHeight );
+		int ascent = 0, descent = 0, line_gap = 0;
+		stbtt_GetFontVMetrics( &ttf->info, &ascent, &descent, &line_gap );
+		ttf->ascent = (int)(ascent * ttf->scale + 0.5f);
+		CharAscent = ttf->ascent;
+		TTFontState = ttf;
+	} else {
+		// No system font available; keep TTFontState null -> blank glyphs.
+		delete ttf;
+		TTFontState = nullptr;
+	}
+	return true;
+#elif defined(__APPLE__)
 	bool doingGenerals = font_name != nullptr && strcmp(font_name, "Generals") == 0;
 	int font_height = Apple_Font_Pixel_Size(PointSize);
 
@@ -1913,6 +2126,7 @@ FontCharsClass::Create_GDI_Font (const char *font_name)
 	// Sanity check in case of perversion. :)
 	if (PixelOverlap<0) PixelOverlap = 0;
 	if (PixelOverlap>4) PixelOverlap = 4;
+
 	//
 	//	Create the Windows font
 	//
@@ -1993,7 +2207,17 @@ FontCharsClass::Create_GDI_Font (const char *font_name)
 void
 FontCharsClass::Free_GDI_Font ()
 {
-#if !defined(_WIN32) && !defined(__APPLE__)
+#if defined(GGC_FONT_STB)
+	if ( TTFontState != nullptr ) {
+		GGCStbFont *ttf = static_cast<GGCStbFont *>( TTFontState );
+		if ( ttf->data != nullptr ) {
+			::free( ttf->data );
+		}
+		delete ttf;
+		TTFontState = nullptr;
+	}
+#endif
+#if !defined(_WIN32) && !defined(__APPLE__) && !defined(GGC_FONT_STB)
 	if (FTFace != nullptr) {
 		FT_Done_Face(FTFace);
 		FTFace = nullptr;
@@ -2002,6 +2226,8 @@ FontCharsClass::Free_GDI_Font ()
 		FT_Done_FreeType(FTLibrary);
 		FTLibrary = nullptr;
 	}
+#elif !defined(_WIN32) && !defined(__APPLE__)
+	// stb_truetype platforms (Android/Switch) create no GDI objects; see GGC_FONT_STB above.
 #else
 	//
 	//	Select the old font back into the DC and delete

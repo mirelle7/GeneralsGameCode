@@ -43,6 +43,9 @@
 //			  and alpha.
 //-----------------------------------------------------------------------------
 
+#if defined(__ANDROID__)
+#include <android/log.h>   // TheSuperHackers @diagnostic temporary water-track count
+#endif
 #include "W3DDevice/GameClient/HeightMap.h"
 #include "W3DDevice/GameClient/W3DWaterTracks.h"
 #include "W3DDevice/GameClient/W3DShaderManager.h"
@@ -934,6 +937,12 @@ Try improving the fit to vertical surfaces like cliffs.
 	if (!TheGlobalData->m_showSoftWaterEdge || TheWaterTransparency->m_transparentWaterDepth ==0 )
 		return;
 
+	// TheSuperHackers @diagnostic GgcRenderSkip bit 64: skip water-track (wake) rendering.
+#if defined(__ANDROID__)
+	if (TheGlobalData && (TheGlobalData->m_ggcRenderSkip & 64))
+		return;
+#endif
+
 	if (TheGlobalData->m_usingWaterTrackEditor)
 		TestWaterUpdate();
 
@@ -995,6 +1004,9 @@ Try improving the fit to vertical surfaces like cliffs.
 	}
 
 	WaterTracksObj *mod=m_usedModules;
+#if defined(__ANDROID__)
+	int ggcTrackCount=0;
+#endif
 	TextureClass *batchTexture=nullptr;
 	Int batchTextureType=-1;
 	Int batchFirstVertex=0;
@@ -1035,10 +1047,22 @@ Try improving the fit to vertical surfaces like cliffs.
 
 		m_batchStart = vertsRendered;	//advance past vertices already in buffer
 
+#if defined(__ANDROID__)
+		++ggcTrackCount;
+#endif
 		mod = mod->m_nextSystem;
 	}
 
 	drawBatch(batchFirstVertex,batchTrackCount,batchTexture);
+
+#if defined(__ANDROID__)
+	// TheSuperHackers @diagnostic Count water tracks rendered (each does a per-track VB Lock
+	// -> bgfx::update) to size the per-track dynamic-buffer-update cost on the shell map.
+	{
+		static int s = 0; if (++s % 60 == 0)
+			__android_log_print(4, "ggc-perf", "waterTracks rendered=%d", ggcTrackCount);
+	}
+#endif
 
 	WW3D::Get_Render_Backend()->Set_Z_Bias(0);
 	WW3D::Get_Render_Backend()->End_Water_Overlay();

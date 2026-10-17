@@ -39,4 +39,6 @@ extern "C" inline char *_strlwr(char *str) {
 #define stricmp strcasecmp
 #define strnicmp strncasecmp
 #define strcmpi strcasecmp
+#define _stricmp strcasecmp
+#define _strnicmp strncasecmp
 

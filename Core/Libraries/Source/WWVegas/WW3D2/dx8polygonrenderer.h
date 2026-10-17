@@ -112,6 +112,12 @@ inline void DX8PolygonRendererClass::Set_Vertex_Index_Range(unsigned min_vertex_
 
 inline void DX8PolygonRendererClass::Render(/*const Matrix3D & tm,*/int base_vertex_offset)
 {
+#if defined(__ANDROID__)
+	// TheSuperHackers @diagnostic githubawn 18/06/2026 Count W3D mesh opaque batch
+	// renders to confirm whether unit/structure geometry reaches the backend.
+	extern unsigned g_ggcMeshPolyRenders;
+	++g_ggcMeshPolyRenders;
+#endif
 	// TheSuperHackers @refactor bobtista 11/07/2026 Shader-pipeline backends
 	// take the whole rigid draw as one packet call; the legacy pair below
 	// remains for DX8 and for the rigid packet kill switch.
@@ -159,6 +165,10 @@ inline void DX8PolygonRendererClass::Render_Instanced(int base_vertex_offset)
 
 inline void DX8PolygonRendererClass::Render_Sorted(/*const Matrix3D & tm,*/int base_vertex_offset,const SphereClass & bounding_sphere)
 {
+#if defined(__ANDROID__)
+	extern unsigned g_ggcMeshSortedRenders;
+	++g_ggcMeshSortedRenders;
+#endif
 	WWASSERT(!strip);	// Strips can't be sorted for now
 	SNAPSHOT_SAY(("Set_Index_Buffer_Index_Offset(%d)",base_vertex_offset));
 	SNAPSHOT_SAY(("Insert_Sorting_Triangles(%d,%d,%d,%d)",index_offset,index_count-2,min_vertex_index,vertex_index_range));

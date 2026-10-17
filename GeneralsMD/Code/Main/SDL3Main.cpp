@@ -28,9 +28,122 @@ extern "C" void ggc_ws_connect(void);
 #if defined(__APPLE__)
 #include <SDL3/SDL_metal.h>
 #endif
+// TheSuperHackers @build githubawn 18/06/2026 iOS asset-dir redirect needs these.
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#if TARGET_OS_IPHONE
+#include <unistd.h>   // chdir
+#endif
+#endif
+// TheSuperHackers @build bobtista 13/06/2026 On Android SDLActivity invokes the
+// "SDL_main" symbol via JNI; SDL_main.h remaps main->SDL_main so the entry point
+// is exported from libz_generals.so. iOS, Switch and UWP need SDL's entry glue too.
+#if defined(__ANDROID__) || defined(__SWITCH__) || defined(GGC_PLATFORM_UWP) || (defined(__APPLE__) && TARGET_OS_IPHONE)
+#include <SDL3/SDL_main.h>
+#endif
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#if defined(__ANDROID__)
+#include <SDL3/SDL_system.h>  // SDL_GetAndroidExternalStoragePath
+#include <unistd.h>            // chdir
+#include <cstdlib>            // setenv
+#include <signal.h>
+#include <unwind.h>
+#include <dlfcn.h>
+#include <cxxabi.h>
+#include <android/log.h>
+#include <dirent.h>           // opendir/readdir (locate the game data dir)
+#include <strings.h>          // strcasecmp
+#include <cstring>
+
+// TheSuperHackers @build bobtista 13/06/2026 Crash backtrace handler. Android's
+// debuggerd does not produce a tombstone for stack-overflow SIGSEGVs, so install
+// our own handler on an alternate signal stack that unwinds and symbolizes via
+// dladdr -> logcat (tag "ggc-crash").
+namespace
+{
+	struct GgcBtState { void **current; void **end; };
+
+	_Unwind_Reason_Code ggc_unwind_cb(_Unwind_Context *ctx, void *arg)
+	{
+		GgcBtState *st = (GgcBtState *)arg;
+		uintptr_t pc = _Unwind_GetIP(ctx);
+		if (pc != 0 && st->current != st->end) {
+			*st->current++ = (void *)pc;
+		}
+		return _URC_NO_REASON;
+	}
+
+	void ggc_crash_handler(int sig)
+	{
+		void *frames[64];
+		GgcBtState st = { frames, frames + 64 };
+		_Unwind_Backtrace(ggc_unwind_cb, &st);
+		int n = (int)(st.current - frames);
+		__android_log_print(6, "ggc-crash", "*** signal %d, %d frames ***", sig, n);
+		for (int i = 0; i < n; i++) {
+			Dl_info info;
+			const char *sym = "?";
+			char demangled[512];
+			uintptr_t off = 0;
+			if (dladdr(frames[i], &info) && info.dli_sname) {
+				int status = 0;
+				size_t len = sizeof(demangled);
+				char *d = abi::__cxa_demangle(info.dli_sname, demangled, &len, &status);
+				sym = (status == 0 && d) ? d : info.dli_sname;
+				off = (uintptr_t)frames[i] - (uintptr_t)info.dli_saddr;
+			}
+			__android_log_print(6, "ggc-crash", "  #%02d %s+%zu", i, sym, (size_t)off);
+		}
+		_exit(1);
+	}
+
+	void ggc_install_crash_handler()
+	{
+		static char alt_stack[SIGSTKSZ < 65536 ? 65536 : SIGSTKSZ];
+		stack_t ss;
+		ss.ss_sp = alt_stack;
+		ss.ss_size = sizeof(alt_stack);
+		ss.ss_flags = 0;
+		sigaltstack(&ss, nullptr);
+		struct sigaction sa;
+		memset(&sa, 0, sizeof(sa));
+		sa.sa_handler = ggc_crash_handler;
+		sa.sa_flags = SA_ONSTACK;
+		sigaction(SIGSEGV, &sa, nullptr);
+		sigaction(SIGABRT, &sa, nullptr);
+	}
+}
+#endif
+
+#if defined(__SWITCH__)
+#include <unistd.h>
+#include <stdint.h>
+#include <cstdio>
+#include <cstring>
+#include <cstdlib>
+extern "C" {
+	uint32_t romfsMountSelf(const char* name);
+	uint32_t romfsUnmount(const char* name);
+	const void* socketGetDefaultInitConfig(void);
+	uint32_t socketInitialize(const void* config);
+	void socketExit(void);
+	// libnx SVC wrapper: routes a debug string to the emulator/host log (visible in
+	// Ryujinx "Guest" log and yuzu Debug log). Our out-of-band boot trace channel.
+	uint32_t svcOutputDebugString(const char* str, uint64_t size);
+	// TheSuperHackers @bugfix githubawn 01/07/2026 The no-romfs NRO reads its .big
+	// archives from the SD card, but the libnx sdmc: device is not guaranteed to be
+	// mounted for a bare NRO. Mount it explicitly before we try to reach the data.
+	uint32_t fsdevMountSdmc(void);
+}
+
+// Boot trace helper: emit a line to the emulator/host debug log.
+static void ggcSwitchLog(const char* msg)
+{
+	svcOutputDebugString(msg, strlen(msg));
+}
+#endif
 
 // TheSuperHackers @info bobtista 30/04/2026 Release builds strip
 // WWDEBUG_SAY, so during macOS bring-up we emit a small set of stderr
@@ -132,6 +245,85 @@ void *TheSDL3MetalLayer = NULL;
 
 extern Int GameMain();
 
+#if defined(__ANDROID__)
+// TheSuperHackers @bugfix githubawn 29/06/2026 Returns true if the directory
+// contains at least one ".big" archive, used to pick the real game data dir from
+// a list of candidates on Android (shared storage vs the app's private dir).
+static bool GGC_DirHasBigArchive(const char *dir)
+{
+	DIR *d = opendir(dir);
+	if (d == NULL)
+		return false;
+
+	bool found = false;
+	struct dirent *ent;
+	while ((ent = readdir(d)) != NULL)
+	{
+		const char *name = ent->d_name;
+		const size_t len = strlen(name);
+		if (len > 4 && strcasecmp(name + len - 4, ".big") == 0)
+		{
+			found = true;
+			break;
+		}
+	}
+
+	closedir(d);
+	return found;
+}
+#endif
+
+#if defined(GGC_PLATFORM_UWP)
+// TheSuperHackers @build githubawn 16/10/2026 Xbox has no debugger attached in Dev
+// Mode sideloading, so log unhandled exceptions (code, faulting RVA and a stack of
+// module RVAs) to ggc_log.txt; resolve them against generalszh.pdb on the PC.
+static void ggcLogAddress(const char *tag, void *addr)
+{
+	HMODULE mod = NULL;
+	char name[MAX_PATH] = "?";
+	if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)addr, &mod) && mod != NULL)
+	{
+		GetModuleFileNameA(mod, name, sizeof(name));
+		const char *leaf = strrchr(name, '\\');
+		printf("[ggc]   %s %p %s+0x%llx\n", tag, addr, leaf ? leaf + 1 : name, (unsigned long long)((char *)addr - (char *)mod));
+	}
+	else
+	{
+		printf("[ggc]   %s %p\n", tag, addr);
+	}
+}
+
+static LONG WINAPI ggcUnhandledExceptionFilter(EXCEPTION_POINTERS *info)
+{
+	printf("[ggc] CRASH: exception 0x%08lx at %p\n", info->ExceptionRecord->ExceptionCode, info->ExceptionRecord->ExceptionAddress);
+	if (info->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && info->ExceptionRecord->NumberParameters >= 2)
+	{
+		printf("[ggc]   access violation %s address %p\n", info->ExceptionRecord->ExceptionInformation[0] ? "writing" : "reading", (void *)info->ExceptionRecord->ExceptionInformation[1]);
+	}
+	ggcLogAddress("fault", info->ExceptionRecord->ExceptionAddress);
+	// Walk the faulting context with RtlVirtualUnwind (x64 unwind tables).
+	CONTEXT ctx = *info->ContextRecord;
+	for (int frame = 0; frame < 48 && ctx.Rip != 0; ++frame)
+	{
+		ggcLogAddress("frame", (void *)ctx.Rip);
+		DWORD64 imageBase = 0;
+		PRUNTIME_FUNCTION fn = RtlLookupFunctionEntry(ctx.Rip, &imageBase, NULL);
+		if (fn == NULL)
+		{
+			// Leaf function: return address is at [rsp].
+			ctx.Rip = *(DWORD64 *)ctx.Rsp;
+			ctx.Rsp += 8;
+			continue;
+		}
+		PVOID handlerData = NULL;
+		DWORD64 establisher = 0;
+		RtlVirtualUnwind(UNW_FLAG_NHANDLER, imageBase, ctx.Rip, fn, &ctx, &handlerData, &establisher, NULL);
+	}
+	fflush(stdout);
+	return EXCEPTION_CONTINUE_SEARCH;
+}
+#endif
+
 #if defined(_WIN32) && defined(RTS_ENABLE_CRASHDUMP)
 // TheSuperHackers @bugfix bobtista 15/08/2026 The SDL3 entry point replaces WinMain on Windows
 // (see the /ENTRY:mainCRTStartup link option), so the exception filter and minidump setup that
@@ -154,6 +346,54 @@ int main(int argc, char **argv)
 #if !defined(_WIN32)
 	__argc = argc;
 	__argv = argv;
+#elif defined(GGC_PLATFORM_UWP)
+	// TheSuperHackers @bugfix githubawn 16/10/2026 Under the UWP entry the CRT never
+	// builds __argv/__wargv, and OpenAL Soft reads __wargv[0] to find its config next
+	// to the exe (a null dereference on Xbox). Point them at this process.
+	{
+		static wchar_t exePathW[MAX_PATH];
+		static wchar_t *wargv[2] = { exePathW, NULL };
+		GetModuleFileNameW(NULL, exePathW, MAX_PATH);
+		if (__wargv == NULL)
+		{
+			__wargv = wargv;
+		}
+		if (__argv == NULL)
+		{
+			__argc = argc;
+			__argv = argv;
+		}
+	}
+#endif
+
+#if defined(__SWITCH__)
+	ggcSwitchLog("[ggc] main: entered\n");
+	// TheSuperHackers @build githubawn 03/07/2026 TLS probe: OpenAL and bgfx both crash
+	// (va=0x0) reading a C++ thread_local on the main thread. Log the thread pointer
+	// registers and a real thread_local access to confirm the main-thread TLS setup.
+	{
+		unsigned long tp_rw = 0, tp_ro = 0;
+		__asm__ volatile("mrs %0, tpidr_el0" : "=r"(tp_rw));
+		__asm__ volatile("mrs %0, tpidrro_el0" : "=r"(tp_ro));
+		static thread_local volatile int ggcTlsTest = 0x5a5a;
+		char b[160];
+		snprintf(b, sizeof(b), "[ggc] tpidr_el0=0x%lx tpidrro_el0=0x%lx &tls=%p\n",
+			tp_rw, tp_ro, (void*)&ggcTlsTest);
+		ggcSwitchLog(b);
+		snprintf(b, sizeof(b), "[ggc] tls read = 0x%x\n", ggcTlsTest);
+		ggcSwitchLog(b);
+	}
+	socketInitialize(socketGetDefaultInitConfig());
+	// TheSuperHackers @build githubawn 03/07/2026 The Switch build ships as a homebrew
+	// NRO (with a NACP) that reads its .big archives loose from the SD card
+	// (sdmc:/generalszh), the same model RetroArch uses. Do NOT call romfsMountSelf
+	// (in NRO mode it parses the self-NRO's embedded romfs asset, which this NRO does
+	// not have, and that read crashes the emulator FS service). Do NOT call
+	// fsdevMountSdmc either: libnx already auto-mounts sdmc: in homebrew __appInit, and
+	// re-mounting collides and returns a misleading LibnxError_OutOfMemory (0x559).
+	// The data dir is located and chdir'd below (after SDL_Init).
+	ggcSwitchLog("[ggc] socket init done; sdmc: auto-mounted by libnx\n");
+	setenv("GENERALS_USER_DIR", "sdmc:/switch/GeneralsZH", 1);
 #endif
 
 	GgcFlags::DumpTableIfRequested();
@@ -247,6 +487,14 @@ int main(int argc, char **argv)
 		SDL_SetHint(SDL_HINT_MAC_BACKGROUND_APP, GgcFlags::Enabled(GgcFlag_NoFocus) ? "1" : "0");
 	}
 
+#if defined(__ANDROID__)
+	SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
+	// TheSuperHackers @feature bobtista 15/06/2026 We translate touch events to
+	// left-mouse ourselves (SDL3Mouse::addSDL3FingerEvent); disable SDL's own
+	// touch->mouse synthesis so a single tap does not produce duplicate clicks.
+	SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
+#endif
+
 	GGC_TRACE("calling SDL_Init");
 	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS))
 	{
@@ -254,6 +502,276 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	GGC_TRACE("SDL_Init OK");
+
+#if defined(GGC_PLATFORM_UWP)
+	// TheSuperHackers @build githubawn 16/10/2026 UWP activates the CoreWindow from its
+	// Activated event, which is only dispatched while events are pumped. Engine init
+	// takes many seconds without pumping, so the shell would kill the app for not
+	// activating in time; pump briefly first so the splash screen is dismissed.
+	for (int i = 0; i < 50; ++i)
+	{
+		SDL_PumpEvents();
+		SDL_Delay(10);
+	}
+
+	// TheSuperHackers @build githubawn 16/10/2026 UWP (Xbox): the game data ships in
+	// the package (read-only install dir, the engine's relative paths resolve from
+	// there) and user data (Options.ini, saves, replays) goes to LocalState.
+	{
+		// The data can instead be uploaded once into LocalState\data (Device Portal file
+		// explorer) so code-only package updates stay small; prefer it when present.
+		const char *basePath = SDL_GetBasePath();
+		char *prefPath = SDL_GetPrefPath("GGC", "GeneralsZH");
+		char dataDir[1024];
+		dataDir[0] = '\0';
+		if (prefPath != NULL)
+		{
+			char probe[1024];
+			snprintf(probe, sizeof(probe), "%s..\\..\\data\\INIZH.big", prefPath);
+			if (GetFileAttributesA(probe) != INVALID_FILE_ATTRIBUTES)
+			{
+				snprintf(dataDir, sizeof(dataDir), "%s..\\..\\data\\", prefPath);
+			}
+		}
+		if (dataDir[0] == '\0' && basePath != NULL)
+		{
+			snprintf(dataDir, sizeof(dataDir), "%s", basePath);
+		}
+		if (dataDir[0] != '\0')
+		{
+			SetCurrentDirectoryA(dataDir);
+		}
+		if (prefPath != NULL)
+		{
+			_putenv_s("GENERALS_USER_DIR", prefPath);
+			// No console on Xbox: keep stdout/stderr (bgfx + engine logging) in a file
+			// that Device Portal's file explorer can download.
+			char logPath[1024];
+			snprintf(logPath, sizeof(logPath), "%sggc_log.txt", prefPath);
+			freopen(logPath, "w", stdout);
+			setvbuf(stdout, NULL, _IONBF, 0);
+			// A UWP process starts without a valid stderr descriptor, so _dup2 onto it
+			// fails silently; give stderr its own file instead.
+			snprintf(logPath, sizeof(logPath), "%sggc_err.txt", prefPath);
+			freopen(logPath, "w", stderr);
+			setvbuf(stderr, NULL, _IONBF, 0);
+			SetUnhandledExceptionFilter(ggcUnhandledExceptionFilter);
+			SDL_free(prefPath);
+		}
+		printf("[ggc] UWP base=%s data=%s user=%s\n", basePath ? basePath : "(null)", dataDir, getenv("GENERALS_USER_DIR"));
+
+		// TheSuperHackers @feature githubawn 16/10/2026 A UWP app gets no command line, so
+		// read extra arguments from LocalState\cmdline.txt (uploadable through Device
+		// Portal). Whitespace-separated; "ENV:NAME=VALUE" sets an environment variable.
+		{
+			static char cmdBuf[4096];
+			static char *uwpArgv[64];
+			int uwpArgc = 0;
+			uwpArgv[uwpArgc++] = (char *)"generalszh.exe";
+			char cmdPath[1024];
+			const char *user = getenv("GENERALS_USER_DIR");
+			snprintf(cmdPath, sizeof(cmdPath), "%s..\\..\\cmdline.txt", user ? user : "");
+			FILE *cf = fopen(cmdPath, "rb");
+			if (cf != NULL)
+			{
+				const size_t n = fread(cmdBuf, 1, sizeof(cmdBuf) - 1, cf);
+				fclose(cf);
+				cmdBuf[n] = '\0';
+				char *ctx = NULL;
+				for (char *tok = strtok_s(cmdBuf, " \t\r\n", &ctx); tok != NULL && uwpArgc < 63; tok = strtok_s(NULL, " \t\r\n", &ctx))
+				{
+					if (strncmp(tok, "ENV:", 4) == 0)
+					{
+						_putenv(tok + 4);
+					}
+					else
+					{
+						uwpArgv[uwpArgc++] = tok;
+					}
+					printf("[ggc] cmdline.txt: %s\n", tok);
+				}
+			}
+			uwpArgv[uwpArgc] = NULL;
+			__argc = uwpArgc;
+			__argv = uwpArgv;
+		}
+
+	}
+#endif
+
+#if defined(__SWITCH__)
+	// TheSuperHackers @bugfix githubawn 03/07/2026 Locate the loose .big archives on
+	// the SD card and chdir there so the engine's relative paths (Data\INI\...)
+	// resolve. libnx already auto-mounts sdmc: in homebrew __appInit, so we only need
+	// to find the data dir. CRITICAL: probe with ABSOLUTE paths only. A relative
+	// fopen() before any successful chdir crashes inside libnx fsdev_getfspath (it
+	// indexes fsdev_fsdevices[cwd] with cwd == -1 when no default device is set).
+	{
+		const char* basePath = SDL_GetBasePath();
+		char argvDir[256];
+		argvDir[0] = 0;
+		if (argc > 0 && argv && argv[0])
+		{
+			size_t len = 0;
+			while (argv[0][len] && len < sizeof(argvDir) - 1) { argvDir[len] = argv[0][len]; ++len; }
+			argvDir[len] = 0;
+			for (size_t i = len; i-- > 0; )
+			{
+				if (argvDir[i] == '/' || argvDir[i] == '\\') { argvDir[i] = 0; break; }
+			}
+		}
+
+		const char* candidates[] = {
+			"sdmc:/generalszh",
+			"sdmc:/switch/generalszh",
+			basePath,
+			argvDir[0] ? argvDir : nullptr,
+			"sdmc:/",
+		};
+
+		for (unsigned i = 0; i < sizeof(candidates) / sizeof(candidates[0]); ++i)
+		{
+			const char* c = candidates[i];
+			if (c == nullptr || c[0] == '\0') continue;
+			// Absolute probe (crash-safe: device resolved by name, not cwd).
+			char probePath[512];
+			snprintf(probePath, sizeof(probePath), "%s/GeneralsZH.big", c);
+			FILE* probe = fopen(probePath, "rb");
+			char b[600];
+			snprintf(b, sizeof(b), "[ggc] probe %s = %s\n", probePath, probe ? "OPEN" : "no");
+			ggcSwitchLog(b);
+			if (probe)
+			{
+				fclose(probe);
+				const int cd = chdir(c);
+				snprintf(b, sizeof(b), "[ggc] chdir %s = %d\n", c, cd);
+				ggcSwitchLog(b);
+				break;
+			}
+		}
+	}
+#endif
+
+#if defined(__ANDROID__)
+	// Install after SDL_Init so SDL's own handlers don't replace ours.
+	ggc_install_crash_handler();
+#endif
+
+#if defined(__ANDROID__)
+	// TheSuperHackers @build bobtista 13/06/2026 The engine loads its .big
+	// archives and Data/ tree relative to the working directory. On Android the
+	// process starts with cwd "/", so switch to the directory that actually holds
+	// the game data.
+	// TheSuperHackers @bugfix githubawn 29/06/2026 The app's private external
+	// storage dir (SDL_GetAndroidExternalStoragePath) is empty on most installs;
+	// the game data lives in shared storage (e.g. /sdcard/Games/Generals). Probe a
+	// list of candidate directories and chdir to the first one that actually
+	// contains .big archives, instead of unconditionally using the (empty) private
+	// dir, which made the very first INI load (GameData) throw INI_CANT_OPEN_FILE
+	// and abort init. Reading shared storage needs the MANAGE_EXTERNAL_STORAGE
+	// ("All files access") grant declared in the manifest. Keep the user-data root
+	// (saves / prefs / crash logs) in the always-writable private dir.
+	{
+		const char *userDir = SDL_GetAndroidExternalStoragePath();
+		if (userDir != NULL && userDir[0] != '\0')
+		{
+			setenv("GENERALS_USER_DIR", userDir, 1);
+		}
+
+		const char *candidates[] = {
+			getenv("GENERALS_DATA_DIR"),          // explicit override wins
+			"/sdcard/Games/Generals",
+			"/storage/emulated/0/Games/Generals",
+			userDir,                              // last resort (data pushed into app dir)
+		};
+
+		const char *dataDir = NULL;
+		for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); ++i)
+		{
+			const char *c = candidates[i];
+			if (c == NULL || c[0] == '\0')
+				continue;
+			if (GGC_DirHasBigArchive(c))
+			{
+				dataDir = c;
+				break;
+			}
+		}
+
+		if (dataDir == NULL)
+			dataDir = userDir;  // nothing matched; fall back so chdir/logging still runs
+
+		if (dataDir != NULL && dataDir[0] != '\0')
+		{
+			if (chdir(dataDir) == 0)
+			{
+				SDL_Log("[ggc] data dir (cwd): %s", dataDir);
+			}
+			else
+			{
+				SDL_Log("[ggc] chdir to data dir failed: %s", dataDir);
+			}
+		}
+		else
+		{
+			SDL_Log("[ggc] could not resolve a game data directory");
+		}
+	}
+#endif
+
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+	// TheSuperHackers @build githubawn 18/06/2026 On iOS the app is sandboxed and
+	// starts with an arbitrary cwd; the engine loads its .big archives and Data/
+	// tree relative to the working directory. Point cwd (and the user-data root)
+	// at the app's Documents container, where the game assets are placed (and
+	// which UIFileSharingEnabled exposes in the Files app).
+	{
+		const char *home = getenv("HOME");
+		if (home != NULL && home[0] != '\0')
+		{
+			char docs[1024];
+			snprintf(docs, sizeof(docs), "%s/Documents", home);
+			const int chdirRc = chdir(docs);
+			if (chdirRc == 0)
+			{
+				SDL_Log("[ggc] asset dir (cwd): %s", docs);
+			}
+			else
+			{
+				SDL_Log("[ggc] chdir to asset dir failed: %s", docs);
+			}
+			setenv("GENERALS_USER_DIR", docs, 1);
+
+			// TheSuperHackers @build githubawn 18/06/2026 Boot diagnostic: write a
+			// file (readable over USB via devicectl) recording cwd and whether the
+			// game data is reachable, so a crash-on-launch can be diagnosed without
+			// the iOS console.
+			{
+				char logp[1200];
+				snprintf(logp, sizeof(logp), "%s/ggc_ios_boot.log", docs);
+				FILE *bl = fopen(logp, "w");
+				if (bl != NULL)
+				{
+					char cwd[1024]; cwd[0] = '\0';
+					getcwd(cwd, sizeof(cwd));
+					fprintf(bl, "chdirRc=%d cwd=%s\n", chdirRc, cwd);
+					FILE *big = fopen("GeneralsZH.big", "rb");
+					fprintf(bl, "GeneralsZH.big=%s\n", big ? "OPEN_OK" : "OPEN_FAIL");
+					if (big) fclose(big);
+					FILE *ini = fopen("INIZH.big", "rb");
+					fprintf(bl, "INIZH.big=%s\n", ini ? "OPEN_OK" : "OPEN_FAIL");
+					if (ini) fclose(ini);
+					fprintf(bl, "reached: pre-GameMain\n");
+					fclose(bl);
+				}
+			}
+		}
+		else
+		{
+			SDL_Log("[ggc] HOME not set; cannot locate Documents asset dir");
+		}
+	}
+#endif
 
 #if defined(__EMSCRIPTEN__)
 	// TheSuperHackers @feature githubawn 29/07/2026 The browser's in-memory filesystem
@@ -345,7 +863,14 @@ int main(int argc, char **argv)
 	}
 	Uint32 windowFlags = SDL_WINDOW_RESIZABLE;
 #if defined(__APPLE__)
+	// TheSuperHackers @feature githubawn 28/06/2026 The desktop-GL build needs a
+	// GL-capable window (bgfx attaches its own NSOpenGLContext to the contentView);
+	// the Metal/MoltenVK builds need a Metal-backed view. Pick the matching flag.
+#if defined(GGC_BGFX_RENDERER_GLSL)
+	windowFlags |= SDL_WINDOW_OPENGL;
+#else
 	windowFlags |= SDL_WINDOW_METAL;
+#endif
 	// TheSuperHackers @bugfix bobtista 08/06/2026 Do NOT create the window hidden on macOS for
 	// fullscreen. A real fullscreen Space (which hides the menu bar + Dock) is entered via
 	// -[NSWindow toggleFullScreen:], and AppKit only animates a VISIBLE, active window into a Space;
@@ -394,6 +919,10 @@ int main(int argc, char **argv)
 	// the NSWindow and races with SDL3 for control of the contentView's
 	// layer, which manifests as intermittent AGX driver compilation
 	// crashes in AGCDeserializedReply on macOS Tahoe / Apple Silicon.
+	// TheSuperHackers @build githubawn 17/06/2026 Skipped for the desktop-GL build: bgfx's
+	// GL backend installs an NSOpenGLContext on the contentView instead, and a CAMetalLayer
+	// there would leave GL with no drawable.
+#if !defined(GGC_BGFX_RENDERER_GLSL)
 	GGC_TRACE("calling SDL_Metal_CreateView");
 	TheSDL3MetalView = SDL_Metal_CreateView(TheSDL3Window);
 	if (TheSDL3MetalView != NULL)
@@ -406,6 +935,7 @@ int main(int argc, char **argv)
 	{
 		SDL_Log("SDL_Metal_CreateView failed: %s", SDL_GetError());
 	}
+#endif
 
 	// TheSuperHackers @bugfix bobtista 08/06/2026 Enter a REAL macOS fullscreen Space (hides the menu
 	// bar + Dock, covers the whole display). Per SDL3's Cocoa backend this needs a resizable window
@@ -430,6 +960,39 @@ int main(int argc, char **argv)
 		// clicked repeatedly. The fullscreen path above already raises the window and is unaffected.
 		SDL_ShowWindow(TheSDL3Window);
 		SDL_RaiseWindow(TheSDL3Window);
+	}
+#endif
+
+#if defined(__ANDROID__)
+	// TheSuperHackers @bugfix bobtista 15/06/2026 On Android the SurfaceView is
+	// created asynchronously and the fullscreen/orientation transition destroys
+	// and recreates it. Engine init (which calls bgfx::init ~several seconds
+	// later) does not pump SDL events, so if we proceed before the surface has
+	// settled, bgfx binds a stale/destroyed ANativeWindow and crashes inside
+	// ANativeWindow_setBuffersGeometry (or renders nothing). Pump events here
+	// until the native window handle is non-null and stable for a short window.
+	{
+		void *prevWin = nullptr;
+		int stableFrames = 0;
+		for (int i = 0; i < 300 && stableFrames < 12; ++i)
+		{
+			SDL_PumpEvents();
+			SDL_Event ev;
+			while (SDL_PollEvent(&ev)) { /* drain pending events */ }
+			SDL_PropertiesID props = SDL_GetWindowProperties(TheSDL3Window);
+			void *nwh = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, NULL);
+			if (nwh != nullptr && nwh == prevWin)
+			{
+				++stableFrames;
+			}
+			else
+			{
+				stableFrames = 0;
+			}
+			prevWin = nwh;
+			SDL_Delay(16);
+		}
+		SDL_Log("[ggc] Android surface settled: nwh=%p stableFrames=%d", prevWin, stableFrames);
 	}
 #endif
 
@@ -505,6 +1068,13 @@ int main(int argc, char **argv)
 	TheSDL3Window = NULL;
 	ApplicationHWnd = NULL;
 	SDL_Quit();
+
+#if defined(__SWITCH__)
+#if !defined(GGC_SWITCH_SD_DATA)
+	romfsUnmount("romfs");
+#endif
+	socketExit();
+#endif
 
 #if defined(_WIN32) && defined(RTS_ENABLE_CRASHDUMP)
 	MiniDumper::shutdownMiniDumper();

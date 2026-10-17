@@ -344,8 +344,8 @@ Bool  getStringFromRegistry(HKEY root, AsciiString path, AsciiString key, AsciiS
 	HKEY handle;
 	// TheSuperHackers @fix bobtista 14/10/2026 Reserve the last byte so the value is always NUL terminated.
 	unsigned char buffer[256] = {0};
-	unsigned long size = sizeof(buffer) - 1;
-	unsigned long type;
+	DWORD size = sizeof(buffer) - 1;
+	DWORD type;
 	int returnValue;
 
 	if ((returnValue = RegOpenKeyEx( root, path.str(), 0, KEY_READ | kRegistry32BitView, &handle )) == ERROR_SUCCESS)
@@ -367,8 +367,8 @@ Bool getUnsignedIntFromRegistry(HKEY root, AsciiString path, AsciiString key, Un
 {
 	HKEY handle;
 	unsigned char buffer[4];
-	unsigned long size = 4;
-	unsigned long type;
+	DWORD size = 4;
+	DWORD type;
 	int returnValue;
 
 	if ((returnValue = RegOpenKeyEx( root, path.str(), 0, KEY_READ | kRegistry32BitView, &handle )) == ERROR_SUCCESS)

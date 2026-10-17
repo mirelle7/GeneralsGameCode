@@ -812,8 +812,23 @@ void ResolutionDialogUpdate()
 /** Main menu update method */
 //-------------------------------------------------------------------------------------------------
 void DownloadMenuUpdate( WindowLayout *layout, void *userData );
+#if defined(__SWITCH__)
+extern "C" unsigned int svcOutputDebugString(const char *, unsigned long);
+#endif
 void MainMenuUpdate( WindowLayout *layout, void *userData )
 {
+#if defined(__SWITCH__)
+	{
+		static unsigned s_mmTop = 0;
+		if ((s_mmTop++ % 60) == 0)
+		{
+			char b[160];
+			int n = snprintf(b, sizeof(b), "[ggc] MMUpd CALLED inGame=%d shellGame=%d justEnt=%d\n",
+				(int)TheGameLogic->isInGame(), (int)TheGameLogic->isInShellGame(), (int)justEntered);
+			if (n > 0) svcOutputDebugString(b, (unsigned)n);
+		}
+	}
+#endif
 #if defined(RTS_DEBUG)
 	if (NetworkAutoStart::shouldOpenDirectConnect())
 	{
@@ -856,6 +871,22 @@ void MainMenuUpdate( WindowLayout *layout, void *userData )
 		else
 			initialGadgetDelay--;
 	}
+
+#if defined(__SWITCH__)
+	{
+		static unsigned s_mmDbg = 0;
+		if ((s_mmDbg++ % 30) == 0 || showLogo || startGame || dontAllowTransitions)
+		{
+			char b[224];
+			int n = snprintf(b, sizeof(b),
+				"[ggc] MM dontAllow=%d showLogo=%d showSide=%d startGame=%d transFin=%d animFin=%d justEnt=%d\n",
+				(int)dontAllowTransitions, (int)showLogo, (int)showSide, (int)startGame,
+				(int)TheTransitionHandler->isFinished(), (int)TheShell->isAnimFinished(),
+				(int)justEntered);
+			if (n > 0) svcOutputDebugString(b, (unsigned)n);
+		}
+	}
+#endif
 
 	if(dontAllowTransitions && TheTransitionHandler->isFinished())
 		dontAllowTransitions = FALSE;
@@ -910,6 +941,23 @@ void MainMenuUpdate( WindowLayout *layout, void *userData )
 //		else
 //			initialGadgetDelay--;
 //	}
+
+#if defined(__ANDROID__)
+	// TheSuperHackers @bugfix githubawn 18/06/2026 With the shell map enabled the main
+	// menu stays hidden until the mouse moves >20px (the attract-mode gate in
+	// MainMenuInput). Touch devices have no mouse motion, so the menu never appeared.
+	// Reveal it automatically on the first update frame instead of waiting for input.
+	// TheSuperHackers @diagnostic githubawn 21/06/2026 Also auto-reveal on win32-bgfx so
+	// the menu-resting shell-map camera matches Android for screenshot A/B.
+	if (notShown)
+	{
+		dropDownWindows[DROPDOWN_MAIN]->winHide(FALSE);
+		TheTransitionHandler->setGroup("MainMenuFade", TRUE);
+		TheTransitionHandler->setGroup("MainMenuDefaultMenu");
+		TheMouse->setVisibility(TRUE);
+		notShown = FALSE;
+	}
+#endif
 
 	if (raiseMessageBoxes)
 	{

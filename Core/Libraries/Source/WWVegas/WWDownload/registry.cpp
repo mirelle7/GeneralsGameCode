@@ -29,8 +29,8 @@ bool  getStringFromRegistry(HKEY root, std::string path, std::string key, std::s
 	HKEY handle;
 	// TheSuperHackers @fix bobtista 14/10/2026 Reserve the last byte so the value is always NUL terminated.
 	unsigned char buffer[256] = {0};
-	unsigned long size = sizeof(buffer) - 1;
-	unsigned long type;
+	DWORD size = sizeof(buffer) - 1;
+	DWORD type;
 	int returnValue;
 
 	if ((returnValue = RegOpenKeyEx( root, path.c_str(), 0, KEY_READ, &handle )) == ERROR_SUCCESS)
@@ -51,9 +51,9 @@ bool  getStringFromRegistry(HKEY root, std::string path, std::string key, std::s
 bool getUnsignedIntFromRegistry(HKEY root, std::string path, std::string key, unsigned int& val)
 {
 	HKEY handle;
-	unsigned long buffer;
-	unsigned long size = sizeof(buffer);
-	unsigned long type;
+	DWORD buffer;
+	DWORD size = sizeof(buffer);
+	DWORD type;
 	int returnValue;
 
 	if ((returnValue = RegOpenKeyEx( root, path.c_str(), 0, KEY_READ, &handle )) == ERROR_SUCCESS)

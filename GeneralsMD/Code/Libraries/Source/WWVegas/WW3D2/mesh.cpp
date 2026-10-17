@@ -668,7 +668,13 @@ extern "C" int GGC_GetBgfxSunShadowCullBox(float * center3, float * radius);
 void MeshClass::Render(RenderInfoClass & rinfo)
 {
 	WWPROFILE("Mesh::Render");
+#if defined(__ANDROID__)
+	{ extern unsigned g_ggcMeshClassRender; ++g_ggcMeshClassRender; }
+#endif
 	if (Is_Not_Hidden_At_All() == false) {
+#if defined(__ANDROID__)
+		{ extern unsigned g_ggcMeshClassHidden; ++g_ggcMeshClassHidden; }
+#endif
 		return;
 	}
 
@@ -677,6 +683,9 @@ void MeshClass::Render(RenderInfoClass & rinfo)
 	unsigned int sort_level = (unsigned int)Model->Get_Sort_Level();
 
 	if (WW3D::Are_Static_Sort_Lists_Enabled() && sort_level != SORT_LEVEL_NONE) {
+#if defined(__ANDROID__)
+		{ extern unsigned g_ggcMeshClassSortList; ++g_ggcMeshClassSortList; }
+#endif
 
 		Set_Lighting_Environment(rinfo.light_environment);
 		//Add custom alpha
@@ -728,6 +737,9 @@ void MeshClass::Render(RenderInfoClass & rinfo)
 #endif
 		if ( meshInView )
 		{
+#if defined(__ANDROID__)
+			{ extern unsigned g_ggcMeshClassVisible; ++g_ggcMeshClassVisible; }
+#endif
 			bool rendered_something = false;
 
 			/*

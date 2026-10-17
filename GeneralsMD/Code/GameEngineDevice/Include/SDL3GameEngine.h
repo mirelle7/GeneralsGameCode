@@ -18,6 +18,8 @@
 
 extern SDL_Window *TheSDL3Window;
 
+class SDL3Gamepad;
+
 class SDL3GameEngine : public GameEngine
 {
 public:
@@ -52,6 +54,7 @@ private:
 	void handleMouseMotionEvent(const SDL_MouseMotionEvent &event);
 	void handleMouseButtonEvent(const SDL_MouseButtonEvent &event);
 	void handleMouseWheelEvent(const SDL_MouseWheelEvent &event);
+	void handleFingerEvent(const SDL_TouchFingerEvent &event, int phase);
 	void handleWindowEvent(const SDL_WindowEvent &event);
 	void applyPendingWindowResize();
 	void updatePresentMode();
@@ -65,6 +68,7 @@ private:
 	Int m_pendingWidth;
 	Int m_pendingHeight;
 	Int m_resizeStableCount;
+	SDL3Gamepad *m_gamepad;	///< gamepad -> emulated mouse/keyboard (Windows/UWP)
 };
 
 #endif

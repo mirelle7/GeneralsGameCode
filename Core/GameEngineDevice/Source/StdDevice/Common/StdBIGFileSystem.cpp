@@ -40,6 +40,10 @@
 
 #include "StdDevice/Common/StdBIGFile.h"
 #include "StdDevice/Common/StdBIGFileSystem.h"
+
+#if defined(__SWITCH__)
+extern "C" unsigned int svcOutputDebugString(const char *, unsigned long);
+#endif
 #include "Utility/endian_compat.h"
 
 #include <algorithm>
@@ -122,6 +126,18 @@ void StdBIGFileSystem::init() {
 
 	loadBigFilesFromDirectory("", "*.big");
 
+#if defined(__EMSCRIPTEN__)
+	// On Emscripten, verify that the BIG archives are populated in MEMFS / IDBFS
+	{
+		FilenameList filenameList;
+		TheLocalFileSystem->getFileListInDirectory("", "", "*.big", filenameList, TRUE);
+		if (filenameList.empty()) {
+			printf("[ggc-fs] WARNING: No .big archives found in working directory!\n");
+			printf("[ggc-fs] Please ensure Generals.big / GeneralsZH.big are preloaded or mounted.\n");
+		}
+	}
+#endif
+
 #if RTS_ZEROHOUR
 #if defined(_UNIX)
     // TheSuperHackers @feature bobtista 09/06/2026 On non-Windows the engine binary often
@@ -140,6 +156,13 @@ void StdBIGFileSystem::init() {
     // load original Generals assets
     AsciiString installPath;
     GetStringFromGeneralsRegistry("", "InstallPath", installPath );
+#if defined(GGC_PLATFORM_UWP)
+    // TheSuperHackers @build githubawn 16/10/2026 UWP (Xbox) has no Generals registry
+    // install; the package ships the base game's archives in a "generals" subfolder
+    // (they share names like Music.big with Zero Hour's, so they cannot sit in the root).
+    if (installPath.isEmpty())
+      installPath = "generals\\";
+#endif
     //@todo this will need to be ramped up to a crash for release
     DEBUG_ASSERTCRASH(!installPath.isEmpty(), ("Be 1337! Go install Generals!"));
     if (!installPath.isEmpty())
@@ -220,6 +243,11 @@ ArchiveFile * StdBIGFileSystem::openArchiveFile(const Char *filename) {
 	fp->read(&numLittleFiles, 4);
 	numLittleFiles = betoh(numLittleFiles);
 
+#if defined(__SWITCH__)
+	{ char b[200]; int n=snprintf(b,sizeof(b),"[ggc] parseBig '%s' numFiles=%d archiveSize=%d\n",
+		filename, (int)numLittleFiles, (int)archiveFileSize); if(n>0) svcOutputDebugString(b,(unsigned)n); }
+#endif
+
 	DEBUG_LOG(("StdBIGFileSystem::openArchiveFile - %d are contained in archive", numLittleFiles));
 //	for (Int i = 0; i < 2; ++i) {
 //		t = buffer[i];
@@ -247,9 +275,17 @@ ArchiveFile * StdBIGFileSystem::openArchiveFile(const Char *filename) {
 		fileInfo.m_size = filesize;
 
 		// read in the path name of the file.
+		// TheSuperHackers @bugfix githubawn 01/07/2026 Guard against overrunning
+		// buffer[_MAX_PATH] on a malformed/oversized BIG entry or a runaway read past
+		// EOF (fp->read leaving the byte unchanged), which would smash the stack.
 		Int pathIndex = -1;
 		do {
 			++pathIndex;
+			if (pathIndex >= _MAX_PATH - 1) {
+				buffer[_MAX_PATH - 1] = 0;
+				pathIndex = _MAX_PATH - 1;
+				break;
+			}
 			fp->read(buffer + pathIndex, 1);
 		} while (buffer[pathIndex] != 0);
 
@@ -260,6 +296,13 @@ ArchiveFile * StdBIGFileSystem::openArchiveFile(const Char *filename) {
 
 		fileInfo.m_filename = (char *)(buffer + filenameIndex + 1);
 		fileInfo.m_filename.toLower();
+
+#if defined(__SWITCH__)
+		if (strstr(buffer, "avleopard") || strstr(buffer, "leopard")) {
+			char b[256]; int n=snprintf(b,sizeof(b),"[ggc] parseFile #%d rawPath='%s' bare='%s'\n",
+				i, buffer, fileInfo.m_filename.str()); if(n>0) svcOutputDebugString(b,(unsigned)n);
+		}
+#endif
 		buffer[filenameIndex + 1] = 0;
 
 		AsciiString path;
@@ -331,6 +374,19 @@ Bool StdBIGFileSystem::loadBigFilesFromDirectory(AsciiString dir, AsciiString fi
 		return a.compareNoCase(b) < 0;
 	});
 
+#if defined(__SWITCH__)
+	{
+		char b[220];
+		int n = snprintf(b, sizeof(b), "[ggc] loadBigs dir='%s' mask='%s' found=%d bigs\n",
+			dir.str(), fileMask.str(), (int)filenameList.size());
+		if (n > 0) svcOutputDebugString(b, (unsigned)n);
+		for (FilenameListIter dit = filenameList.begin(); dit != filenameList.end(); ++dit) {
+			char c[220]; int cn = snprintf(c, sizeof(c), "[ggc]   big: '%s'\n", (*dit).str());
+			if (cn > 0) svcOutputDebugString(c, (unsigned)cn);
+		}
+	}
+#endif
+
 	Bool actuallyAdded = FALSE;
 	std::vector<AsciiString>::iterator it = sortedFiles.begin();
 	while (it != sortedFiles.end()) {
@@ -345,6 +401,14 @@ Bool StdBIGFileSystem::loadBigFilesFromDirectory(AsciiString dir, AsciiString fi
 #endif
 
 		ArchiveFile *archiveFile = openArchiveFile((*it).str());
+
+#if defined(__SWITCH__)
+		{
+			char b[220]; int n=snprintf(b,sizeof(b),"[ggc] openBig '%s' -> %s\n",
+				(*it).str(), archiveFile != nullptr ? "OK" : "FAILED");
+			if(n>0) svcOutputDebugString(b,(unsigned)n);
+		}
+#endif
 
 		if (archiveFile != nullptr) {
 			DEBUG_LOG(("StdBIGFileSystem::loadBigFilesFromDirectory - loading %s into the directory tree.", (*it).str()));

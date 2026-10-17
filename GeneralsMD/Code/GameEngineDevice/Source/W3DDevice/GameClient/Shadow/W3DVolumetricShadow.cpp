@@ -38,10 +38,21 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#if defined(__ANDROID__)
+#include <android/log.h>
+#include <time.h>
+#endif
 #include <string.h>
 #include <map>
 #include <utility>
 #include <vector>
+
+// TheSuperHackers @build githubawn 29/06/2026 VC6's STLport CRT exposes these C
+// functions in the global namespace only; alias them into std so the std::
+// qualified call sites resolve. Modern toolchains already provide std::.
+#if defined(_MSC_VER) && _MSC_VER < 1300
+namespace std { using ::fopen; using ::fclose; using ::fprintf; using ::getenv; using ::strcmp; }
+#endif
 
 // USER INCLUDES //////////////////////////////////////////////////////////////
 #include "WWLib/always.h"
@@ -3888,6 +3899,23 @@ void W3DVolumetricShadowManager::renderStencilShadows()
 
 void W3DVolumetricShadowManager::renderShadows( Bool forceStencilFill )
 {
+#if defined(__ANDROID__)
+	// TheSuperHackers @diagnostic Time the stencil shadow-volume pass (CPU silhouette
+	// extrusion) to confirm it dominates the high-detail shell-map frame time.
+	struct GgcShadowTimer {
+		struct timespec t0;
+		GgcShadowTimer() { clock_gettime(CLOCK_MONOTONIC, &t0); }
+		~GgcShadowTimer() {
+			struct timespec t1; clock_gettime(CLOCK_MONOTONIC, &t1);
+			double ms = (t1.tv_sec - t0.tv_sec) * 1000.0 + (t1.tv_nsec - t0.tv_nsec) / 1.0e6;
+			static int s = 0; static double acc = 0.0; acc += ms;
+			if (++s % 60 == 0) { __android_log_print(4, "ggc-perf", "renderShadows avg=%.1fms", acc / 60.0); acc = 0.0; }
+		}
+	} ggcShadowTimer;
+#endif
+	// TheSuperHackers @diagnostic Render-skip bisect: bit 1 disables stencil shadow volumes.
+	if (TheGlobalData && (TheGlobalData->m_ggcRenderSkip & 1))
+		return;
 	W3DVolumetricShadow *shadow;
 	Int numRenderedShadows = 0;
 	LogVolumetricShadowPath("renderShadows-begin", nullptr, nullptr, nullptr, 0,

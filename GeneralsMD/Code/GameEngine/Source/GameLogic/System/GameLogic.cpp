@@ -28,6 +28,9 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
+#if defined(__ANDROID__)
+#include <android/log.h>
+#endif
 
 #if defined(__EMSCRIPTEN__)
 #include <emscripten.h>	// for emscripten_sleep() in the multiplayer load barrier below
@@ -107,6 +110,20 @@
 #include "GameLogic/SidesList.h"
 #include "GameLogic/VictoryConditions.h"
 #include "GameLogic/Weapon.h"
+
+#if defined(__SWITCH__)
+#include <cstdio>
+extern "C" unsigned int svcOutputDebugString(const char *, unsigned long);
+static void ggc_gl_trace(const char *m) {
+	svcOutputDebugString(m, __builtin_strlen(m));
+	FILE *f = std::fopen("ggc_boot.txt","a"); if(f){ std::fputs(m,f); std::fflush(f); std::fclose(f); }
+}
+#define GGC_GL(cnt, msg) do { if (cnt) ggc_gl_trace("[ggc] GL: " msg "\n"); } while(0)
+#define GGC_TRACE(msg)   ggc_gl_trace("[ggc] " msg "\n")
+#else
+#define GGC_GL(cnt, msg) do {} while(0)
+#define GGC_TRACE(msg)   do {} while(0)
+#endif
 #include "GameLogic/GhostObject.h"
 
 #include "Common/DataChunk.h"
@@ -1474,6 +1491,7 @@ void GameLogic::setGameMode( GameMode mode )
 // ------------------------------------------------------------------------------------------------
 void GameLogic::startNewGame( Bool loadingSaveGame )
 {
+	GGC_TRACE("SNG: ENTER startNewGame");
 	try
 	{
 		tryStartNewGame(loadingSaveGame);
@@ -1657,6 +1675,7 @@ void GameLogic::tryStartNewGame( Bool loadingSaveGame )
 
 	populateRandomSideAndColor( TheGameInfo );
 	populateRandomStartPosition( TheGameInfo );
+	GGC_TRACE("SNG: after populateRandomStartPos");
 
 	//****************************//
 	// Start the LoadScreen Now!	//
@@ -1665,13 +1684,17 @@ void GameLogic::tryStartNewGame( Bool loadingSaveGame )
 	// Get the m_loadScreen for this kind of game
 	if(!m_loadScreen && !(TheRecorder && TheRecorder->getMode() == RECORDERMODETYPE_SIMULATION_PLAYBACK))
 	{
+		GGC_TRACE("SNG: before getLoadScreen");
 		m_loadScreen = getLoadScreen( loadingSaveGame );
+		GGC_TRACE("SNG: after getLoadScreen");
 		if(m_loadScreen)
 		{
 			TheMouse->setVisibility(FALSE);
 			m_loadScreen->init(TheGameInfo);
+			GGC_TRACE("SNG: after loadScreen->init");
 
 			updateLoadProgress( LOAD_PROGRESS_START );
+			GGC_TRACE("SNG: after updateLoadProgress START");
 		}
 	}
 	if(m_background)
@@ -1680,6 +1703,7 @@ void GameLogic::tryStartNewGame( Bool loadingSaveGame )
 		deleteInstance(m_background);
 		m_background = nullptr;
 	}
+	GGC_TRACE("SNG: after background destroy");
 	setFPMode();
 	if(TheCampaignManager)
 		TheCampaignManager->SetVictorious(FALSE);
@@ -1693,9 +1717,11 @@ void GameLogic::tryStartNewGame( Bool loadingSaveGame )
 
 	// before loading the map, load the map.ini file in the same directory.
 	loadMapINI( TheGlobalData->m_mapName );
+	GGC_TRACE("SNG: after loadMapINI");
 
 	// load a map
 	TheTerrainLogic->loadMap( TheGlobalData->m_mapName, false );
+	GGC_TRACE("SNG: after loadMap");
 	// anytime the world's size changes, must reset the partition mgr
 	//ThePartitionManager->init();
 
@@ -1717,6 +1743,7 @@ void GameLogic::tryStartNewGame( Bool loadingSaveGame )
 	if (localSlot < 0)
 		localSlot = 0;
 #endif
+	GGC_TRACE("SNG: before slot loop");
 	Int progressCount = LOAD_PROGRESS_SIDE_POPULATION;
 	if (TheGameInfo)
 	{
@@ -4104,6 +4131,10 @@ extern __int64 Total_Load_3D_Assets;
 void GameLogic::update()
 {
 	USE_PERF_TIMER(GameLogic_update)
+#if defined(__SWITCH__)
+	static int s_glT = 3;   // trace first 3 GameLogic frames
+	GGC_GL(s_glT, "update ENTER");
+#endif
 	PROFILER_SECTION_COLOR(0x4CAF50);
 
 	LatchRestore<Bool> inUpdateLatch(m_isInUpdate, TRUE);
@@ -4112,10 +4143,67 @@ void GameLogic::update()
 #endif
 
 	setFPMode();
+	GGC_GL(s_glT, "after setFPMode");
 
+#if defined(__ANDROID__)
+	// TheSuperHackers @diagnostic Time the whole GameLogic::update to see how much of
+	// the slow shell-map frame is game simulation vs rendering/GPU. RAII so every
+	// return path is covered.
+	struct GgcLogicTimer {
+		struct timespec t0;
+		GgcLogicTimer() { clock_gettime(CLOCK_MONOTONIC, &t0); }
+		~GgcLogicTimer() {
+			struct timespec t1; clock_gettime(CLOCK_MONOTONIC, &t1);
+			double ms = (t1.tv_sec - t0.tv_sec) * 1000.0 + (t1.tv_nsec - t0.tv_nsec) / 1.0e6;
+			static int s = 0; static double acc = 0.0; acc += ms;
+			if (++s % 60 == 0) { __android_log_print(4, "ggc-perf", "GameLogic::update avg=%.1fms", acc / 60.0); acc = 0.0; }
+		}
+	} ggcLogicTimer;
+#endif
+
+	// TheSuperHackers @diagnostic dump every object's template name + Z vs water, to
+	// find why the shell-map ship sits underwater. One-shot after objects settle.
+	// Logs to logcat on Android, to a file on win32 (for A/B comparison).
+#if defined(__ANDROID__)
+	{
+		static int s_settleFrames = 0;
+		static Bool s_dumped = FALSE;
+		if (getFirstObject() != nullptr)
+			++s_settleFrames;
+		// Dump once, 120 frames after objects first loaded (lets buoyancy settle).
+		if (!s_dumped && s_settleFrames == 120)
+		{
+			s_dumped = TRUE;
+#if !defined(__ANDROID__)
+			FILE *gf = fopen("C:/code/GeneralsGameCode-2/scratch/ship_win32.log", "w");
+#endif
+			for (Object *o = getFirstObject(); o; o = o->getNextObject())
+			{
+				const Coord3D *p = o->getPosition();
+				Real wZ = -9999.0f;
+				Bool under = TheTerrainLogic ? TheTerrainLogic->isUnderwater(p->x, p->y, &wZ) : FALSE;
+				const char *nm = o->getTemplate() ? o->getTemplate()->getName().str() : "?";
+#if defined(__ANDROID__)
+				__android_log_print(4, "ggc-ship",
+					"obj='%s' pos=(%.1f,%.1f,%.1f) waterZ=%.1f under=%d",
+					nm, (double)p->x, (double)p->y, (double)p->z, (double)wZ, (int)under);
+#else
+				if (gf) fprintf(gf, "obj='%s' pos=(%.1f,%.1f,%.1f) waterZ=%.1f under=%d\n",
+					nm, (double)p->x, (double)p->y, (double)p->z, (double)wZ, (int)under);
+#endif
+			}
+#if !defined(__ANDROID__)
+			if (gf) fclose(gf);
+#endif
+		}
+	}
+#endif
+
+	GGC_GL(s_glT, "before startNewGame if-check");
 	/// @todo remove this hack
 	if ( m_startNewGame && !TheDisplay->isMoviePlaying())
 	{
+	GGC_GL(s_glT, "ENTER startNewGame block, calling startNewGame()");
 	#ifdef DUMP_PERF_STATS
 		Total_Get_Texture_Time=0;
 		Total_Get_HAnim_Time=0;
@@ -4131,6 +4219,7 @@ void GameLogic::update()
     Profile::StopRange("map_load");
 #endif
 		m_startNewGame = FALSE;
+	GGC_GL(s_glT, "after startNewGame block");
 
 	#ifdef DUMP_PERF_STATS
 		char Buf[1024];
@@ -4188,6 +4277,7 @@ void GameLogic::update()
 	// update (execute) scripts
 	{
 		TheScriptEngine->UPDATE();
+	GGC_GL(s_glT, "after ScriptEngine");
 	}
 
 	// TheSuperHackers @info Updates the frozen time status because it may have changed after the script engine update.
@@ -4291,6 +4381,7 @@ void GameLogic::update()
 	// process client commands
 	{
 		processCommandList( TheCommandList );
+	GGC_GL(s_glT, "after processCommandList");
 	}
 
 #if !defined(_WIN32) && (defined(RTS_DEBUG) || defined(GGC_ENABLE_GAMEPLAY_DIAGNOSTIC_ENV_HOOKS))
@@ -4386,6 +4477,7 @@ void GameLogic::update()
 	// update the Artificial Intelligence system
 	{
 		TheAI->UPDATE();
+	GGC_GL(s_glT, "after AI (obj loop done)");
 	}
 
 	// production updates
@@ -4409,6 +4501,7 @@ void GameLogic::update()
 	TheCommandList->reset();
 
 	TheWeaponStore->UPDATE();
+	GGC_GL(s_glT, "after WeaponStore");
 	TheLocomotorStore->UPDATE();
 	TheVictoryConditions->UPDATE();
 
@@ -4433,6 +4526,21 @@ void GameLogic::update()
 		m_frame++;
 		m_hasUpdated = TRUE;
 	}
+#if defined(__ANDROID__)
+	{
+		static int s_lf = 0;
+		if ((m_frame % 30) == 0 && s_lf < 40) { s_lf++;
+			int objCount = 0;
+			for (Object *o = m_objList; o; o = o->getNextObject()) objCount++;
+			__android_log_print(4, "ggc-logic", "frame=%u objects=%d startNewGame=%d",
+				(unsigned)m_frame, objCount, (int)m_startNewGame);
+		}
+	}
+#endif
+#if defined(__SWITCH__)
+	GGC_GL(s_glT, "update END");
+	if (s_glT > 0) s_glT--;
+#endif
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -4860,6 +4968,18 @@ void GameLogic::quit(Bool toDesktop)
 void GameLogic::sendObjectCreated( Object *obj )
 {
 	Drawable *draw = TheThingFactory->newDrawable(obj->getTemplate());
+#if defined(__ANDROID__)
+	{
+		static int s_soc = 0;
+		if (s_soc < 12) {
+			++s_soc;
+			__android_log_print(4, "ggc-soc",
+				"sendObjectCreated tmpl=%s draw=%p",
+				(obj && obj->getTemplate()) ? obj->getTemplate()->getName().str() : "?",
+				(void*)draw);
+		}
+	}
+#endif
 
 /// @todo COLIN ... shouldn't we have a check here for existing drawable!!!!!
 

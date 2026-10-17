@@ -575,6 +575,7 @@ DLOG( "My HResult is: " << Debug::HResult(SomeHRESULTValue) << "\n" );
     \param val unsigned 64 bit integer
     \return *this
   */
+  // TheSuperHackers @build use unsigned __int64 (not 'unsigned long long') for VC6 compatibility
   Debug& operator<<(unsigned __int64 val);
 
   /** \internal

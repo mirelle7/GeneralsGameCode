@@ -39,6 +39,9 @@
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
 #include "textureloader.h"
+#if defined(__ANDROID__)
+#include <android/log.h>   // TheSuperHackers @diagnostic temporary texture-load-fail trace
+#endif
 #include "WWLib/mutex.h"
 #include "WWLib/thread.h"
 #include "WWDebug/wwdebug.h"
@@ -390,6 +393,11 @@ private:
 
 	unsigned int		Depth;
 };
+
+#if defined(__SWITCH__)
+extern "C" unsigned int svcOutputDebugString(const char *, unsigned long);
+static inline void GGC_SwitchDebugLog(const char *m) { svcOutputDebugString(m, __builtin_strlen(m)); }
+#endif
 
 bool TextureLoader::TextureLoadSuspended;
 int TextureLoader::TextureInactiveOverrideTime = 0;
@@ -1041,7 +1049,16 @@ LegacyLoaderSurface * Load_Legacy_Surface_Immediate(
 
 	// Make sure the file can be opened. If not, return missing texture.
 	Targa targa;
-	if (TARGA_ERROR_HANDLER(targa.Open(filename, TGA_READMODE),filename)) {
+	int _ggcTgaOpenRc = targa.Open(filename, TGA_READMODE);
+	if (TARGA_ERROR_HANDLER(_ggcTgaOpenRc,filename)) {
+#if defined(__ANDROID__)
+		{ static int s=0; if(s<30){++s; __android_log_print(4,"ggc-tex","TGA-OPEN-FAIL %s", (const char *)filename); } }
+#endif
+#if defined(__SWITCH__)
+		{ static int s=0; if(s<80){++s;
+			char b[200]; int n=snprintf(b,sizeof(b),"[ggc] TGA-OPEN-FAIL rc=%d '%s'\n", _ggcTgaOpenRc, (const char *)filename);
+			if(n>0) GGC_SwitchDebugLog(b); } }
+#endif
 		Log_Texture_Load_Failure("surface open", filename);
 		return Create_Legacy_Missing_Surface();
 	}
@@ -1068,6 +1085,9 @@ LegacyLoaderSurface * Load_Legacy_Surface_Immediate(
 	char palette[256*4];
 	targa.SetPalette(palette);
 	if (TARGA_ERROR_HANDLER(targa.Load(filename, TGAF_IMAGE, false),filename)) {
+#if defined(__ANDROID__)
+		{ static int s=0; if(s<30){++s; __android_log_print(4,"ggc-tex","TGA-LOAD-FAIL %s", (const char *)filename); } }
+#endif
 		Log_Texture_Load_Failure("surface load", filename);
 		return Create_Legacy_Missing_Surface();
 	}
@@ -1881,13 +1901,32 @@ bool TextureLoadTaskClass::Begin_Load()
 	bool loaded = false;
 
 	// if allowed, begin a compressed load
-	if (Texture->Is_Compression_Allowed()) {
+	const bool compressionAllowed = Texture->Is_Compression_Allowed();
+	if (compressionAllowed) {
 		loaded = Begin_Compressed_Load();
 	}
+#if defined(__SWITCH__)
+	const bool _ggcAfterComp = loaded;
+#endif
 
 	// otherwise, begin an uncompressed load
 	if (!loaded) {
 		loaded = Begin_Uncompressed_Load();
+	}
+#if defined(__SWITCH__)
+	{ static int s=0; if(s<120){++s; char b[220]; int n=snprintf(b,sizeof(b),
+		"[ggc] BeginLoad compAllowed=%d afterComp=%d final=%d '%s'\n",
+		(int)compressionAllowed, (int)_ggcAfterComp, (int)loaded, Texture->Get_Full_Path().str());
+		if(n>0) GGC_SwitchDebugLog(b); } }
+#endif
+
+	// TheSuperHackers @bugfix githubawn 16/06/2026 Fall back to the compressed
+	// (DDS) source when the uncompressed (TGA) source is absent. Some asset
+	// sets ship only the DDS variant for textures whose material requested no
+	// compression (UI atlases, water, decals, effects); without this fallback
+	// they all resolve to the missing-texture placeholder and never render.
+	if (!loaded && !compressionAllowed) {
+		loaded = Begin_Compressed_Load();
 	}
 
 	// if not loaded, abort.
@@ -1986,6 +2025,16 @@ void TextureLoadTaskClass::Apply_Missing_Texture()
 	WWASSERT(TextureLoader::Is_Main_Render_Thread());
 	WWASSERT(!NativeCompatibilityTexture);
 
+#if defined(__ANDROID__)
+	{ static int s=0; if(s<60){++s; __android_log_print(6,"ggc-tex","MISSING-APPLIED path='%s'", Texture ? Texture->Get_Full_Path().str() : "(null)"); } }
+#endif
+#if defined(__SWITCH__)
+	{ static int s=0; if(s<80){++s;
+		char b[200];
+		int n = snprintf(b, sizeof(b), "[ggc] MISSING-TEX '%s'\n", Texture ? Texture->Get_Full_Path().str() : "(null)");
+		if (n > 0) GGC_SwitchDebugLog(b);
+	} }
+#endif
 	Log_Texture_Load_Failure("task", Texture ? Texture->Get_Full_Path().str() : nullptr);
 #if defined(GGC_RENDER_BACKEND_BGFX)
 	if (Texture != nullptr &&
@@ -2092,13 +2141,21 @@ static bool	Get_Texture_Information
 )
 {
 	ThumbnailClass* thumb=ThumbnailManagerClass::Peek_Thumbnail_Instance_From_Any_Manager(filename);
+#if defined(__ANDROID__)
+	{ static int s=0; if(s<120){++s; __android_log_print(4,"ggc-tex","GTI compressed=%d thumb=%d path='%s'", (int)compressed, thumb?1:0, filename?filename:"?"); } }
+#endif
 
 	if (!thumb)
 	{
 		if (compressed)
 		{
 			DDSFileClass dds_file(filename, 0);
-			if (!dds_file.Is_Available()) return false;
+			if (!dds_file.Is_Available()) {
+#if defined(__ANDROID__)
+				{ static int s=0; if(s<60){++s; __android_log_print(4,"ggc-tex","GTI-DDS-UNAVAIL path='%s'", filename?filename:"?"); } }
+#endif
+				return false;
+			}
 
 			// Destination size will be the next power of two square from the larger width and height...
 			w = dds_file.Get_Width(0);
@@ -2111,8 +2168,15 @@ static bool	Get_Texture_Information
 		}
 
 		Targa targa;
-		if (TARGA_ERROR_HANDLER(targa.Open(filename, TGA_READMODE), filename))
+		int _ggcGtiRc = targa.Open(filename, TGA_READMODE);
+		if (TARGA_ERROR_HANDLER(_ggcGtiRc, filename))
 		{
+#if defined(__ANDROID__)
+			{ static int s=0; if(s<60){++s; __android_log_print(6,"ggc-tex","GTI-TGA-OPEN-FAIL path='%s'", filename?filename:"?"); } }
+#endif
+#if defined(__SWITCH__)
+			{ static int s=0; if(s<80){++s; char b[200]; int n=snprintf(b,sizeof(b),"[ggc] GTI-TGA-OPEN-FAIL rc=%d '%s'\n", _ggcGtiRc, filename?filename:"?"); if(n>0) GGC_SwitchDebugLog(b); } }
+#endif
 			return false;
 		}
 
@@ -2278,6 +2342,9 @@ bool TextureLoadTaskClass::Begin_Compressed_Load()
 			)
 		)
 	{
+#if defined(__ANDROID__)
+		{ static int s=0; if(s<60){++s; __android_log_print(4,"ggc-tex","COMPRESSED-FAIL path='%s'", Texture->Get_Full_Path().str()); } }
+#endif
 		return false;
 	}
 
@@ -2485,9 +2552,16 @@ bool TextureLoadTaskClass::Begin_Compressed_Load()
 bool TextureLoadTaskClass::Begin_Uncompressed_Load()
 {
 	Targa targa;
-	if (TARGA_ERROR_HANDLER(targa.Open(Texture->Get_Full_Path(), TGA_READMODE), Texture->Get_Full_Path())) {
+	int _ggcBRc = targa.Open(Texture->Get_Full_Path(), TGA_READMODE);
+	if (TARGA_ERROR_HANDLER(_ggcBRc, Texture->Get_Full_Path())) {
+#if defined(__SWITCH__)
+		{ static int s=0; if(s<80){++s; char b[200]; int n=snprintf(b,sizeof(b),"[ggc] TGA Begin OPEN-FAIL rc=%d compAllowed=%d '%s'\n", _ggcBRc, (int)Texture->Is_Compression_Allowed(), Texture->Get_Full_Path().str()); if(n>0) GGC_SwitchDebugLog(b); } }
+#endif
 		return false;
 	}
+#if defined(__SWITCH__)
+	{ static int s=0; if(s<80){++s; char b[200]; int n=snprintf(b,sizeof(b),"[ggc] TGA Begin OPEN-OK '%s'\n", Texture->Get_Full_Path().str()); if(n>0) GGC_SwitchDebugLog(b); } }
+#endif
 
 	unsigned int bpp;
 	WW3DFormat src_format, dest_format;
@@ -2818,7 +2892,11 @@ bool TextureLoadTaskClass::Load_Uncompressed_Mipmap()
 	}
 
 	Targa targa;
-	if (TARGA_ERROR_HANDLER(targa.Open(Texture->Get_Full_Path(), TGA_READMODE), Texture->Get_Full_Path())) {
+	int _ggcOpenRc = targa.Open(Texture->Get_Full_Path(), TGA_READMODE);
+	if (TARGA_ERROR_HANDLER(_ggcOpenRc, Texture->Get_Full_Path())) {
+#if defined(__SWITCH__)
+		{ static int s=0; if(s<80){++s; char b[200]; int n=snprintf(b,sizeof(b),"[ggc] TGA async OPEN-FAIL rc=%d '%s'\n", _ggcOpenRc, Texture->Get_Full_Path().str()); if(n>0) GGC_SwitchDebugLog(b); } }
+#endif
 		return false;
 	}
 
@@ -2829,7 +2907,12 @@ bool TextureLoadTaskClass::Load_Uncompressed_Mipmap()
 	WW3DFormat dest_format;
 	unsigned int src_bpp = 0;
 	Get_WW3D_Format(dest_format,src_format,src_bpp,targa);
-	if (src_format==WW3D_FORMAT_UNKNOWN) return false;
+	if (src_format==WW3D_FORMAT_UNKNOWN) {
+#if defined(__SWITCH__)
+		{ static int s=0; if(s<80){++s; char b[200]; int n=snprintf(b,sizeof(b),"[ggc] TGA async FMT-UNKNOWN bpp=%d '%s'\n", (int)src_bpp, Texture->Get_Full_Path().str()); if(n>0) GGC_SwitchDebugLog(b); } }
+#endif
+		return false;
+	}
 
 	dest_format = Get_Format();	// Texture can be requested in different format than the most obvious from the TGA
 
@@ -2842,7 +2925,11 @@ bool TextureLoadTaskClass::Load_Uncompressed_Mipmap()
 	unsigned int height		= Get_Height();
 
 	// NOTE: We load the palette but we do not yet support paletted textures!
-	if (TARGA_ERROR_HANDLER(targa.Load(Texture->Get_Full_Path(), TGAF_IMAGE, false), Texture->Get_Full_Path())) {
+	int _ggcLoadRc = targa.Load(Texture->Get_Full_Path(), TGAF_IMAGE, false);
+	if (TARGA_ERROR_HANDLER(_ggcLoadRc, Texture->Get_Full_Path())) {
+#if defined(__SWITCH__)
+		{ static int s=0; if(s<80){++s; char b[200]; int n=snprintf(b,sizeof(b),"[ggc] TGA async LOAD-FAIL rc=%d '%s'\n", _ggcLoadRc, Texture->Get_Full_Path().str()); if(n>0) GGC_SwitchDebugLog(b); } }
+#endif
 		return false;
 	}
 

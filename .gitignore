@@ -70,3 +70,12 @@ __pycache__/
 # Local prebuilt dependency cache (ffmpeg, etc.) to avoid slow rebuilds
 .deps-cache/
 scripts/render/ab_scenes.json.baseframes
+
+## Local-only: native port scratch + Android build tree (not for git)
+/android/
+/scratch/
+/scratch_downloads/
+/serve.ini
+# Local machine paths for switch_package.py (the .example template stays tracked)
+/scripts/switch_package.ini
+

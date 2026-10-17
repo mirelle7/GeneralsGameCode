@@ -16,7 +16,44 @@ endif()
 # TheSuperHackers @build githubawn 29/07/2026 The GamespySDK picks its platform code
 # paths from exactly one platform macro. Emscripten defines none of them, so point it
 # at the Linux sources, whose socket/thread/util code compiles against the Emscripten
-# sysroot.
-if(EMSCRIPTEN AND TARGET gsinterface)
+# sysroot. The same applies to Nintendo Switch (devkitA64/libnx).
+if((EMSCRIPTEN OR CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch") AND TARGET gsinterface)
     target_compile_definitions(gsinterface INTERFACE _UNIX __linux__)
+endif()
+
+# TheSuperHackers @build bobtista 13/06/2026 On Android the engine links into a
+# shared library (libz_generals.so), so every static archive it pulls in must be
+# position-independent. The GamespySDK fork doesn't honour the global
+# CMAKE_POSITION_INDEPENDENT_CODE, so force it on the target explicitly.
+if(ANDROID AND TARGET gamespy)
+    set_property(TARGET gamespy PROPERTY POSITION_INDEPENDENT_CODE ON)
+endif()
+
+# TheSuperHackers @build githubawn 18/06/2026 GamespySDK forces
+# CMAKE_ARCHIVE_OUTPUT_DIRECTORY=CMAKE_BINARY_DIR, which places its archives in
+# build/<dir>/Release while the Xcode generator (for device) writes and links
+# from Release-iphoneos (the EFFECTIVE_PLATFORM_NAME suffix). That mismatch makes
+# z_generals link a nonexistent path. Reset these targets to CMake's default
+# placement under Xcode so the actual output and the link reference agree.
+# (Ninja Multi-Config uses plain Release for everything, so it is unaffected.)
+if(XCODE)
+    foreach(_gs_target gamespy gsgp gsgt2 gsnatneg gssake gsserverbrowsing)
+        if(TARGET ${_gs_target})
+            set_target_properties(${_gs_target} PROPERTIES
+                ARCHIVE_OUTPUT_DIRECTORY ""
+                LIBRARY_OUTPUT_DIRECTORY ""
+                RUNTIME_OUTPUT_DIRECTORY "")
+        endif()
+    endforeach()
+    # The gamespy target has no sources of its own (it only bundles the gs*
+    # module libraries). The Xcode generator does not emit an archive for a
+    # sourceless static library, so z_generals links a libgamespy.a that never
+    # exists. Give it a tiny dummy translation unit so the archive is produced.
+    if(TARGET gamespy)
+        set(_gs_dummy "${CMAKE_BINARY_DIR}/gamespy_dummy.c")
+        if(NOT EXISTS "${_gs_dummy}")
+            file(WRITE "${_gs_dummy}" "/* TheSuperHackers @build githubawn 18/06/2026 dummy TU so Xcode emits libgamespy.a */\nint ggc_gamespy_dummy_symbol = 0;\n")
+        endif()
+        target_sources(gamespy PRIVATE "${_gs_dummy}")
+    endif()
 endif()

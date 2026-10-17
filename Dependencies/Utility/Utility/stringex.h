@@ -52,6 +52,13 @@ template<typename T> size_t strlcat_t(T *dst, const T *src, size_t dstsize);
 #define HAVE_WCSLCPY 1
 #endif
 #endif
+// TheSuperHackers @build githubawn 05/07/2026 The Nintendo Switch libc (newlib) already
+// provides wcslcpy and wcslcat, so our own declarations and definitions would collide.
+#if defined(__SWITCH__)
+#ifndef HAVE_WCSLCPY
+#define HAVE_WCSLCPY 1
+#endif
+#endif
 
 #ifndef HAVE_STRLCPY
 size_t strlcpy(char *dst, const char *src, size_t dstsize);

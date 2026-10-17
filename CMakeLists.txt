@@ -89,6 +89,15 @@ if(EMSCRIPTEN)
     include(cmake/webfont.cmake)
 endif()
 
+# Provide FFmpeg once, centrally: a system FFmpeg on desktop/macOS, or a minimal
+# audio-only source build on the Android/iOS cross targets. Both the OpenAL audio
+# backend and the (optional) FFmpeg video player consume the FFMPEG_* variables /
+# FFMPEG::FFMPEG target this sets. The Emscripten build keeps passing its FFmpeg in
+# through the FFMPEG_* cache variables, resolved by find_package(FFMPEG).
+if((SAGE_USE_OPENAL OR RTS_BUILD_OPTION_FFMPEG) AND NOT EMSCRIPTEN)
+    include(cmake/ffmpeg.cmake)
+endif()
+
 # Rendering backend selection. Must come after config.cmake (which sets
 # IS_VS6_BUILD) and before Core is added (which references the backend flag).
 include(cmake/render-backend.cmake)

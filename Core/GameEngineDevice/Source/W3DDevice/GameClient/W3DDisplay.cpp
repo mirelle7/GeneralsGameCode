@@ -38,6 +38,9 @@ static void drawFramerateBar();
 #include <numeric>
 #include <stdlib.h>
 #include <windows.h>
+#if defined(__ANDROID__)
+#include <android/log.h>   // TheSuperHackers @diagnostic temporary 2D-image draw trace
+#endif
 #include <io.h>
 #include <time.h>
 #include <rts/profile.h>
@@ -119,6 +122,17 @@ static void drawFramerateBar();
 
 #include "WinMain.h"
 
+#if defined(__SWITCH__)
+#include <cstdio>
+extern "C" unsigned int svcOutputDebugString(const char *, unsigned long);
+static inline void ggcD(const char *tag){
+    char b[96]; int n=std::snprintf(b,sizeof(b),"[ggc] DSP: %s\n",tag);
+    if(n>0){ svcOutputDebugString(b,(unsigned)n); FILE*f=std::fopen("ggc_boot.txt","a"); if(f){std::fputs(b,f);std::fflush(f);std::fclose(f);} }
+}
+#else
+static inline void ggcD(const char*){}
+#endif
+
 
 // DEFINE AND ENUMS ///////////////////////////////////////////////////////////
 
@@ -186,6 +200,7 @@ static RectClass makeAtlasSafeUVRect(const Image *image)
 #ifdef DUMP_PERF_STATS
 
 #include <cstdarg>
+
 
 class StatDumpClass
 {
@@ -1142,6 +1157,16 @@ void W3DDisplay::init()
 			(WW3D::Get_Render_Backend() != nullptr && WW3D::Get_Render_Backend()->Has_Shader_Pipeline());
 		WW3D::Set_Screen_UV_Bias( shaderPipeline ? FALSE : TRUE );  ///< TRUE keeps text aligned on the legacy fixed-function backend.
 
+#if defined(GGC_RENDER_BACKEND_BGFX)
+		// TheSuperHackers @feature githubawn 21/06/2026 Apply the persisted 3D
+		// render-resolution scale now that the bgfx backend (and its scene
+		// framebuffer) exist. Selectable in the Options menu.
+		{
+			extern void GGC_BgfxSetRenderScale(float scale);
+			GGC_BgfxSetRenderScale(TheGlobalData->m_renderResolutionScale);
+		}
+#endif
+
 		//Check if level was never set and default to setting most suitable for system.
 		if (TheGameLODManager->getStaticLODLevel() == STATIC_GAME_LOD_UNKNOWN)
 		{
@@ -1530,12 +1555,16 @@ void W3DDisplay::gatherDebugStats()
 #endif
 		// check for debug D3D
 		Bool debugD3D=false;
+		// TheSuperHackers @build bobtista 13/06/2026 The D3D debug-runtime registry
+		// check is Windows-only (RegistryClass); irrelevant under the bgfx backend.
+#if defined(_WIN32)
 		RegistryClass registry ("Software\\Microsoft\\Direct3d");
 		if (registry.Is_Valid ()) {
 			if (registry.Get_Int ("LoadDebugRuntime", 0) == 1) {
 				debugD3D = true;
 			}
 		}
+#endif
 		if (debugD3D) {
 			unibuffer.concat(L", DEBUG D3D");
 		}
@@ -2080,6 +2109,7 @@ void W3DDisplay::draw()
 	if (TheGlobalData->m_headless)
 		return;
 
+	ggcD("draw ENTER");
 	// TheSuperHackers @feature bobtista 10/07/2026 Show messages for screenshots finished by the screenshot thread.
 	W3D_UpdateScreenshotMessages();
 
@@ -2217,7 +2247,7 @@ AGAIN:
 				updateViews();
 			}
 
-			TheParticleSystemManager->DRAW();
+			TheParticleSystemManager->DRAW(); ggcD("after ParticleSys DRAW");
 
 				{
 					PROFILER_SECTION_NAME("render to texture");
@@ -2271,10 +2301,12 @@ AGAIN:
 					drawViews();
 				}
 
+				ggcD("after drawViews (before InGameUI)");
 				{
 				GGC_RPROFILE(UI_DRAW);
 				// draw the user interface
 				TheInGameUI->DRAW();
+				ggcD("after InGameUI DRAW");
 
 				TheGameClient->DRAW();
 
@@ -2282,6 +2314,7 @@ AGAIN:
 				if( TheMouse )
 					TheMouse->DRAW();
 				}
+				ggcD("after Mouse DRAW");
 
 				if ( m_videoStream && m_videoBuffer )
 				{
@@ -2786,6 +2819,9 @@ void W3DDisplay::drawOpenRect( Int startX, Int startY, Int width, Int height,
 	}
 	else
 	{
+#if defined(__ANDROID__)
+		{ static int s=0; if(s<30){++s; __android_log_print(4,"ggc-rect","openRect (%d,%d %dx%d) color=%08x",startX,startY,width,height,(unsigned)lineColor);} }
+#endif
 		setup2DRenderState(nullptr, DRAW_IMAGE_ALPHA, FALSE);
 
 		m_2DRender->Add_Outline( RectClass( startX, startY,
@@ -2805,6 +2841,9 @@ void W3DDisplay::drawOpenRect( Int startX, Int startY, Int width, Int height,
 void W3DDisplay::drawFillRect( Int startX, Int startY, Int width, Int height,
 															 UnsignedInt color )
 {
+#if defined(__ANDROID__)
+	{ static int s=0; if(s<30){++s; __android_log_print(4,"ggc-rect","fillRect (%d,%d %dx%d) color=%08x",startX,startY,width,height,(unsigned)color);} }
+#endif
 	setup2DRenderState(nullptr, DRAW_IMAGE_ALPHA, FALSE);
 
 	m_2DRender->Add_Rect( RectClass( startX, startY,
@@ -3161,6 +3200,21 @@ void W3DDisplay::drawRemainingRectClock(Int startX, Int startY, Int width, Int h
 void W3DDisplay::drawImage( const Image *image, Int startX, Int startY,
 														Int endX, Int endY, Color color, DrawImageMode mode)
 {
+#if defined(__ANDROID__)
+	// TheSuperHackers @diagnostic Log EVERY drawImage attempt (incl. null/clipped)
+	// before the early returns, to find the missing Zero Hour logo.
+	{
+		static int s_all = 0;
+		if (s_all < 220) {
+			++s_all;
+			__android_log_print(4, "ggc-img2",
+				"drawImage img=%p name='%s' screen=(%d,%d-%d,%d) clipEnabled=%d",
+				(const void*)image,
+				image ? image->getFilename().str() : "NULL",
+				startX, startY, endX, endY, (int)m_isClippedEnabled);
+		}
+	}
+#endif
 
 	// sanity
 	if( image == nullptr )
@@ -3216,6 +3270,20 @@ void W3DDisplay::drawImage( const Image *image, Int startX, Int startY,
 
 	RectClass screen_rect(startX,startY,endX,endY);
 	RectClass uv_rect = makeAtlasSafeUVRect(image);
+#if defined(__ANDROID__)
+	{
+		static int s_di = 0;
+		if (s_di < 150) {
+			++s_di;
+			__android_log_print(4, "ggc-img",
+				"drawImage name='%s' tex=%p raw=%d uv=(%.3f,%.3f-%.3f,%.3f) screen=(%d,%d-%d,%d) mode=%d color=%08x",
+				image->getFilename().str(), (void*)tex,
+				(int)BitIsSet(image->getStatus(), IMAGE_STATUS_RAW_TEXTURE),
+				uv_rect.Left, uv_rect.Top, uv_rect.Right, uv_rect.Bottom,
+				startX, startY, endX, endY, (int)mode, (unsigned)color);
+		}
+	}
+#endif
 
 	if (m_isClippedEnabled)
 	{

@@ -47,6 +47,15 @@
 #include "DXTUtils.h"
 #include "GgcRuntimeFlags.h"
 
+#if defined(__SWITCH__)
+// TheSuperHackers @bugfix githubawn 04/07/2026 Switch/switch-mesa (and the emulators)
+// do not implement the compressed S3TC/BC GPU texture format ("Unimplemented
+// format=247"), so DXT terrain/model textures did not render. Decode DXT -> RGBA8 on
+// upload with bimg (bundled by bgfx) instead. Switch-only; no other platform changes.
+#include <bimg/bimg.h>
+#include <bx/allocator.h>
+#endif
+
 namespace
 {
 static const bgfx::ViewId kBgfxRTTTextureCopyView = 3;
@@ -255,7 +264,9 @@ static void ForceOpaqueIfProceduralX8R8G8B8(TextureClass * tex2d,
     {
         return;
     }
-    if (bgfxFmt != bgfx::TextureFormat::BGRA8)
+    // Accept RGBA8 too: A8R8G8B8/X8R8G8B8 upload as RGBA8 on GLES (Android/Switch);
+    // alpha is byte index 3 in both formats, so this is byte-order-independent.
+    if (bgfxFmt != bgfx::TextureFormat::BGRA8 && bgfxFmt != bgfx::TextureFormat::RGBA8)
     {
         return;
     }
@@ -283,7 +294,9 @@ static void ApplyTeamColorTextureKey(TextureClass * tex2d,
     {
         return;
     }
-    if (bgfxFmt != bgfx::TextureFormat::BGRA8)
+    // Accept RGBA8 too (A8R8G8B8 uploads as RGBA8 on GLES); the black-RGB test below
+    // is (0,0,0) which is identical regardless of R/B byte order.
+    if (bgfxFmt != bgfx::TextureFormat::BGRA8 && bgfxFmt != bgfx::TextureFormat::RGBA8)
     {
         return;
     }
@@ -355,7 +368,13 @@ static bgfx::TextureFormat::Enum GetBgfxTextureUploadFormat(WW3DFormat fmt)
         // byte-for-byte substitute across renderers, so expand authored 4-bit
         // alpha textures to BGRA8 before upload. This preserves transparent
         // matte pixels used by projected decals such as spy satellite grids.
+#if defined(__SWITCH__)
+        // switch-mesa samples BGRA8 as black (same as Adreno, see A8R8G8B8 below);
+        // upload as RGBA8 with R/B swapped in ExpandA4R4G4B4ToBGRA8 instead.
+        return bgfx::TextureFormat::RGBA8;
+#else
         return bgfx::TextureFormat::BGRA8;
+#endif
     }
     if (fmt == WW3D_FORMAT_A1R5G5B5 && ShouldExpandA1R5G5B5ToBGRA8())
     {
@@ -371,6 +390,26 @@ static bgfx::TextureFormat::Enum GetBgfxTextureUploadFormat(WW3DFormat fmt)
         return bgfx::TextureFormat::BGRA8;
 #endif
     }
+#if defined(__ANDROID__) || defined(__SWITCH__)
+    if (fmt == WW3D_FORMAT_A8R8G8B8 || fmt == WW3D_FORMAT_X8R8G8B8)
+    {
+        // TheSuperHackers @bugfix githubawn 19/06/2026 BGRA8 is not a guaranteed
+        // native GLES format; on Adreno it uploads but samples black, so all 32-bit
+        // A8R8G8B8 TGAs (the 2D UI atlas art, decals, scorch marks) were invisible.
+        // Upload as native RGBA8 instead and swizzle the BGRA source to RGBA in
+        // CopyTextureLevelData (see SwizzleBGRA8ToRGBA8).
+        return bgfx::TextureFormat::RGBA8;
+    }
+#endif
+#if defined(__SWITCH__)
+    // switch-mesa / emulators can't sample S3TC/BC compressed textures, so decode
+    // DXT to RGBA8 on upload (see CopyTextureLevelData). Uses more memory but renders.
+    if (fmt == WW3D_FORMAT_DXT1 || fmt == WW3D_FORMAT_DXT2 || fmt == WW3D_FORMAT_DXT3
+        || fmt == WW3D_FORMAT_DXT4 || fmt == WW3D_FORMAT_DXT5)
+    {
+        return bgfx::TextureFormat::RGBA8;
+    }
+#endif
     return TranslateWW3DFormat(fmt);
 }
 
@@ -536,15 +575,48 @@ static void ExpandA4R4G4B4ToBGRA8(const uint8_t * srcRow, unsigned srcPitch,
             const uint8_t r = static_cast<uint8_t>(((p >> 8) & 0x0f) * 17);
             const uint8_t g = static_cast<uint8_t>(((p >> 4) & 0x0f) * 17);
             const uint8_t b = static_cast<uint8_t>((p & 0x0f) * 17);
+#if defined(__SWITCH__)
+            dst[0] = r; dst[1] = g; dst[2] = b; dst[3] = a; // RGBA8: switch-mesa samples BGRA8 black
+#else
             dst[0] = b;
             dst[1] = g;
             dst[2] = r;
             dst[3] = a;
+#endif
             dst += 4;
         }
         srcRow += srcPitch;
     }
 }
+
+#if defined(__ANDROID__) || defined(__SWITCH__)
+// TheSuperHackers @bugfix githubawn 19/06/2026 D3D A8R8G8B8/X8R8G8B8 is BGRA byte
+// order in memory. GLES (Adreno) doesn't reliably sample BGRA8, so upload as native
+// RGBA8 and swap the R and B bytes here (the 2D UI atlas art was invisible without
+// this). Alpha (byte 3) is unchanged, so ForceOpaqueIfProceduralX8R8G8B8 still works.
+static void SwizzleBGRA8ToRGBA8(const uint8_t * srcRow, unsigned srcPitch,
+    unsigned width, unsigned height, uint8_t * dst)
+{
+    for (unsigned y = 0; y < height; ++y)
+    {
+        const uint8_t * src = srcRow;
+        for (unsigned x = 0; x < width; ++x)
+        {
+            const uint8_t b = src[0];
+            const uint8_t g = src[1];
+            const uint8_t r = src[2];
+            const uint8_t a = src[3];
+            dst[0] = r;
+            dst[1] = g;
+            dst[2] = b;
+            dst[3] = a;
+            src += 4;
+            dst += 4;
+        }
+        srcRow += srcPitch;
+    }
+}
+#endif
 
 // TheSuperHackers @bugfix Companion to the A1R5G5B5 case in
 // GetBgfxTextureUploadFormat: widen each 5-bit channel to 8 bits (replicating the top
@@ -945,6 +1017,8 @@ struct TextureLevelCopyLayout
 {
     bool isCompressed = false;
     bool expandDXT5ToBGRA8 = false;
+    bool swizzleBGRA8ToRGBA8 = false;
+    bool decodeDXTToRGBA8 = false;
     unsigned expectedPitch = 0;
     unsigned numRows = 0;
     unsigned totalBytes = 0;
@@ -985,16 +1059,34 @@ static bool GetTextureLevelCopyLayout(bgfx::TextureFormat::Enum bgfxFmt,
         mip.Format == WW3D_FORMAT_A1R5G5B5
         && bgfxFmt == bgfx::TextureFormat::BGRA8
         && !isCompressed;
+    // BGRA source -> native RGBA8 (Android/Switch GLES); see SwizzleBGRA8ToRGBA8.
+    const bool swizzleBGRA8ToRGBA8 =
+        (mip.Format == WW3D_FORMAT_A8R8G8B8 || mip.Format == WW3D_FORMAT_X8R8G8B8)
+        && bgfxFmt == bgfx::TextureFormat::RGBA8
+        && !isCompressed;
+#if defined(__SWITCH__)
+    // DXT source decoded to RGBA8 by bimg (Switch); the source is block-compressed.
+    const bool decodeDXTToRGBA8 =
+        (mip.Format == WW3D_FORMAT_DXT1 || mip.Format == WW3D_FORMAT_DXT2
+            || mip.Format == WW3D_FORMAT_DXT3 || mip.Format == WW3D_FORMAT_DXT4
+            || mip.Format == WW3D_FORMAT_DXT5)
+        && bgfxFmt == bgfx::TextureFormat::RGBA8;
+#else
+    const bool decodeDXTToRGBA8 = false;
+#endif
+    const unsigned decodeBlockSize = (mip.Format == WW3D_FORMAT_DXT1) ? 8 : 16;
     const unsigned requiredSourcePitch = expandDXT5ToBGRA8
         ? DXT_SurfacePitch(mip.Width, 16)
-        : (expandA1R5G5B5ToBGRA8 ? mip.Width * 2 : expectedPitch);
-    const bool strictSourcePitch = isCompressed || expandDXT5ToBGRA8 || expandA1R5G5B5ToBGRA8;
+        : (decodeDXTToRGBA8 ? DXT_SurfacePitch(mip.Width, decodeBlockSize)
+            : (expandA1R5G5B5ToBGRA8 ? mip.Width * 2 : expectedPitch));
+    const bool strictSourcePitch = isCompressed || expandDXT5ToBGRA8 || expandA1R5G5B5ToBGRA8
+        || swizzleBGRA8ToRGBA8 || decodeDXTToRGBA8;
     if (strictSourcePitch && srcPitch < requiredSourcePitch)
     {
         return false;
     }
     const unsigned requiredSourceRows =
-        expandDXT5ToBGRA8 ? DXT_SurfaceRows(mip.Height) : numRows;
+        (expandDXT5ToBGRA8 || decodeDXTToRGBA8) ? DXT_SurfaceRows(mip.Height) : numRows;
     const unsigned lastRowBytes = strictSourcePitch
         ? requiredSourcePitch
         : ((srcPitch < expectedPitch) ? srcPitch : expectedPitch);
@@ -1015,6 +1107,8 @@ static bool GetTextureLevelCopyLayout(bgfx::TextureFormat::Enum bgfxFmt,
     TextureLevelCopyLayout layout;
     layout.isCompressed = isCompressed;
     layout.expandDXT5ToBGRA8 = expandDXT5ToBGRA8;
+    layout.swizzleBGRA8ToRGBA8 = swizzleBGRA8ToRGBA8;
+    layout.decodeDXTToRGBA8 = decodeDXTToRGBA8;
     layout.expectedPitch = expectedPitch;
     layout.numRows = numRows;
     layout.totalBytes = static_cast<unsigned>(totalBytes);
@@ -1030,11 +1124,33 @@ static void CopyTextureLevelData(TextureClass *tex2d,
 {
     const unsigned srcPitch = mip.Pitch;
     if (mip.Format == WW3D_FORMAT_A4R4G4B4
-        && bgfxFmt == bgfx::TextureFormat::BGRA8
+        && (bgfxFmt == bgfx::TextureFormat::BGRA8
+            || bgfxFmt == bgfx::TextureFormat::RGBA8) // RGBA8 only on Switch (byte order swapped in Expand)
         && !layout.isCompressed)
     {
         ExpandA4R4G4B4ToBGRA8(&mip.Data[0], srcPitch, mip.Width, mip.Height, data);
     }
+#if defined(__ANDROID__) || defined(__SWITCH__)
+    else if (layout.swizzleBGRA8ToRGBA8)
+    {
+        // BGRA source -> native RGBA8 (GLES); see SwizzleBGRA8ToRGBA8.
+        SwizzleBGRA8ToRGBA8(&mip.Data[0], srcPitch, mip.Width, mip.Height, data);
+    }
+#endif
+#if defined(__SWITCH__)
+    else if (layout.decodeDXTToRGBA8)
+    {
+        // Decode the DXT/BC block-compressed source to RGBA8 (the emulators' GLES
+        // can't sample compressed formats). bimg handles BC1/BC2/BC3 and mip sizes < 4.
+        static bx::DefaultAllocator s_bimgAlloc;
+        const bimg::TextureFormat::Enum bf =
+            (mip.Format == WW3D_FORMAT_DXT1) ? bimg::TextureFormat::BC1 :
+            (mip.Format == WW3D_FORMAT_DXT2 || mip.Format == WW3D_FORMAT_DXT3) ? bimg::TextureFormat::BC2 :
+            bimg::TextureFormat::BC3;
+        bimg::imageDecodeToRgba8(&s_bimgAlloc, data, &mip.Data[0],
+            mip.Width, mip.Height, mip.Width * 4, bf);
+    }
+#endif
     else if (mip.Format == WW3D_FORMAT_A1R5G5B5
         && (bgfxFmt == bgfx::TextureFormat::BGRA8 || bgfxFmt == bgfx::TextureFormat::RGBA8)
         && !layout.isCompressed)

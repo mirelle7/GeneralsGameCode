@@ -65,6 +65,14 @@ if (NOT IS_VS6_BUILD)
         # rounding and breaks cross-platform deterministic math parity with MSVC (/fp:precise).
         add_compile_options(-ffp-contract=off)
 
+        # TheSuperHackers @build githubawn 17/06/2026 Clang (Apple/iOS and the
+        # Android NDK) does not parse the __declspec attributes used by the
+        # Win32 DX8 and Bink SDK headers unless -fdeclspec is enabled. GCC and
+        # MinGW support __declspec natively, so scope this to Clang only.
+        if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+            add_compile_options(-fdeclspec)
+        endif()
+
         # TheSuperHackers @build githubawn 29/07/2026 Emscripten (WebAssembly) settings
         # that every target and dependency has to share, so they live here rather than on
         # the game executable. Scoped to EMSCRIPTEN, so no other platform is affected.

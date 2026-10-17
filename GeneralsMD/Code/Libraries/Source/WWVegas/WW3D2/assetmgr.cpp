@@ -79,6 +79,9 @@
 
 #include "assetmgr.h"
 #include "GgcRuntimeFlags.h"
+#if defined(__ANDROID__)
+#include <android/log.h>
+#endif
 #include <assert.h>
 
 #include "WWLib/bittype.h"
@@ -623,9 +626,17 @@ bool WW3DAssetManager::Load_3D_Assets( const char * filename )
 	if ( file ) {
 		if ( file->Is_Available() ) {
 			result = WW3DAssetManager::Load_3D_Assets( *file );
+#if defined(__ANDROID__)
+			{ static int s_a=0; if(s_a<40){s_a++;
+				__android_log_print(4,"ggc-w3d","LOAD %s available=1 result=%d",filename,(int)result);} }
+#endif
 		} else {
 			WWDEBUG_SAY(("Missing asset '%s'.", filename));
 			WW3DLoadDiagLog("file-unavailable name=%s\n", filename);
+#if defined(__ANDROID__)
+			{ static int s_m=0; if(s_m<40){s_m++;
+				__android_log_print(4,"ggc-w3d","MISSING %s",filename);} }
+#endif
 		}
 		_TheFileFactory->Return_File( file );
 	} else {
@@ -746,8 +757,31 @@ bool WW3DAssetManager::Load_Prototype(ChunkLoadClass & cload)
 		** chunk.
 		*/
 		newproto = loader->Load_W3D(cload);
+#if defined(__ANDROID__)
+		{
+			static int s_proto = 0;
+			if (s_proto < 20) {
+				++s_proto;
+				__android_log_print(4, "ggc-proto",
+					"chunk_id=0x%x loader=OK newproto=%p name=%s",
+					(unsigned)chunk_id, (void*)newproto,
+					newproto ? newproto->Get_Name() : "<null>");
+			}
+		}
+#endif
 
 	} else {
+#if defined(__ANDROID__)
+		{
+			static int s_protoNL = 0;
+			if (s_protoNL < 20) {
+				++s_protoNL;
+				__android_log_print(4, "ggc-proto",
+					"chunk_id=0x%x loader=NULL (no loader registered)",
+					(unsigned)chunk_id);
+			}
+		}
+#endif
 
 		/*
 		** Warn user about an unknown chunk type
@@ -833,13 +867,25 @@ RenderObjClass * WW3DAssetManager::Create_Render_Obj(const char * name)
 		}
 
 		// If we can't find it, try the parent directory
-		if ( Load_3D_Assets( filename ) == false ) {
+		bool ggc_loaded = Load_3D_Assets( filename );
+		if ( ggc_loaded == false ) {
 			StringClass	new_filename(StringClass("..\\"),true);
 			new_filename+=filename;
-			Load_3D_Assets( new_filename );
+			ggc_loaded = Load_3D_Assets( new_filename );
 		}
 
 		proto = Find_Prototype(name);		// try again
+#if defined(__ANDROID__)
+		{
+			static int s_w3d = 0;
+			if (s_w3d < 15) {
+				++s_w3d;
+				__android_log_print(4, "ggc-w3d",
+					"LOADDEMAND name=%s file=%s loaded=%d protoAfter=%p",
+					name, filename, (int)ggc_loaded, (void*)proto);
+			}
+		}
+#endif
 	}
 
 	if (proto == nullptr) {
@@ -848,6 +894,9 @@ RenderObjClass * WW3DAssetManager::Create_Render_Obj(const char * name)
 		if (name[0] != '#') {
 			if (++warning_count <= 20) {
 				WWDEBUG_SAY(("WARNING: Failed to create Render Object: %s",name));
+#if defined(__ANDROID__)
+				__android_log_print(4,"ggc-w3d","FAIL-ROBJ %s",name);
+#endif
 			}
 			WW3DLoadDiagLog("render-obj-fail name=%s\n", name);
 			AssetStatusClass::Peek_Instance()->Report_Missing_RObj(name);
