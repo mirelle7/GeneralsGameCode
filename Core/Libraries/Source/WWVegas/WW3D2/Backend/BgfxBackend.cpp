@@ -5309,7 +5309,7 @@ void BgfxBackend::Initialize(void * hwnd, int /*width*/, int /*height*/)
     g_uniforms.uShroudScale  = bgfx::createUniform("u_shroudScale",  bgfx::UniformType::Vec4);
 
     const bgfx::RendererType::Enum selected = bgfx::getRendererType();
-    const char * rendererName = bgfx::getRendererName(selected);
+    [[maybe_unused]] const char * rendererName = bgfx::getRendererName(selected);
     const bgfx::Caps * caps = bgfx::getCaps();
     WWDEBUG_SAY(("[BgfxBackend] bgfx::init OK on main window "
                  "(renderer=%s, %dx%d, hwnd=%p, passthrough=%s, uber=%s).",
@@ -5319,9 +5319,9 @@ void BgfxBackend::Initialize(void * hwnd, int /*width*/, int /*height*/)
                  bgfx::isValid(g_device.uberProgram)        ? "ok" : "FAILED"));
     // Log whether RGBA8 is supported as a render target (needed for
     // DESTALPHA water technique — back buffer must have alpha channel).
-    const bool rgba8Supported = (caps->formats[bgfx::TextureFormat::RGBA8] &
+    [[maybe_unused]] const bool rgba8Supported = (caps->formats[bgfx::TextureFormat::RGBA8] &
                                   BGFX_CAPS_FORMAT_TEXTURE_FRAMEBUFFER) != 0;
-    const bool bgra8Supported = (caps->formats[bgfx::TextureFormat::BGRA8] &
+    [[maybe_unused]] const bool bgra8Supported = (caps->formats[bgfx::TextureFormat::BGRA8] &
                                   BGFX_CAPS_FORMAT_TEXTURE_FRAMEBUFFER) != 0;
     WWDEBUG_SAY(("[BgfxBackend] Caps: RGBA8_FB=%d BGRA8_FB=%d "
                  "homogeneousDepth=%d originBottomLeft=%d",
@@ -11783,7 +11783,7 @@ void BgfxBackend::Set_Texture(unsigned int stage, TextureBaseClass * texture)
             if (!s_loggedWhiteFallback)
             {
                 s_loggedWhiteFallback = true;
-                TextureClass * t2d_fb = texture->As_TextureClass();
+                [[maybe_unused]] TextureClass * t2d_fb = texture->As_TextureClass();
                 WWDEBUG_SAY(("[BgfxBackend] WHITE FALLBACK: stage=%u tex=%s pool=%d",
                              stage,
                              t2d_fb ? t2d_fb->Get_Full_Path().str() : "(null)",
