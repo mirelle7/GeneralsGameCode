@@ -46,7 +46,9 @@
 #include <WWLib/always.h>
 #include <cstdarg>
 #include <cstddef>
+#if !defined(_MSC_VER) || _MSC_VER >= 1300
 #include <cstdint>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include "W3DDevice/GameClient/W3DAssetManager.h"
@@ -116,7 +118,7 @@ static SurfaceClass *Create_Texture_Mip_Surface(TextureClass *texture, unsigned 
 			mip.Data.size() >= static_cast<size_t>(mip.Pitch) * mip.Height)
 		{
 			SurfaceClass *surface = NEW_REF(SurfaceClass, (mip.Width, mip.Height, mip.Format));
-			surface->Copy(mip.Data.data(), mip.Pitch);
+			surface->Copy((&mip.Data[0]), mip.Pitch);
 			return surface;
 		}
 	}

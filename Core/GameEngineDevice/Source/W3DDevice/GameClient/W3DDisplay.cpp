@@ -47,7 +47,7 @@ static void drawFramerateBar();
 #endif
 #include <io.h>
 #include <time.h>
-#include <rts/profile.h>
+#include "Lib/Profile.h"
 
 // USER INCLUDES //////////////////////////////////////////////////////////////
 #include "Common/FramePacer.h"

@@ -56,6 +56,29 @@ static DWORD getStackWalkMachineType()
 #endif
 }
 
+#if defined(_MSC_VER) && _MSC_VER < 1300
+// The VC6 SDK has no RtlCaptureContext, so capture the control registers directly.
+static void CaptureContextVC6(CONTEXT *context)
+{
+	DWORD reg_eip, reg_ebp, reg_esp;
+	memset(context, 0, sizeof(CONTEXT));
+	__asm
+	{
+		call capture_next
+	capture_next:
+		pop eax
+		mov reg_eip, eax
+		mov reg_ebp, ebp
+		mov reg_esp, esp
+	}
+	context->ContextFlags = CONTEXT_CONTROL;
+	context->Eip = reg_eip;
+	context->Ebp = reg_ebp;
+	context->Esp = reg_esp;
+}
+#define RtlCaptureContext CaptureContextVC6
+#endif
+
 // Seed a STACKFRAME64 with the program counter, stack and frame pointers from a captured CONTEXT.
 static void initStackFrame64(STACKFRAME64& frame, const CONTEXT& context)
 {

@@ -2772,7 +2772,8 @@ ChipsetType W3DShaderManager::getChipset()
 		return (ChipsetType)TheGlobalData->m_chipSetType;
 
 	ChipsetType chip=DC_UNKNOWN;
-	RenderBackendDeviceIdentity deviceIdentity = {};
+	RenderBackendDeviceIdentity deviceIdentity;
+	memset(&deviceIdentity, 0, sizeof(deviceIdentity));
 
 	if (WW3D::Get_Render_Backend() != nullptr &&
 		WW3D::Get_Render_Backend()->Get_Device_Identity(deviceIdentity))

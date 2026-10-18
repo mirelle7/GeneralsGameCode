@@ -71,7 +71,6 @@ namespace std { using ::fopen; using ::fclose; using ::fprintf; using ::getenv; 
 #include "W3DDevice/GameClient/W3DShadow.h"
 #include "Common/ThingTemplate.h"
 
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 

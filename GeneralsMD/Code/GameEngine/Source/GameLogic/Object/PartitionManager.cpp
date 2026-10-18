@@ -4672,6 +4672,14 @@ void PartitionManager::crc( Xfer *xfer )
 	* 2: m_pendingUndoShroudReveals stores Unlooks waiting to happen.
 	*/
 // ------------------------------------------------------------------------------------------------
+struct SightingInfoDataLess
+{
+	bool operator()(const SightingInfo *a, const SightingInfo *b) const
+	{
+		return a->m_data < b->m_data;
+	}
+};
+
 void PartitionManager::xfer( Xfer *xfer )
 {
 
@@ -4780,14 +4788,10 @@ void PartitionManager::xfer( Xfer *xfer )
 				pending.push_back(m_pendingUndoShroudReveals.front());
 				m_pendingUndoShroudReveals.pop();
 			}
-			std::stable_sort(pending.begin(), pending.end(),
-				[](const SightingInfo *a, const SightingInfo *b)
-				{
-					return a->m_data < b->m_data;
-				});
-			for (SightingInfo *info : pending)
+			std::stable_sort(pending.begin(), pending.end(), SightingInfoDataLess());
+			for (std::vector<SightingInfo *>::iterator pendingIt = pending.begin(); pendingIt != pending.end(); ++pendingIt)
 			{
-				m_pendingUndoShroudReveals.push(info);
+				m_pendingUndoShroudReveals.push(*pendingIt);
 			}
 		}
 		else

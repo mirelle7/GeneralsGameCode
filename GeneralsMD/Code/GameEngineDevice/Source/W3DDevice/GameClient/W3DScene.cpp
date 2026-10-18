@@ -92,23 +92,24 @@ namespace
 {
 struct SceneDiagCounters
 {
-	Int visibilityTotal = 0;
-	Int visibilityFrustumVisible = 0;
-	Int visibilityHiddenRobj = 0;
-	Int visibilityDrawableHidden = 0;
-	Int visibilityDrawableShrouded = 0;
-	Int visibilityDrawableVisible = 0;
-	Int visibilityTerrain = 0;
-	Int mainLoopVisible = 0;
-	Int mainLoopDirectRender = 0;
-	Int mainLoopDelayed = 0;
-	Int renderOneCalls = 0;
-	Int renderOneNoDrawable = 0;
-	Int renderOneDrawable = 0;
-	Int renderOneHiddenSkip = 0;
-	Int renderOneClear = 0;
-	Int renderOneFogged = 0;
-	Int renderOneShrouded = 0;
+	SceneDiagCounters() : visibilityTotal(0), visibilityFrustumVisible(0), visibilityHiddenRobj(0), visibilityDrawableHidden(0), visibilityDrawableShrouded(0), visibilityDrawableVisible(0), visibilityTerrain(0), mainLoopVisible(0), mainLoopDirectRender(0), mainLoopDelayed(0), renderOneCalls(0), renderOneNoDrawable(0), renderOneDrawable(0), renderOneHiddenSkip(0), renderOneClear(0), renderOneFogged(0), renderOneShrouded(0) {}
+	Int visibilityTotal;
+	Int visibilityFrustumVisible;
+	Int visibilityHiddenRobj;
+	Int visibilityDrawableHidden;
+	Int visibilityDrawableShrouded;
+	Int visibilityDrawableVisible;
+	Int visibilityTerrain;
+	Int mainLoopVisible;
+	Int mainLoopDirectRender;
+	Int mainLoopDelayed;
+	Int renderOneCalls;
+	Int renderOneNoDrawable;
+	Int renderOneDrawable;
+	Int renderOneHiddenSkip;
+	Int renderOneClear;
+	Int renderOneFogged;
+	Int renderOneShrouded;
 };
 
 static SceneDiagCounters g_sceneDiag;

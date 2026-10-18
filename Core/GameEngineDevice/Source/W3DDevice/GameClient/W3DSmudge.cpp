@@ -172,7 +172,7 @@ Int copyRect(unsigned char *buf, Int bufSize, int oX, int oY, int width, int hei
 		const int rowCopy = (copyBytes - copied < rowBytes) ? copyBytes - copied : rowBytes;
 		const size_t sourceOffset =
 			(static_cast<size_t>(oY + row) * image.Pitch) + (static_cast<size_t>(oX) * bytesPerPixel);
-		memcpy(buf + copied, image.Bytes.data() + sourceOffset, rowCopy);
+		memcpy(buf + copied, (&image.Bytes[0]) + sourceOffset, rowCopy);
 		copied += rowCopy;
 	}
 

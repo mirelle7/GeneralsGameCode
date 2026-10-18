@@ -250,25 +250,25 @@ void TerrainTextureClass::WriteTerrainAtlasMipLevel(WorldHeightMap *htMap, unsig
 					   row + (origin.x + width - b) * pixelBytes,
 					   pixelBytes);
 			}
-			for (Int b = 0; b < borderPixels; b++)
+			for (Int eb = 0; eb < borderPixels; eb++)
 			{
-				memcpy(row + (origin.x + width + b) * pixelBytes,
-					   row + (origin.x + b) * pixelBytes,
+				memcpy(row + (origin.x + width + eb) * pixelBytes,
+					   row + (origin.x + eb) * pixelBytes,
 					   pixelBytes);
 			}
 		}
 
 		const Int copyBytes = (width + borderPixels * 2) * pixelBytes;
-		for (Int b = 1; b <= borderPixels; b++)
+		for (Int vb = 1; vb <= borderPixels; vb++)
 		{
-			UnsignedByte *dst = surface_bits + (origin.y - b) * surface_pitch + (origin.x - borderPixels) * pixelBytes;
-			UnsignedByte *src = surface_bits + (origin.y + width - b) * surface_pitch + (origin.x - borderPixels) * pixelBytes;
+			UnsignedByte *dst = surface_bits + (origin.y - vb) * surface_pitch + (origin.x - borderPixels) * pixelBytes;
+			UnsignedByte *src = surface_bits + (origin.y + width - vb) * surface_pitch + (origin.x - borderPixels) * pixelBytes;
 			memcpy(dst, src, copyBytes);
 		}
-		for (Int b = 0; b < borderPixels; b++)
+		for (Int eb = 0; eb < borderPixels; eb++)
 		{
-			UnsignedByte *dst = surface_bits + (origin.y + width + b) * surface_pitch + (origin.x - borderPixels) * pixelBytes;
-			UnsignedByte *src = surface_bits + (origin.y + b) * surface_pitch + (origin.x - borderPixels) * pixelBytes;
+			UnsignedByte *dst = surface_bits + (origin.y + width + eb) * surface_pitch + (origin.x - borderPixels) * pixelBytes;
+			UnsignedByte *src = surface_bits + (origin.y + eb) * surface_pitch + (origin.x - borderPixels) * pixelBytes;
 			memcpy(dst, src, copyBytes);
 		}
 	}

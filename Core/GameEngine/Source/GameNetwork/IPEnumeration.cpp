@@ -231,7 +231,9 @@ UnsignedInt IPEnumeration::getSubnetBroadcastAddress( UnsignedInt localIP )
 		return INADDR_BROADCAST;
 	}
 
-#ifdef _WIN32
+#if defined(_MSC_VER) && _MSC_VER < 1300
+	// The VC6 SDK has no WSAIoctl interface list, so keep the limited broadcast.
+#elif defined(_WIN32)
 	SOCKET sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sock != INVALID_SOCKET)
 	{
