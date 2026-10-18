@@ -183,13 +183,8 @@ Int SlowDeathBehavior::getProbabilityModifier( const DamageInfo *damageInfo ) co
 	// yields 0, x86 yields INT_MIN), which flipped the probability total and made one machine roll
 	// the GameLogic RNG while the other did not - a cross-platform lockstep desync.
 	Int overkillDamage = damageInfo->out.m_actualDamageDealt - damageInfo->out.m_actualDamageClipped;
-	Int overkillModifier = 0;
-	const Real maxHealth = getObject()->getBodyModule()->getMaxHealth();
-	if (maxHealth > 0.0f)
-	{
-		Real overkillPercent = (float)overkillDamage / maxHealth;
-		overkillModifier = overkillPercent * getSlowDeathBehaviorModuleData()->m_modifierBonusPerOverkillPercent;
-	}
+	Real overkillPercent = WWMath::Div_Safe((float)overkillDamage, (float)getObject()->getBodyModule()->getMaxHealth());
+	Int overkillModifier = overkillPercent * getSlowDeathBehaviorModuleData()->m_modifierBonusPerOverkillPercent;
 
 	return max( getSlowDeathBehaviorModuleData()->m_probabilityModifier + overkillModifier, 1 );
 }
@@ -308,7 +303,7 @@ void SlowDeathBehavior::beginSlowDeath(const DamageInfo *damageInfo)
 				physics->setExtraBounciness(-1.0);					// we don't want this guy to bounce at all
 				physics->setExtraFriction(-3 * SECONDS_PER_LOGICFRAME_REAL);							// reduce his ground friction a bit
 				physics->setAllowBouncing(true);
-				Real orientation = WWMath::Atan2f(force.y, force.x);
+				Real orientation = WWMath::Atan2(force.y, force.x);
 				physics->setAngles(orientation, 0, 0);
 				obj->getDrawable()->setModelConditionState(MODELCONDITION_EXPLODED_FLAILING);
 				m_flags |= (1<<FLUNG_INTO_AIR);

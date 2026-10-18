@@ -78,12 +78,12 @@ endif()
 # entry points; UWP (WindowsStore) has none of them.
 if(WIN32 AND NOT CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
     target_link_libraries(z_generals PRIVATE
-        binkloader
+        deps_bink
         comctl32
         dinput8
         dxguid
         imm32
-        milesloader
+        deps_miles
         vfw32
         winmm
     )

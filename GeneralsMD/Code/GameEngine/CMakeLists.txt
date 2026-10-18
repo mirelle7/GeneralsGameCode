@@ -658,7 +658,6 @@ set(GAMEENGINE_SRC
 #    Source/Common/System/Snapshot.cpp
 #    Source/Common/System/StreamingArchiveFile.cpp
 #    Source/Common/System/SubsystemInterface.cpp
-    Source/Common/System/Trig.cpp
 #    Source/Common/System/UnicodeString.cpp
     Source/Common/System/Upgrade.cpp
 #    Source/Common/System/Xfer.cpp
@@ -735,7 +734,7 @@ set(GAMEENGINE_SRC
 #    Source/GameClient/GUI/GUICallbacks/IMECandidate.cpp
 #    Source/GameClient/GUI/GUICallbacks/InGameChat.cpp
 #    Source/GameClient/GUI/GUICallbacks/InGamePopupMessage.cpp
-    Source/GameClient/GUI/GUICallbacks/Menus/ChallengeMenu.cpp
+#    Source/GameClient/GUI/GUICallbacks/Menus/ChallengeMenu.cpp
     Source/GameClient/GUI/GUICallbacks/Menus/CreditsMenu.cpp
     Source/GameClient/GUI/GUICallbacks/Menus/DifficultySelect.cpp
     Source/GameClient/GUI/GUICallbacks/Menus/DisconnectWindow.cpp
@@ -1130,21 +1129,6 @@ set(GAMEENGINE_SRC
 #    Source/Precompiled/PreRTS.cpp
 )
 
-if(RTS_GAMEMEMORY_ENABLE)
-    # Uses the original Game Memory implementation.
-    list(APPEND GAMEENGINE_SRC
-#        Source/Common/System/GameMemory.cpp
-#        Source/Common/System/GameMemoryInitDMA_GeneralsMD.inl
-#        Source/Common/System/GameMemoryInitPools_GeneralsMD.inl
-#        Source/Common/System/MemoryInit.cpp
-    )
-else()
-    # Uses the null implementation when disabled.
-    list(APPEND GAMEENGINE_SRC
-#        Source/Common/System/GameMemoryNull.cpp
-#        Include/Common/GameMemoryNull.h
-    )
-endif()
 
 if(WIN32)
     list(APPEND GAMEENGINE_SRC

@@ -400,6 +400,10 @@ static CanAttackResult canObjectForceAttack( Object *obj, const Object *victim, 
 //-------------------------------------------------------------------------------------------------
 static CanAttackResult canAnyForceAttack(const DrawableList *allSelected, const Object *victim, const Coord3D *pos )
 {
+	// TheSuperHackers @bugfix WebbontheWeb 06/10/2026 Checks all selected units instead of just first one,
+	// so a unit without a weapon doesn't prevent the entire group from force attacking.
+	CanAttackResult bestResult = ATTACKRESULT_NOT_POSSIBLE;
+
 	// check to make sure that allSelected can attack obj.
 	for (DrawableListCIt cit = allSelected->begin(); cit != allSelected->end(); ++cit)
 	{
@@ -415,10 +419,18 @@ static CanAttackResult canAnyForceAttack(const DrawableList *allSelected, const 
 			continue;
 		}
 
-		return canObjectForceAttack( obj, victim, pos );
+		const CanAttackResult result = canObjectForceAttack( obj, victim, pos );
+		if (result > bestResult)
+		{
+			bestResult = result;
+			if (bestResult == ATTACKRESULT_POSSIBLE)
+			{
+				break;
+			}
+		}
 	}
 
-	return ATTACKRESULT_NOT_POSSIBLE;
+	return bestResult;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1101,7 +1113,7 @@ GameMessage::Type CommandTranslator::issueAttackCommand( Drawable *target,
 	if( m_teamExists )
 	{
 
-		//DEBUG_LOG(("issuing team-attack cmd against %s",enemy->getTemplate()->getName().str()));
+		//DEBUG_LOG(("issuing team-attack cmd against %s",targetObj->getTemplate()->getName().str()));
 
 		// insert team attack command message into stream
 		switch( command )

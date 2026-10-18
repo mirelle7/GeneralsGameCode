@@ -878,8 +878,14 @@ StateReturnType AIStateMachine::updateStateMachine()
 
 			return status;
 		}
-		m_temporaryState->onExit(EXIT_NORMAL);
-		m_temporaryState = nullptr;
+
+		// TheSuperHackers @bugfix Okladnoj 08/10/2026 Check that the temporary state still exists as it can be cleared from the state machine within the states update.
+		// This only happens without RETAIL_COMPATIBLE_CRC, where clear() resets the temporary state.
+		if (m_temporaryState)
+		{
+			m_temporaryState->onExit(EXIT_NORMAL);
+			m_temporaryState = nullptr;
+		}
 	}
 	StateReturnType retType = StateMachine::updateStateMachine();
 
@@ -3681,7 +3687,7 @@ StateReturnType AIAttackMoveToState::update()
 		if (distSqr < sqr(ATTACK_CLOSE_ENOUGH_CELLS*PATHFIND_CELL_SIZE_F)) {
 			return ret;
 		}
-		DEBUG_LOG(("AIAttackMoveToState::update Distance from goal %f, retrying.", WWMath::Sqrtf(distSqr)));
+		DEBUG_LOG(("AIAttackMoveToState::update Distance from goal %f, retrying.", WWMath::Sqrt(distSqr)));
 
 		ret = STATE_CONTINUE;
 		m_retryCount--;
@@ -3911,16 +3917,16 @@ void AIFollowWaypointPathState::computeGoal(Bool useGroupOffsets)
 	if (m_priorWaypoint) {
 		dx = dest.x - m_priorWaypoint->getLocation()->x;
 		dy = dest.y - m_priorWaypoint->getLocation()->y;
-		angle = WWMath::Atan2f(dy, dx);
+		angle = WWMath::Atan2(dy, dx);
 		Real deltaAngle = angle - m_angle;
-		Real s = WWMath::Sinf(deltaAngle);
-		Real c = WWMath::Cosf(deltaAngle);
+		Real s = WWMath::Sin(deltaAngle);
+		Real c = WWMath::Cos(deltaAngle);
 		Real x = m_groupOffset.x * c - m_groupOffset.y * s;
 		Real y = m_groupOffset.y * c + m_groupOffset.x * s;
 		m_groupOffset.x = x;
 		m_groupOffset.y = y;
 	}	else {
-		angle = WWMath::Atan2f(dy, dx);
+		angle = WWMath::Atan2(dy, dx);
 	}
 	m_angle = angle;
 #endif
@@ -3939,9 +3945,9 @@ void AIFollowWaypointPathState::computeGoal(Bool useGroupOffsets)
 	Region3D extent;
 	TheTerrainLogic->getMaximumPathfindExtent(&extent);
 
-	if (extent.isInRegionNoZ(dest)) {
+	if (extent.containsWithin(dest.asCoord2D())) {
 		// The waypoint is on the map.  Check & see if the adjusted position is off map [8/28/2003]
-		if (!extent.isInRegionNoZ(m_goalPosition)) {
+		if (!extent.containsWithin(m_goalPosition.asCoord2D())) {
 			// clamp to in region. [8/28/2003]
 			if (m_goalPosition.x < extent.lo.x+PATHFIND_CELL_SIZE_F) {
 				m_goalPosition.x = extent.lo.x+PATHFIND_CELL_SIZE_F;
@@ -3958,7 +3964,7 @@ void AIFollowWaypointPathState::computeGoal(Bool useGroupOffsets)
 		}
 	}
 
-	if (!extent.isInRegionNoZ(m_goalPosition)) {
+	if (!extent.containsWithin(m_goalPosition.asCoord2D())) {
 		setAdjustsDestination(false); // moving off the map.
 		ai->getCurLocomotor()->setAllowInvalidPosition(true); // allow it to move off the map.
 		m_appendGoalPosition = true; // Moving off the map.
@@ -4947,8 +4953,25 @@ StateReturnType AIAttackAimAtTargetState::onEnter()
 	Object *containedBy = source->getContainedBy();
 	ContainModuleInterface *contain = containedBy ? containedBy->getContain() : nullptr;
 
+#if RTS_GENERALS && RETAIL_COMPATIBLE_CRC
+	if( containedBy && weapon )
+#else
 	if( containedBy && weapon && contain && contain->isEnclosingContainerFor( source ) )
+#endif
 	{
+#if RTS_GENERALS && RETAIL_COMPATIBLE_CRC
+		// TheSuperHackers @bugfix Caball009 22/09/2026 Return early to prevent a crash.
+		// This is needed when a Tunnel Network with units is transferred to another player and then sold or destroyed.
+		// The units are not properly transferred and are left in an invalid state.
+		if (!contain)
+		{
+			// remove all such units from the tunnel tracker and destroy them
+			TheGameLogic->friend_destroyInTunnelContain(source);
+
+			return STATE_FAILURE;
+		}
+#endif
+
 		// non enclosing garrison containers do not use firepoints. Lorenzen, 6/11/03
 		if (victim)
 		{
@@ -5083,7 +5106,6 @@ StateReturnType AIAttackAimAtTargetState::update()
 			aimDelta = REL_THRESH;
 		}
 
-		//DEBUG_LOG(("AIM: desired %f, actual %f, delta %f, aimDelta %f, goalpos %f %f",rad2deg(obj->getOrientation() + relAngle),rad2deg(obj->getOrientation()),rad2deg(relAngle),rad2deg(aimDelta),victim->getPosition()->x,victim->getPosition()->y));
 		if (m_canTurnInPlace)
 		{
 			if (WWMath::Fabs(relAngle) > aimDelta)
@@ -5527,6 +5549,7 @@ StateReturnType AIAttackState::onEnter()
 	if (m_attackParameters && m_attackParameters->shouldExit(getMachine()))
 		return STATE_SUCCESS;
 
+#if !(RTS_GENERALS && RETAIL_COMPATIBLE_CRC)
 	//Kris: Jan 12, 2005
 	//Don't allow units under construction to attack! The selection/action manager system was responsible for preventing this
 	//from ever happening, but failed in two cases which I fixed. This is an extra check to mitigate cheats.
@@ -5534,6 +5557,7 @@ StateReturnType AIAttackState::onEnter()
 	{
 		return STATE_FAILURE;
 	}
+#endif
 
 	// if all of our weapons are out of ammo, can't attack.
 	// (this can happen for units which never auto-reload, like the Raptor)

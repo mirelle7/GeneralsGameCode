@@ -249,6 +249,7 @@ void LANAPI::OnGameStart()
 #endif
 			OnPlayerLeave(m_name);
 			removeGame(m_currentGame);
+			delete m_currentGame;
 			m_currentGame = nullptr;
 			m_inLobby = TRUE;
 

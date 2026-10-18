@@ -884,12 +884,16 @@ void AIUpdateInterface::chooseGoodLocomotorFromCurrentSet()
 }
 
 //----------------------------------------------------------------------------------------------------------
+// TheSuperHackers @bugfix WebbontheWeb 07/10/2026 The function can now return the crate object.
 Object* AIUpdateInterface::checkForCrateToPickup()
 {
 	if (m_crateCreated != INVALID_ID)
 	{
+#if RETAIL_COMPATIBLE_CRC
 		m_crateCreated = INVALID_ID; // we have processed it, so clear it.
+#endif
 		Object* crate = TheGameLogic->findObjectByID(m_crateCreated);
+		m_crateCreated = INVALID_ID; // we have processed it, so clear it.
 		if (crate)
 		{
 			for (BehaviorModule** m = crate->getBehaviorModules(); *m; ++m)
@@ -1658,10 +1662,10 @@ Bool AIUpdateInterface::computePath( PathfindServicesInterface *pathServices, Co
 	m_retryPath = false;
 	Region3D extent;
 	TheTerrainLogic->getMaximumPathfindExtent(&extent);
-	if (!extent.isInRegionNoZ(*destination)) {
+	if (!extent.containsWithin(destination->asCoord2D())) {
 		// We're going off the map.
 		Coord3D pos = *getObject()->getPosition();
-		if (!extent.isInRegionNoZ(pos))	{
+		if (!extent.containsWithin(pos.asCoord2D()))	{
 			// We're starting off the map.  Since we're off the map, we can't pathfind so just build a path.
 			return computeQuickPath(destination);
 		}
@@ -3857,7 +3861,7 @@ void AIUpdateInterface::privateGuardPosition( const Coord3D *pos, GuardMode guar
 		// Clip to playable area.
 		Region3D r;
 		TheTerrainLogic->getExtent(&r);
-		if (!r.isInRegionNoZ(adjPos))
+		if (!r.containsWithin(adjPos.asCoord2D()))
 			adjPos = TheTerrainLogic->findClosestEdgePoint(&adjPos);
 	}
 	m_locationToGuard = adjPos;
@@ -4318,9 +4322,24 @@ Object* AIUpdateInterface::getNextMoodTarget( Bool calledByAI, Bool calledDuring
 					//Not contained
 					return nullptr;
 				}
+
+#if RTS_GENERALS && RETAIL_COMPATIBLE_CRC
+				// TheSuperHackers @bugfix Caball009 22/09/2026 Return early to prevent a crash.
+				// This is needed when a Tunnel Network with units is transferred to another player and then sold or destroyed.
+				// The units are not properly transferred and are left in an invalid state.
+				if (!container->getContain())
+				{
+					// remove all such units from the tunnel tracker and destroy them
+					TheGameLogic->friend_destroyInTunnelContain(obj);
+
+					return nullptr;
+				}
+#endif
+
 				if( !container->getContain()->isPassengerAllowedToFire() )
 				{
-					//Container doesn't allow for passenger to shoot.
+					// Sorry, stealthed and not allowed to idle fire when stealthed.
+					// Being in a firing container is an exception to this veto.
 					return nullptr;
 				}
 			}

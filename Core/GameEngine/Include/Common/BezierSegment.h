@@ -29,22 +29,69 @@
 
 #pragma once
 
+#if defined(GGC_RENDER_BACKEND_BGFX)
+// The bgfx backend has no D3DX8 SDK. BezierSegment only needs D3DXVECTOR4/D3DXMATRIX as plain
+// containers plus the D3DX transform/dot math, which BezierMath below implements explicitly.
+struct D3DXVECTOR4
+{
+	float x, y, z, w;
+	D3DXVECTOR4() {}
+	D3DXVECTOR4(float fx, float fy, float fz, float fw) : x(fx), y(fy), z(fz), w(fw) {}
+};
+
+struct D3DXMATRIX
+{
+	float m[4][4];
+	D3DXMATRIX() {}
+	D3DXMATRIX(float _11, float _12, float _13, float _14,
+						 float _21, float _22, float _23, float _24,
+						 float _31, float _32, float _33, float _34,
+						 float _41, float _42, float _43, float _44)
+	{
+		m[0][0] = _11; m[0][1] = _12; m[0][2] = _13; m[0][3] = _14;
+		m[1][0] = _21; m[1][1] = _22; m[1][2] = _23; m[1][3] = _24;
+		m[2][0] = _31; m[2][1] = _32; m[2][2] = _33; m[2][3] = _34;
+		m[3][0] = _41; m[3][1] = _42; m[3][2] = _43; m[3][3] = _44;
+	}
+};
+#else
+#include <d3dx8math.h>
+#endif
 #include "Common/STLTypedefs.h"
+#include "Lib/BaseDefines.h"
 
 #define USUAL_TOLERANCE 1.0f
+
+class BezierMath
+{
+public:
+	static void D3DXVec4Transform(D3DXVECTOR4* out, const D3DXVECTOR4* v, const D3DXMATRIX* m)
+	{
+#if USE_DETERMINISTIC_MATH || defined(GGC_RENDER_BACKEND_BGFX)
+		const float x = v->x, y = v->y, z = v->z, w = v->w;
+		out->x = ((x * m->m[0][0] + y * m->m[1][0]) + z * m->m[2][0]) + w * m->m[3][0];
+		out->y = ((x * m->m[0][1] + y * m->m[1][1]) + z * m->m[2][1]) + w * m->m[3][1];
+		out->z = ((x * m->m[0][2] + y * m->m[1][2]) + z * m->m[2][2]) + w * m->m[3][2];
+		out->w = ((x * m->m[0][3] + y * m->m[1][3]) + z * m->m[2][3]) + w * m->m[3][3];
+#else
+		::D3DXVec4Transform(out, v, m);
+#endif
+	}
+
+	static float D3DXVec4Dot(const D3DXVECTOR4* a, const D3DXVECTOR4* b)
+	{
+#if USE_DETERMINISTIC_MATH || defined(GGC_RENDER_BACKEND_BGFX)
+		return ((a->x * b->x + a->y * b->y) + a->z * b->z) + a->w * b->w;
+#else
+		return ::D3DXVec4Dot(a, b);
+#endif
+	}
+};
 
 class BezierSegment
 {
 	protected:
-		struct AxisCoefficients
-		{
-			Real cubic;
-			Real quadratic;
-			Real linear;
-			Real constant;
-		};
-
-		static AxisCoefficients getAxisCoefficients(Real p0, Real p1, Real p2, Real p3);
+		static const D3DXMATRIX s_bezBasisMatrix;
 		Coord3D m_controlPoints[4];
 
 	public:	// Constructors

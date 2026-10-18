@@ -81,7 +81,7 @@ static void initStackFrame64(STACKFRAME64& frame, const CONTEXT& context)
 //*****************************************************************************
 void StackDumpDefaultHandler(const char*line)
 {
-	DEBUG_LOG((line));
+	DEBUG_LOG(("%s", line));
 }
 
 

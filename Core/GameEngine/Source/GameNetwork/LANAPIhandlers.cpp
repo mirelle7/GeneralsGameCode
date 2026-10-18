@@ -585,6 +585,7 @@ void LANAPI::handleRequestLobbyLeave( LANMessage *msg, UnsignedInt senderIP )
 			if (player->getIP() == senderIP)
 			{
 				removePlayer(player);
+				delete player;
 				OnPlayerList(m_lobbyPlayers);
 				break;
 			}

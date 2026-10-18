@@ -73,6 +73,7 @@
 
 #include "camera.h"
 #include "ww3d.h"
+#include "Renderer.h"
 #include "WWMath/matrix4.h"
 
 // TheSuperHackers @refactor bobtista 11/04/2026 Route the
@@ -744,14 +745,14 @@ void CameraClass::Apply()
 	bool windowed;
 	WW3D::Get_Render_Target_Resolution(width,height,bits,windowed);
 
-	RenderBackendViewport vp;
-	vp.x = static_cast<unsigned int>(Viewport.Min.X * static_cast<float>(width));
-	vp.y = static_cast<unsigned int>(Viewport.Min.Y * static_cast<float>(height));
-	vp.width = static_cast<unsigned int>((Viewport.Max.X - Viewport.Min.X) * static_cast<float>(width));
-	vp.height = static_cast<unsigned int>((Viewport.Max.Y - Viewport.Min.Y) * static_cast<float>(height));
+	RenderViewport vp;
+	vp.x = (unsigned int)(Viewport.Min.X * (float)width);
+	vp.y = (unsigned int)(Viewport.Min.Y * (float)height);
+	vp.width = (unsigned int)((Viewport.Max.X - Viewport.Min.X) * (float)width);
+	vp.height = (unsigned int)((Viewport.Max.Y - Viewport.Min.Y) * (float)height);
 	vp.min_z = ZBufferMin;
 	vp.max_z = ZBufferMax;
-	WW3D::Get_Render_Backend()->Set_Viewport(vp);
+	Renderer::Set_Viewport(vp);
 
 	Matrix4x4 d3dprojection;
 	Get_D3D_Projection_Matrix(&d3dprojection);
@@ -775,13 +776,13 @@ void CameraClass::Get_Clip_Planes(float & znear,float & zfar) const
 float CameraClass::Get_Horizontal_FOV() const
 {
 	float width = ViewPlane.Max.X - ViewPlane.Min.X;
-	return 2*WWMath::Atan2_Legacy(width,2.0);
+	return 2*WWMath::Atan2(width,2.0f);
 }
 
 float CameraClass::Get_Vertical_FOV() const
 {
 	float height = ViewPlane.Max.Y - ViewPlane.Min.Y;
-	return 2*WWMath::Atan2_Legacy(height,2.0);
+	return 2*WWMath::Atan2(height,2.0f);
 }
 
 float CameraClass::Get_Aspect_Ratio() const

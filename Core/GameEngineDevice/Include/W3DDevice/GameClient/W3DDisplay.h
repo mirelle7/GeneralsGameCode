@@ -219,6 +219,7 @@ protected:
 		KEY_MOUSE_STATES, ///< keyboard modifier and mouse button states.
 		MousePosition,    ///< debug display mouse position
 		Particles,        ///< debug display particles
+		TerrainParticles, ///< debug display for terrain-conforming particles
 		Objects,          ///< debug display total number of objects
 		NetIncoming,			///< debug display network incoming stats
 		NetOutgoing,			///< debug display network outgoing stats
@@ -232,6 +233,7 @@ protected:
 
 	DisplayString *m_displayStrings[DisplayStringCount];
 	DisplayString *m_benchmarkDisplayString;
+	DisplayString *m_cinematicDisplayString;
 
 	W3DDebugDisplay *m_nativeDebugDisplay;		///< W3D specific debug display interface
 

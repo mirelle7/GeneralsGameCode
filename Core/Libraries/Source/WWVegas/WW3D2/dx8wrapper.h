@@ -42,6 +42,7 @@
 #pragma once
 
 #include "WWLib/always.h"
+#include <Utility/bit_adapter.h>
 #include "dllist.h"
 #if defined(GGC_RENDER_BACKEND_BGFX)
 #include "dx8standalonetypes.h"
@@ -152,6 +153,9 @@ WWINLINE void DX8_ErrorCode(unsigned res)
 	if (res==S_OK) return;
 	Log_DX8_ErrorCode(res);
 }
+
+// Converts a FLOAT to a DWORD for use in SetRenderState() calls
+inline DWORD F2DW(FLOAT f) { return std::bit_cast<DWORD>(f); }
 
 #ifdef WWDEBUG
 #define DX8_THREAD_ASSERT() if (_DX8SingleThreaded) { WWASSERT_PRINT(DX8Wrapper::_Get_Main_Thread_ID()==ThreadClass::_Get_Current_Thread_ID(),"DX8Wrapper::DX8 calls must be called from the main thread!"); }
@@ -848,8 +852,8 @@ WWINLINE void DX8Wrapper::Set_Fog(bool enable, const Vector3 &color, float start
 	ShaderClass::Invalidate();
 
 	// Set renderstates which are not affected by the shader
-	Commit_Fixed_Function_Render_Value(D3DRS_FOGSTART, *(DWORD *)(&start));
-	Commit_Fixed_Function_Render_Value(D3DRS_FOGEND,   *(DWORD *)(&end));
+	Commit_Fixed_Function_Render_Value(D3DRS_FOGSTART, std::bit_cast<DWORD>(start));
+	Commit_Fixed_Function_Render_Value(D3DRS_FOGEND,   std::bit_cast<DWORD>(end));
 }
 
 

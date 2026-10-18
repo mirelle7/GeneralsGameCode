@@ -248,13 +248,11 @@ void GenerateMinefieldBehavior::placeMinesAlongLine(const Coord3D& posStart, con
 
 	Real dx = posEnd.x - posStart.x;
 	Real dy = posEnd.y - posStart.y;
-	Real len = WWMath::Sqrtf(sqr(dx) + sqr(dy));
+	Real len = WWMath::Sqrt(sqr(dx) + sqr(dy));
 	Real mineRadius = mineTemplate->getTemplateGeometryInfo().getBoundingCircleRadius();
 	Real mineDiameter = mineRadius * 2.0f;
 	Real mineJitter = mineRadius*d->m_randomJitter;
-	// TheSuperHackers @bugfix bobtista 10/06/2026 Guard a zero mine diameter: len/0 is Inf and
-	// REAL_TO_INT_CEIL(Inf) is platform-divergent UB (arm64 vs x86) that desyncs the spawned count.
-	Int numMines = (mineDiameter > 0.0f) ? REAL_TO_INT_CEIL(len / mineDiameter) : 1;
+	Int numMines = REAL_TO_INT_CEIL(WWMath::Div_Safe(len, mineDiameter, 1.0f));
 	if (numMines < 1)
 		numMines = 1;
 	Real inc = len/numMines;
@@ -314,9 +312,7 @@ void GenerateMinefieldBehavior::placeMinesAroundCircle(const Coord3D& pos, Real 
 	Real mineRadius = mineTemplate->getTemplateGeometryInfo().getBoundingCircleRadius();
 	Real mineDiameter = mineRadius * 2.0f;
 	Real mineJitter = mineRadius*d->m_randomJitter;
-	// TheSuperHackers @bugfix bobtista 10/06/2026 Guard a zero mine diameter: circum/0 is Inf and
-	// REAL_TO_INT_CEIL(Inf) is platform-divergent UB (arm64 vs x86) that desyncs the spawned count.
-	Int numMines = (mineDiameter > 0.0f) ? REAL_TO_INT_CEIL(circum / mineDiameter) : 1;
+	Int numMines = REAL_TO_INT_CEIL(WWMath::Div_Safe(circum, mineDiameter, 1.0f));
 	if (numMines < 1)
 		numMines = 1;
 	Real angleInc = (2*PI)/numMines;

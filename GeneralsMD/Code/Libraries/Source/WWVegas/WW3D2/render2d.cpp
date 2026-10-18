@@ -42,6 +42,7 @@
 #include "render2d.h"
 #include "WWLib/mutex.h"
 #include "ww3d.h"
+#include "Renderer.h"
 #include "font3d.h"
 #include "WWMath/rect.h"
 #include "texture.h"

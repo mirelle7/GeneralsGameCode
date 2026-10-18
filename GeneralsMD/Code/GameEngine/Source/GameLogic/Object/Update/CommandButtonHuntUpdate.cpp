@@ -338,16 +338,12 @@ Object* CommandButtonHuntUpdate::scanClosestTarget()
 					}
 				}
 				Real distSqr = ThePartitionManager->getDistanceSquared(me, other, FROM_BOUNDINGSPHERE_2D);
-				Real dist = WWMath::Sqrtf(distSqr);
+				Real dist = WWMath::Sqrt(distSqr);
 				Int curPriority = data->m_scanRange - dist;
 				if (info) curPriority = info->getPriority(other->getTemplate());
 				if (curPriority == 0)
 					continue; // don't attack 0 priority targets.
-				// TheSuperHackers @bugfix bobtista 10/06/2026 m_attackPriorityDistanceModifier defaults to
-				// 0; dist/0 is Inf and (Int)Inf is platform-divergent UB (arm64 vs x86) that skews target
-				// selection per machine and desyncs lockstep. Treat a non-positive modifier as none.
-				const Real distModifier = TheAI->getAiData()->m_attackPriorityDistanceModifier;
-				Int modifier = (distModifier > 0.0f) ? (Int)(dist / distModifier) : 0;
+				Int modifier = (Int)WWMath::Div_Safe(dist, TheAI->getAiData()->m_attackPriorityDistanceModifier);
 				Int modPriority = curPriority-modifier;
 				if (modPriority < 1)
 					modPriority = 1;

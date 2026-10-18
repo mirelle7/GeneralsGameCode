@@ -873,8 +873,14 @@ StateReturnType AIStateMachine::updateStateMachine()
 
 			return status;
 		}
-		m_temporaryState->onExit(EXIT_NORMAL);
-		m_temporaryState = nullptr;
+
+		// TheSuperHackers @bugfix Okladnoj 08/10/2026 Check that the temporary state still exists as it can be cleared from the state machine within the states update.
+		// This only happens without RETAIL_COMPATIBLE_CRC, where clear() resets the temporary state.
+		if (m_temporaryState)
+		{
+			m_temporaryState->onExit(EXIT_NORMAL);
+			m_temporaryState = nullptr;
+		}
 	}
 	StateReturnType retType = StateMachine::updateStateMachine();
 
@@ -3836,7 +3842,7 @@ void AIFollowWaypointPathState::computeGoal(Bool useGroupOffsets)
 	}
 	Region3D extent;
 	TheTerrainLogic->getMaximumPathfindExtent(&extent);
-	if (!extent.isInRegionNoZ(m_goalPosition)) {
+	if (!extent.containsWithin(m_goalPosition.asCoord2D())) {
 		setAdjustsDestination(false); // moving off the map.
 		ai->getCurLocomotor()->setAllowInvalidPosition(true); // allow it to move off the map.
 		m_appendGoalPosition = true; // Moving off the map.
@@ -4823,9 +4829,28 @@ StateReturnType AIAttackAimAtTargetState::onEnter()
 	//to move to the best fire point, check if it's in firing range, and if not
 	//move it back so another unit with longer range can!
 	Object *containedBy = source->getContainedBy();
+	ContainModuleInterface *contain = containedBy ? containedBy->getContain() : nullptr;
+
+#if RTS_GENERALS && RETAIL_COMPATIBLE_CRC
 	if( containedBy && weapon )
+#else
+	if( containedBy && weapon && contain && contain->isEnclosingContainerFor( source ) )
+#endif
 	{
-		ContainModuleInterface *contain = containedBy->getContain();
+#if RTS_GENERALS && RETAIL_COMPATIBLE_CRC
+		// TheSuperHackers @bugfix Caball009 22/09/2026 Return early to prevent a crash.
+		// This is needed when a Tunnel Network with units is transferred to another player and then sold or destroyed.
+		// The units are not properly transferred and are left in an invalid state.
+		if (!contain)
+		{
+			// remove all such units from the tunnel tracker and destroy them
+			TheGameLogic->friend_destroyInTunnelContain(source);
+
+			return STATE_FAILURE;
+		}
+#endif
+
+		// non enclosing garrison containers do not use firepoints. Lorenzen, 6/11/03
 		if (victim)
 		{
 			inFiringRange = contain->attemptBestFirePointPosition( source, weapon, victim );
@@ -4937,7 +4962,6 @@ StateReturnType AIAttackAimAtTargetState::update()
 
 		if (aimDelta < REL_THRESH) aimDelta = REL_THRESH;
 
-		//DEBUG_LOG(("AIM: desired %f, actual %f, delta %f, aimDelta %f, goalpos %f %f",rad2deg(obj->getOrientation() + relAngle),rad2deg(obj->getOrientation()),rad2deg(relAngle),rad2deg(aimDelta),victim->getPosition()->x,victim->getPosition()->y));
 		if (m_canTurnInPlace)
 		{
 			if (WWMath::Fabs(relAngle) > aimDelta)
@@ -5326,6 +5350,7 @@ StateReturnType AIAttackState::onEnter()
 	if (m_attackParameters && m_attackParameters->shouldExit(getMachine()))
 		return STATE_SUCCESS;
 
+#if !(RTS_GENERALS && RETAIL_COMPATIBLE_CRC)
 	//Kris: Jan 12, 2005
 	//Don't allow units under construction to attack! The selection/action manager system was responsible for preventing this
 	//from ever happening, but failed in two cases which I fixed. This is an extra check to mitigate cheats.
@@ -5333,6 +5358,7 @@ StateReturnType AIAttackState::onEnter()
 	{
 		return STATE_FAILURE;
 	}
+#endif
 
 	// if all of our weapons are out of ammo, can't attack.
 	// (this can happen for units which never auto-reload, like the Raptor)
