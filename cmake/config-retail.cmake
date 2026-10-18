@@ -1,6 +1,8 @@
 # Retail game compatibility options
 
-set(RTS_BUILD_OPTION_RETAIL_COMPATIBLE_GAME "DEFAULT" CACHE STRING "Build for retail game compatibility. OFF enables retail-incompatible fixes. DEFAULT follows GameDefines.h.")
+# Unlike upstream, this branch builds the modern (retail-incompatible) game by default: it targets platforms
+# that cannot be CRC-compatible with retail, and it needs the deterministic math for cross-platform multiplayer.
+set(RTS_BUILD_OPTION_RETAIL_COMPATIBLE_GAME "OFF" CACHE STRING "Build for retail game compatibility. OFF enables retail-incompatible fixes. DEFAULT follows GameDefines.h.")
 set_property(CACHE RTS_BUILD_OPTION_RETAIL_COMPATIBLE_GAME PROPERTY STRINGS DEFAULT ON OFF)
 
 collect_defines_from_file(_retail_guards "${CMAKE_CURRENT_SOURCE_DIR}/Core/GameEngine/Include/Common/GameDefines.h" "RETAIL_COMPATIBLE_")
