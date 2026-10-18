@@ -27,8 +27,8 @@ public:
 	virtual void resumeAudio( AudioAffect which ) {}
 	virtual void pauseAmbient( Bool shouldPause ) {}
 	virtual void killAudioEventImmediately( AudioHandle audioEvent ) {}
-	virtual void nextMusicTrack() {}
-	virtual void prevMusicTrack() {}
+	virtual AsciiString nextMusicTrack() { return AsciiString::TheEmptyString; }
+	virtual AsciiString prevMusicTrack() { return AsciiString::TheEmptyString; }
 	virtual Bool isMusicPlaying() const { return FALSE; }
 	virtual Bool hasMusicTrackCompleted( const AsciiString& trackName, Int numberOfTimes ) const { return FALSE; }
 	virtual AsciiString getMusicTrackName() const { return AsciiString::TheEmptyString; }
