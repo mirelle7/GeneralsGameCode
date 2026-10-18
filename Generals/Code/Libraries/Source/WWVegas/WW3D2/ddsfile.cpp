@@ -21,11 +21,39 @@
 #include "ddsfile.h"
 #include "WWLib/ffactory.h"
 #include "WWLib/bufffile.h"
-#include "formconv.h"
-#include "dx8wrapper.h"
 #include "bitmaphandler.h"
 #include "colorspace.h"
-#include <ddraw.h>
+
+#ifndef DDSCAPS2_CUBEMAP
+#define DDSCAPS2_CUBEMAP 0x00000200L
+#endif
+
+#ifndef DDSCAPS2_VOLUME
+#define DDSCAPS2_VOLUME 0x00200000L
+#endif
+
+// ----------------------------------------------------------------------------
+
+#define Make_DDS_FourCC(a, b, c, d) \
+	((unsigned)(a) | ((unsigned)(b) << 8) | ((unsigned)(c) << 16) | ((unsigned)(d) << 24))
+
+static WW3DFormat DDS_FourCC_To_WW3D_Format(unsigned fourcc)
+{
+	switch (fourcc) {
+	case Make_DDS_FourCC('D', 'X', 'T', '1'):
+		return WW3D_FORMAT_DXT1;
+	case Make_DDS_FourCC('D', 'X', 'T', '2'):
+		return WW3D_FORMAT_DXT2;
+	case Make_DDS_FourCC('D', 'X', 'T', '3'):
+		return WW3D_FORMAT_DXT3;
+	case Make_DDS_FourCC('D', 'X', 'T', '4'):
+		return WW3D_FORMAT_DXT4;
+	case Make_DDS_FourCC('D', 'X', 'T', '5'):
+		return WW3D_FORMAT_DXT5;
+	default:
+		return WW3D_FORMAT_UNKNOWN;
+	}
+}
 
 // ----------------------------------------------------------------------------
 
@@ -87,7 +115,7 @@ DDSFileClass::DDSFileClass(const char* name,unsigned reduction_factor)
 		return;
 	}
 
-	Format=D3DFormat_To_WW3DFormat((D3DFORMAT)SurfaceDesc.PixelFormat.FourCC);
+	Format=DDS_FourCC_To_WW3D_Format(SurfaceDesc.PixelFormat.FourCC);
 	WWASSERT(
 		Format==WW3D_FORMAT_DXT1 ||
 		Format==WW3D_FORMAT_DXT2 ||
@@ -97,7 +125,6 @@ DDSFileClass::DDSFileClass(const char* name,unsigned reduction_factor)
 
 	MipLevels=SurfaceDesc.MipMapCount;
 	if (MipLevels==0) MipLevels=1;
-
 
 	if (MipLevels>ReductionFactor) MipLevels-=ReductionFactor;
 	else {
@@ -177,15 +204,6 @@ DDSFileClass::DDSFileClass(const char* name,unsigned reduction_factor)
 		if (MipLevels>2)
 			CubeFaceSize+=16;
 	}
-	// Verify we read through the whole file (not more, not less).
-#if 0
-	// This code is commented out because it complains for all our files, but it doesn't seem to actually
-	// be a problem. The new version of ddsfile from Vegas actually has removed this check entirely.
-	int expected_size=level_offset+SurfaceDesc.Size+4;
-	if (expected_size!=file->Size()) {
-		WWDEBUG_SAY(("Warning: file % size is not consistent with the data (file size should be %d but was %d)",Name,expected_size,file->Size()));
-	}
-#endif
 	file->Close();
 }
 
@@ -344,37 +362,6 @@ WWINLINE static unsigned short ARGB8888_To_RGB565(unsigned argb_)
 
 // ----------------------------------------------------------------------------
 //
-// Copy mipmap level to D3D surface. The copying is performed using another
-// Copy_Level_To_Surface function (see below).
-//
-// ----------------------------------------------------------------------------
-
-void DDSFileClass::Copy_Level_To_Surface(unsigned level,IDirect3DSurface8* d3d_surface,const Vector3& hsv_shift)
-{
-	WWASSERT(d3d_surface);
-	// Verify that the destination surface size matches the source surface size
-	D3DSURFACE_DESC surface_desc;
-	DX8_ErrorCode(d3d_surface->GetDesc(&surface_desc));
-
-	// First lock the surface
-	D3DLOCKED_RECT locked_rect;
-	DX8_ErrorCode(d3d_surface->LockRect(&locked_rect,nullptr,0));
-
-	Copy_Level_To_Surface(
-		level,
-		D3DFormat_To_WW3DFormat(surface_desc.Format),
-		surface_desc.Width,
-		surface_desc.Height,
-		reinterpret_cast<unsigned char*>(locked_rect.pBits),
-		locked_rect.Pitch,
-		hsv_shift);
-
-	// Finally, unlock the surface
-	DX8_ErrorCode(d3d_surface->UnlockRect());
-}
-
-// ----------------------------------------------------------------------------
-//
 // Copy one mipmap level of texture to a memory surface. Surface type conversion
 // is performed if the destination is of different format. Scaling will be done
 // one of these days as well. Conversions between different types of compressed
@@ -518,10 +505,6 @@ void DDSFileClass::Copy_Level_To_Surface
 					WWDEBUG_SAY(("Warning: DXT1 format should not contain alpha information - file %s",Name));
 				}
 			}
-		}
-		// TODO: Scaling not handled...
-		else {
-			//int a=0;
 		}
 	}
 }

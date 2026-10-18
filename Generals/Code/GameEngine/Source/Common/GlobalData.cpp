@@ -53,6 +53,7 @@
 #include "Common/version.h"
 
 #include "GameLogic/AI.h"
+#include "GameLogic/GameLogic.h"
 #include "GameLogic/Weapon.h"
 #include "GameLogic/Module/BodyModule.h"
 
@@ -1386,4 +1387,11 @@ AsciiString GlobalData::BuildUserDataPathFromIni()
 	}
 
 	return myDocumentsDirectory;
+}
+
+// TheSuperHackers @feature bobtista 03/06/2026 Expose the simulation frame so the
+// render backend can trigger a screenshot at a deterministic logic frame.
+extern "C" int GGC_GetCurrentLogicFrame()
+{
+	return TheGameLogic ? (int)TheGameLogic->getFrame() : 0;
 }
