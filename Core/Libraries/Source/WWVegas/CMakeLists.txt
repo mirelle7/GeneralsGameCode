@@ -24,7 +24,7 @@ endif()
 target_include_directories(core_wwcommon INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
-if(UNIX OR ANDROID)
+if(UNIX OR ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
     target_include_directories(core_wwcommon INTERFACE compat/win32_shims)
     # TheSuperHackers @build bobtista 13/06/2026 — Force-include the windows.h
     # shim so that DX8 SDK headers (d3d8types.h etc.) which use LONG/INT/HWND
@@ -65,7 +65,7 @@ add_library(core_wwvegas INTERFACE)
 target_include_directories(core_wwvegas INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
-if(UNIX OR ANDROID)
+if(UNIX OR ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
     target_include_directories(core_wwvegas INTERFACE compat/win32_shims)
     if(NOT XCODE)
         target_compile_options(core_wwvegas INTERFACE
