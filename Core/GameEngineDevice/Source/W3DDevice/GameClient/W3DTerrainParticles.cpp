@@ -26,6 +26,7 @@
 #include "WW3D2/dx8vertexbuffer.h"
 #include "WW3D2/dx8wrapper.h"
 #include "WW3D2/statistics.h"
+#include "WW3D2/ww3d.h"
 #include "WW3D2/texture.h"
 #include "WW3D2/vertmaterial.h"
 #include "WWMath/vector3.h"
@@ -318,6 +319,23 @@ void W3DTerrainParticles::updateSettings()
 	}
 	m_shader.Set_Cull_Mode(ShaderClass::CULL_MODE_ENABLE);
 
+#if defined(GGC_RENDER_BACKEND_BGFX)
+	// The deprecated DX8Wrapper state setters do not exist in bgfx builds; go through the backend.
+	WW3D::Get_Render_Backend()->Set_World_Identity();
+	RefCountPtr<VertexMaterialClass> material;
+	material.Assign_No_Add_Ref(VertexMaterialClass::Get_Preset(VertexMaterialClass::PRELIT_DIFFUSE));
+	WW3D::Get_Render_Backend()->Set_Material(material.Peek());
+	WW3D::Get_Render_Backend()->Set_Shader(m_shader);
+	WW3D::Get_Render_Backend()->Set_Texture(0, m_texture.Peek());
+
+	// To prevent visual glitches on overdraw, we clamp the texture to a transparent black pixel.
+	if (m_texture)
+	{
+		WW3D::Get_Render_Backend()->Apply_Render_State_Changes();
+		WW3D::Get_Render_Backend()->Set_Texture_Stage_State(0, TSS::ADDRESSU, 4 /* D3DTADDRESS_BORDER */);
+		WW3D::Get_Render_Backend()->Set_Texture_Stage_State(0, TSS::ADDRESSV, 4 /* D3DTADDRESS_BORDER */);
+	}
+#else
 	DX8Wrapper::Set_World_Identity();
 	RefCountPtr<VertexMaterialClass> material;
 	material.Assign_No_Add_Ref(VertexMaterialClass::Get_Preset(VertexMaterialClass::PRELIT_DIFFUSE));
@@ -333,6 +351,7 @@ void W3DTerrainParticles::updateSettings()
 		DX8Wrapper::Set_DX8_Texture_Stage_State(0, D3DTSS_ADDRESSV, D3DTADDRESS_BORDER);
 		DX8Wrapper::Set_DX8_Texture_Stage_State(0, D3DTSS_BORDERCOLOR, 0x00000000);
 	}
+#endif
 }
 
 void W3DTerrainParticles::restoreSettings() const
