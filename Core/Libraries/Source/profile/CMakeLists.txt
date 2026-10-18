@@ -58,7 +58,8 @@ if(WIN32)
     )
 else()
     # core_debug is not built here, but the debug headers that internal.h reads are.
-    target_include_directories(core_profile_legacy PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../debug/Include
+    # -iquote, not -I: an angle-bracket <debug/...> must keep resolving to libstdc++'s.
+    target_compile_options(core_profile_legacy PRIVATE
+        -iquote ${CMAKE_CURRENT_SOURCE_DIR}/../debug/Include
     )
 endif()

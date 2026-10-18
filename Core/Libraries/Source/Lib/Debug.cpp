@@ -44,6 +44,9 @@
 
 // SYSTEM INCLUDES
 #include <windows.h>
+#ifndef _WIN32
+#include <mmsystem.h> // GetTickCount via the compat shim
+#endif
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
