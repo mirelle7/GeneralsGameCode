@@ -56,4 +56,9 @@ if(WIN32)
     target_link_libraries(core_profile_legacy PRIVATE
         core_debug
     )
+else()
+    # core_debug is not built here, but the debug headers that internal.h reads are.
+    target_include_directories(core_profile_legacy PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../debug/Include
+    )
 endif()
