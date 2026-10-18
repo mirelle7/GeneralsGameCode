@@ -24,10 +24,6 @@
 #include <SDL3/SDL.h>
 #include <cstdio>
 
-typedef bool Bool;
-
-void OSDisplaySetBusyState(Bool, Bool) {}
-
 extern "C" {
 
 // --- imm32 -----------------------------------------------------------------
