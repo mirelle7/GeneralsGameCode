@@ -187,7 +187,7 @@ void DebugHintObject::initData()
 	m_vertexBufferTile = NEW_REF(RenderVertexBufferClass,(
 		RENDER_VERTEX_FORMAT_XYZDUV1,
 		3,
-		Render_Buffer_Usage_Default<RenderVertexBufferClass>()));
+		RenderVertexBufferClass::USAGE_DEFAULT));
 
 	//go with a preset material for now.
 	m_vertexMaterialClass = VertexMaterialClass::Get_Preset(VertexMaterialClass::PRELIT_DIFFUSE);

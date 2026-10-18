@@ -46,7 +46,9 @@
     #endif
 #endif
 #include <Utility/intrin_compat.h>
+#if !defined(_MSC_VER) || _MSC_VER >= 1300
 #include <cstdint>
+#endif
 
 // TheSuperHackers @build bobtista 29/04/2026 The compat win32 shim already
 // maps __int64 / _int64 to long long via #define; do not add a redundant

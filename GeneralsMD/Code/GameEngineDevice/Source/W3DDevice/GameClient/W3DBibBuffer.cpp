@@ -262,10 +262,10 @@ void W3DBibBuffer::allocateBibBuffers()
 	m_vertexBib=NEW_REF(RenderVertexBufferClass,(
 		RENDER_VERTEX_FORMAT_XYZDUV1,
 		m_vertexBibSize+4,
-		Render_Buffer_Usage_Dynamic<RenderVertexBufferClass>()));
+		RenderVertexBufferClass::USAGE_DYNAMIC));
 	m_indexBib=NEW_REF(RenderIndexBufferClass,(
 		m_indexBibSize+4,
-		Render_Buffer_Usage_Dynamic<RenderIndexBufferClass>()));
+		RenderIndexBufferClass::USAGE_DYNAMIC));
 	m_curNumBibVertices=0;
 	m_curNumBibIndices=0;
 }

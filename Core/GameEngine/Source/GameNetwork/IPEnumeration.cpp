@@ -54,7 +54,9 @@ extern "C" int ggc_url_ip_index(void)
 #else
 // TheSuperHackers @build bobtista 12/06/2026 INTERFACE_INFO / SIO_GET_INTERFACE_LIST (used by
 // getSubnetBroadcastAddress) are declared in ws2ipdef.h, which winsock2.h does not include by default.
+#if !defined(_MSC_VER) || _MSC_VER >= 1300 // VC6 declares these in winsock2.h
 #include <ws2ipdef.h>
+#endif
 #endif
 
 IPEnumeration::IPEnumeration()

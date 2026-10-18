@@ -316,10 +316,10 @@ void W3DCustomEdging::allocateEdgingBuffers()
 	m_vertexEdging=NEW_REF(RenderVertexBufferClass,(
 		RENDER_VERTEX_FORMAT_XYZDUV2,
 		MAX_EDGE_VERTEX+4,
-		Render_Buffer_Usage_Dynamic<RenderVertexBufferClass>()));
+		RenderVertexBufferClass::USAGE_DYNAMIC));
 	m_indexEdging=NEW_REF(RenderIndexBufferClass,(
 		2*MAX_EDGE_INDEX+4,
-		Render_Buffer_Usage_Dynamic<RenderIndexBufferClass>()));
+		RenderIndexBufferClass::USAGE_DYNAMIC));
 	m_curNumEdgingVertices=0;
 	m_curNumEdgingIndices=0;
 	//m_edgeTexture = MSGNEW("TextureClass") TextureClass("EdgingTemplate.tga","EdgingTemplate.tga", MIP_LEVELS_3);

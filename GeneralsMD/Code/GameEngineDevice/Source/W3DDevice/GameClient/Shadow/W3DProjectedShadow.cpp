@@ -407,37 +407,37 @@ Bool W3DProjectedShadowManager::ReAcquireResources()
 
 	DEBUG_ASSERTCRASH(shadowDecalIndexBuffer == nullptr && shadowDecalVertexBuffer == nullptr, ("ReAcquireResources not released in W3DProjectedShadowManager"));
 
-	shadowDecalIndexBuffer = NEW_REF(RenderIndexBufferClass, (SHADOW_DECAL_INDEX_SIZE, Render_Buffer_Usage_Dynamic<RenderIndexBufferClass>()));
+	shadowDecalIndexBuffer = NEW_REF(RenderIndexBufferClass, (SHADOW_DECAL_INDEX_SIZE, RenderIndexBufferClass::USAGE_DYNAMIC));
 	if (shadowDecalIndexBuffer == nullptr)
 		return FALSE;
 
 	if (shadowDecalVertexBuffer == nullptr)
 	{
-		shadowDecalVertexBuffer = NEW_REF(RenderVertexBufferClass, (SHADOW_DECAL_FVF, SHADOW_DECAL_VERTEX_SIZE, Render_Buffer_Usage_Dynamic<RenderVertexBufferClass>()));
+		shadowDecalVertexBuffer = NEW_REF(RenderVertexBufferClass, (SHADOW_DECAL_FVF, SHADOW_DECAL_VERTEX_SIZE, RenderVertexBufferClass::USAGE_DYNAMIC));
 		if (shadowDecalVertexBuffer == nullptr)
 			return FALSE;
 	}
 
 	// TheSuperHackers @bugfix bobtista 31/05/2026 Dedicated buffers for the decal-list pass.
-	decalListIndexBuffer = NEW_REF(RenderIndexBufferClass, (SHADOW_DECAL_INDEX_SIZE, Render_Buffer_Usage_Dynamic<RenderIndexBufferClass>()));
+	decalListIndexBuffer = NEW_REF(RenderIndexBufferClass, (SHADOW_DECAL_INDEX_SIZE, RenderIndexBufferClass::USAGE_DYNAMIC));
 	if (decalListIndexBuffer == nullptr)
 		return FALSE;
 
 	if (decalListVertexBuffer == nullptr)
 	{
-		decalListVertexBuffer = NEW_REF(RenderVertexBufferClass, (SHADOW_DECAL_FVF, SHADOW_DECAL_VERTEX_SIZE, Render_Buffer_Usage_Dynamic<RenderVertexBufferClass>()));
+		decalListVertexBuffer = NEW_REF(RenderVertexBufferClass, (SHADOW_DECAL_FVF, SHADOW_DECAL_VERTEX_SIZE, RenderVertexBufferClass::USAGE_DYNAMIC));
 		if (decalListVertexBuffer == nullptr)
 			return FALSE;
 	}
 
 	// TheSuperHackers @bugfix bobtista 01/06/2026 Dedicated buffers for the infantry blob batch.
-	blobDecalIndexBuffer = NEW_REF(RenderIndexBufferClass, (SHADOW_DECAL_INDEX_SIZE, Render_Buffer_Usage_Dynamic<RenderIndexBufferClass>()));
+	blobDecalIndexBuffer = NEW_REF(RenderIndexBufferClass, (SHADOW_DECAL_INDEX_SIZE, RenderIndexBufferClass::USAGE_DYNAMIC));
 	if (blobDecalIndexBuffer == nullptr)
 		return FALSE;
 
 	if (blobDecalVertexBuffer == nullptr)
 	{
-		blobDecalVertexBuffer = NEW_REF(RenderVertexBufferClass, (SHADOW_DECAL_FVF, SHADOW_DECAL_VERTEX_SIZE, Render_Buffer_Usage_Dynamic<RenderVertexBufferClass>()));
+		blobDecalVertexBuffer = NEW_REF(RenderVertexBufferClass, (SHADOW_DECAL_FVF, SHADOW_DECAL_VERTEX_SIZE, RenderVertexBufferClass::USAGE_DYNAMIC));
 		if (blobDecalVertexBuffer == nullptr)
 			return FALSE;
 	}

@@ -70,8 +70,8 @@ public:
 // VertexBufferClass all require the full definition).
 #include "dx8indexbuffer.h"
 #include "dx8vertexbuffer.h"
-using RenderIndexBufferClass = DX8IndexBufferClass;
-using RenderVertexBufferClass = DX8VertexBufferClass;
+typedef DX8IndexBufferClass RenderIndexBufferClass;
+typedef DX8VertexBufferClass RenderVertexBufferClass;
 
 #endif
 

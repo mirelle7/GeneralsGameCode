@@ -190,7 +190,7 @@ Bool W3DBufferManager::ReAcquireResources()
 		W3DVertexBuffer *vb = m_W3DVertexBuffers[i];
 		while (vb)
 		{	DEBUG_ASSERTCRASH( vb->m_renderVertexBuffer == nullptr, ("ReAcquire of existing vertex buffer"));
-			vb->m_renderVertexBuffer=NEW_REF(RenderVertexBufferClass,(FVFTypeIndexList[vb->m_format],vb->m_size,Render_Buffer_Usage_Default<RenderVertexBufferClass>()));
+			vb->m_renderVertexBuffer=NEW_REF(RenderVertexBufferClass,(FVFTypeIndexList[vb->m_format],vb->m_size,RenderVertexBufferClass::USAGE_DEFAULT));
 			DEBUG_ASSERTCRASH( vb->m_renderVertexBuffer, ("Failed ReAcquire of vertex buffer"));
 			if (!vb->m_renderVertexBuffer)
 				return FALSE;
@@ -201,7 +201,7 @@ Bool W3DBufferManager::ReAcquireResources()
 	W3DIndexBuffer *ib = m_W3DIndexBuffers;
 	while (ib)
 	{	DEBUG_ASSERTCRASH( ib->m_renderIndexBuffer == nullptr, ("ReAcquire of existing index buffer"));
-		ib->m_renderIndexBuffer=NEW_REF(RenderIndexBufferClass,(ib->m_size,Render_Buffer_Usage_Default<RenderIndexBufferClass>()));
+		ib->m_renderIndexBuffer=NEW_REF(RenderIndexBufferClass,(ib->m_size,RenderIndexBufferClass::USAGE_DEFAULT));
 		DEBUG_ASSERTCRASH( ib->m_renderIndexBuffer, ("Failed ReAcquire of index buffer"));
 		if (!ib->m_renderIndexBuffer)
 			return FALSE;
@@ -315,7 +315,7 @@ W3DBufferManager::W3DVertexBufferSlot * W3DBufferManager::allocateSlotStorage(VB
 
 		Int vbSize=__max(DEFAULT_VERTEX_BUFFER_SIZE,size);
 
-		pVB->m_renderVertexBuffer=NEW_REF(RenderVertexBufferClass,(FVFTypeIndexList[fvfType],vbSize,Render_Buffer_Usage_Default<RenderVertexBufferClass>()));
+		pVB->m_renderVertexBuffer=NEW_REF(RenderVertexBufferClass,(FVFTypeIndexList[fvfType],vbSize,RenderVertexBufferClass::USAGE_DEFAULT));
 		pVB->m_format=fvfType;
 		pVB->m_startFreeIndex=size;
 		pVB->m_size=vbSize;
@@ -438,7 +438,7 @@ W3DBufferManager::W3DIndexBufferSlot * W3DBufferManager::allocateSlotStorage(Int
 
 		Int ibSize=__max(DEFAULT_INDEX_BUFFER_SIZE,size);
 
-		pIB->m_renderIndexBuffer=NEW_REF(RenderIndexBufferClass,(ibSize,Render_Buffer_Usage_Default<RenderIndexBufferClass>()));
+		pIB->m_renderIndexBuffer=NEW_REF(RenderIndexBufferClass,(ibSize,RenderIndexBufferClass::USAGE_DEFAULT));
 		pIB->m_startFreeIndex=size;
 		pIB->m_size=ibSize;
 		ibSlot=&m_W3DIndexBufferEmptySlots[m_numEmptyIndexSlotsAllocated];

@@ -212,8 +212,8 @@ public:
 	DX8Caps(void* direct3d, const void* caps,WW3DFormat display_format, const void* adapter_id);
 	DX8Caps(void* direct3d, void* device,WW3DFormat display_format, const void* adapter_id);
 	~DX8Caps();
-	DX8Caps(const DX8Caps&) = delete;
-	DX8Caps& operator=(const DX8Caps&) = delete;
+	DX8Caps(const DX8Caps&) FUNCTION_DELETE;
+	DX8Caps& operator=(const DX8Caps&) FUNCTION_DELETE;
 	static void Shutdown();
 
 	void Compute_Caps(WW3DFormat display_format, const void* adapter_id);

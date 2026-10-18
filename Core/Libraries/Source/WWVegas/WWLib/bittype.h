@@ -37,7 +37,10 @@
 
 #pragma once
 
+// VC6 has no <stdint.h>; the force-included precompiled.h provides the types.
+#if !defined(_MSC_VER) || _MSC_VER >= 1300
 #include <stdint.h>
+#endif
 
 typedef unsigned char	uint8;
 typedef unsigned short	uint16;

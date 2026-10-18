@@ -140,11 +140,21 @@ Int parseWin(char *args[], int)
 // and are no-ops on the DX8 backend. Equivalent to the Ctrl+Alt+N / +Y / +R / +K dev hotkeys.
 Int parseBgfxEffects(char *args[], int)
 {
+#if RTS_ZEROHOUR
 	TheWritableGlobalData->m_bgfxDynamicLightShadows = TRUE; // nuke + particle-cannon lights/shadows
+#endif
+#if RTS_ZEROHOUR
 	TheWritableGlobalData->m_bgfxShadowMaps = TRUE;          // sun shadow map
+#endif
+#if RTS_ZEROHOUR
 	TheWritableGlobalData->m_bgfxRimLight = TRUE;            // rim light
+#endif
+#if RTS_ZEROHOUR
 	TheWritableGlobalData->m_bgfxEmissiveBoost = TRUE;       // emissive boost
+#endif
+#if RTS_ZEROHOUR
 	TheWritableGlobalData->m_bgfxEmissiveBoostScale = 2.0f;
+#endif
 
 	return 1;
 }
@@ -153,10 +163,18 @@ Int parseBgfxEffects(char *args[], int)
 //=============================================================================
 Int parseBgfxNoEffects(char *args[], int)
 {
+#if RTS_ZEROHOUR
 	TheWritableGlobalData->m_bgfxDynamicLightShadows = FALSE;
+#endif
+#if RTS_ZEROHOUR
 	TheWritableGlobalData->m_bgfxShadowMaps = FALSE;
+#endif
+#if RTS_ZEROHOUR
 	TheWritableGlobalData->m_bgfxRimLight = FALSE;
+#endif
+#if RTS_ZEROHOUR
 	TheWritableGlobalData->m_bgfxEmissiveBoost = FALSE;
+#endif
 
 	return 1;
 }
@@ -1489,7 +1507,9 @@ Int parseMsaa(char *args[], int num)
 		int level = atoi(args[1]);
 		if (level == 2 || level == 4 || level == 8 || level == 16)
 		{
+#if RTS_ZEROHOUR
 			TheWritableGlobalData->m_bgfxMsaa = level;
+#endif
 			char buf[8];
 			snprintf(buf, sizeof(buf), "%d", level);
 			GgcFlags::SetOverride(GgcFlag_BgfxMsaa, buf);
@@ -1521,7 +1541,9 @@ Int parseLogFrameTimes(char *args[], int num)
 
 Int parseLogBgfxStats(char *args[], int num)
 {
+#if RTS_ZEROHOUR
 	TheWritableGlobalData->m_bgfxLogStats = TRUE;
+#endif
 
 	return 1;
 }
@@ -1551,14 +1573,18 @@ Int parseBgfxSkipStaticVolumeShadows(char *args[], int)
 
 Int parseBgfxNoSceneFramebuffer(char *args[], int num)
 {
+#if RTS_ZEROHOUR
 	TheWritableGlobalData->m_bgfxNoSceneFramebuffer = TRUE;
+#endif
 
 	return 1;
 }
 
 Int parseBgfxNoPostFx(char *args[], int num)
 {
+#if RTS_ZEROHOUR
 	TheWritableGlobalData->m_bgfxNoPostFx = TRUE;
+#endif
 
 	return 1;
 }
@@ -1571,13 +1597,19 @@ Int parseBgfxScreenshotAfter(char *args[], int num)
 	// in the working directory (developer iteration tool — not shipped).
 	if (num > 1)
 	{
+#if RTS_ZEROHOUR
 		TheWritableGlobalData->m_bgfxScreenshotAfter = atoi(args[1]);
+#endif
 		if (num > 2 && args[2][0] != '-')
 		{
+#if RTS_ZEROHOUR
 			TheWritableGlobalData->m_bgfxScreenshotPath = args[2];
+#endif
 			return 3;
 		}
+#if RTS_ZEROHOUR
 		TheWritableGlobalData->m_bgfxScreenshotPath = "bgfx_capture.bmp";
+#endif
 		return 2;
 	}
 	return 1;

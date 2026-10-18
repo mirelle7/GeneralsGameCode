@@ -166,3 +166,19 @@ typedef unsigned __int64   uintmax_t;
 /* 7.18.4.2  Macros for greatest-width integer constants */
 #define INTMAX_C(val) val##i64
 #define UINTMAX_C(val) val##ui64
+#ifdef __cplusplus
+// VC6 has no <cstdint>; expose the fixed-width types under std:: like it does.
+namespace std
+{
+	using ::int8_t;
+	using ::uint8_t;
+	using ::int16_t;
+	using ::uint16_t;
+	using ::int32_t;
+	using ::uint32_t;
+	using ::int64_t;
+	using ::uint64_t;
+	using ::intptr_t;
+	using ::uintptr_t;
+}
+#endif

@@ -63,5 +63,5 @@ using LegacyRawTexture = IDirect3DBaseTexture8;
 #endif
 using LegacyTransformMatrix = D3DMATRIX;
 
-constexpr unsigned LEGACY_D3DTS_WORLD = 256;
-constexpr unsigned LEGACY_FIXED_FUNCTION_TRANSFORM_COUNT = LEGACY_D3DTS_WORLD + 1;
+const unsigned LEGACY_D3DTS_WORLD = 256;
+const unsigned LEGACY_FIXED_FUNCTION_TRANSFORM_COUNT = LEGACY_D3DTS_WORLD + 1;

@@ -46,50 +46,38 @@
 
 class StringClass;
 
-static constexpr unsigned DX8_FVF_MAX_TEXCOORD = 8;
-static constexpr unsigned DX8_FVF_POSITION_MASK = 0x00e;
-static constexpr unsigned DX8_FVF_FLAG_XYZ = 0x002;
-static constexpr unsigned DX8_FVF_FLAG_XYZRHW = 0x004;
-static constexpr unsigned DX8_FVF_FLAG_XYZB1 = 0x006;
-static constexpr unsigned DX8_FVF_FLAG_XYZB2 = 0x008;
-static constexpr unsigned DX8_FVF_FLAG_XYZB3 = 0x00a;
-static constexpr unsigned DX8_FVF_FLAG_XYZB4 = 0x00c;
-static constexpr unsigned DX8_FVF_FLAG_XYZB5 = 0x00e;
-static constexpr unsigned DX8_FVF_FLAG_NORMAL = 0x010;
-static constexpr unsigned DX8_FVF_FLAG_DIFFUSE = 0x040;
-static constexpr unsigned DX8_FVF_FLAG_SPECULAR = 0x080;
-static constexpr unsigned DX8_FVF_TEXCOUNT_MASK = 0xf00;
-static constexpr unsigned DX8_FVF_TEXCOUNT_SHIFT = 8;
-static constexpr unsigned DX8_FVF_TEX0 = 0u << DX8_FVF_TEXCOUNT_SHIFT;
-static constexpr unsigned DX8_FVF_TEX1 = 1u << DX8_FVF_TEXCOUNT_SHIFT;
-static constexpr unsigned DX8_FVF_TEX2 = 2u << DX8_FVF_TEXCOUNT_SHIFT;
-static constexpr unsigned DX8_FVF_TEX3 = 3u << DX8_FVF_TEXCOUNT_SHIFT;
-static constexpr unsigned DX8_FVF_TEX4 = 4u << DX8_FVF_TEXCOUNT_SHIFT;
-static constexpr unsigned DX8_FVF_TEX5 = 5u << DX8_FVF_TEXCOUNT_SHIFT;
-static constexpr unsigned DX8_FVF_TEX6 = 6u << DX8_FVF_TEXCOUNT_SHIFT;
-static constexpr unsigned DX8_FVF_TEX7 = 7u << DX8_FVF_TEXCOUNT_SHIFT;
-static constexpr unsigned DX8_FVF_TEX8 = 8u << DX8_FVF_TEXCOUNT_SHIFT;
-static constexpr unsigned DX8_FVF_LASTBETA_UBYTE4 = 0x1000;
+static const unsigned DX8_FVF_MAX_TEXCOORD = 8;
+static const unsigned DX8_FVF_POSITION_MASK = 0x00e;
+static const unsigned DX8_FVF_FLAG_XYZ = 0x002;
+static const unsigned DX8_FVF_FLAG_XYZRHW = 0x004;
+static const unsigned DX8_FVF_FLAG_XYZB1 = 0x006;
+static const unsigned DX8_FVF_FLAG_XYZB2 = 0x008;
+static const unsigned DX8_FVF_FLAG_XYZB3 = 0x00a;
+static const unsigned DX8_FVF_FLAG_XYZB4 = 0x00c;
+static const unsigned DX8_FVF_FLAG_XYZB5 = 0x00e;
+static const unsigned DX8_FVF_FLAG_NORMAL = 0x010;
+static const unsigned DX8_FVF_FLAG_DIFFUSE = 0x040;
+static const unsigned DX8_FVF_FLAG_SPECULAR = 0x080;
+static const unsigned DX8_FVF_TEXCOUNT_MASK = 0xf00;
+static const unsigned DX8_FVF_TEXCOUNT_SHIFT = 8;
+static const unsigned DX8_FVF_TEX0 = 0u << DX8_FVF_TEXCOUNT_SHIFT;
+static const unsigned DX8_FVF_TEX1 = 1u << DX8_FVF_TEXCOUNT_SHIFT;
+static const unsigned DX8_FVF_TEX2 = 2u << DX8_FVF_TEXCOUNT_SHIFT;
+static const unsigned DX8_FVF_TEX3 = 3u << DX8_FVF_TEXCOUNT_SHIFT;
+static const unsigned DX8_FVF_TEX4 = 4u << DX8_FVF_TEXCOUNT_SHIFT;
+static const unsigned DX8_FVF_TEX5 = 5u << DX8_FVF_TEXCOUNT_SHIFT;
+static const unsigned DX8_FVF_TEX6 = 6u << DX8_FVF_TEXCOUNT_SHIFT;
+static const unsigned DX8_FVF_TEX7 = 7u << DX8_FVF_TEXCOUNT_SHIFT;
+static const unsigned DX8_FVF_TEX8 = 8u << DX8_FVF_TEXCOUNT_SHIFT;
+static const unsigned DX8_FVF_LASTBETA_UBYTE4 = 0x1000;
 
-static constexpr unsigned DX8_FVF_TEXCOORDSIZE1(unsigned coord_index)
-{
-	return 3u << (coord_index * 2 + 16);
-}
+#define DX8_FVF_TEXCOORDSIZE1(coord_index) (3u << ((coord_index) * 2 + 16))
 
-static constexpr unsigned DX8_FVF_TEXCOORDSIZE2(unsigned)
-{
-	return 0u;
-}
+#define DX8_FVF_TEXCOORDSIZE2(coord_index) (0u)
 
-static constexpr unsigned DX8_FVF_TEXCOORDSIZE3(unsigned coord_index)
-{
-	return 1u << (coord_index * 2 + 16);
-}
+#define DX8_FVF_TEXCOORDSIZE3(coord_index) (1u << ((coord_index) * 2 + 16))
 
-static constexpr unsigned DX8_FVF_TEXCOORDSIZE4(unsigned coord_index)
-{
-	return 2u << (coord_index * 2 + 16);
-}
+#define DX8_FVF_TEXCOORDSIZE4(coord_index) (2u << ((coord_index) * 2 + 16))
 
 enum {
 	DX8_FVF_XYZ				= DX8_FVF_FLAG_XYZ,

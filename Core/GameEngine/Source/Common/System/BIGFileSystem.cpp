@@ -47,7 +47,7 @@ extern "C" unsigned int svcOutputDebugString(const char *, unsigned long);
 #include "Utility/endian_compat.h"
 
 #include <algorithm>
-#include <cstdio>
+#include <stdio.h>
 #include <cstring>
 #include <vector>
 #if !(defined(_MSC_VER) && _MSC_VER < 1300)
@@ -208,8 +208,8 @@ ArchiveFile * BIGFileSystem::openArchiveFile(const Char *filename) {
 		if (fp != nullptr) {
 			break;
 		}
-		std::fprintf(stderr, "[ggc] archive open failed (attempt %d/10): %s\n", attempt + 1, filename);
-		std::fflush(stderr);
+		fprintf(stderr, "[ggc] archive open failed (attempt %d/10): %s\n", attempt + 1, filename);
+		fflush(stderr);
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	}
 #else
@@ -233,16 +233,16 @@ ArchiveFile * BIGFileSystem::openArchiveFile(const Char *filename) {
 	// TheSuperHackers @bugfix bobtista 11/07/2026 Check the identifier read;
 	// a short read previously compared uninitialized bytes.
 	if (fp->read(buffer, 4) != 4) {
-		std::fprintf(stderr, "[ggc] archive header read failed: %s\n", filename);
-		std::fflush(stderr);
+		fprintf(stderr, "[ggc] archive header read failed: %s\n", filename);
+		fflush(stderr);
 		fp->close();
 		fp = nullptr;
 		return nullptr;
 	}
 	buffer[4] = 0;
 	if (strcmp(buffer, BIGFileIdentifier) != 0) {
-		std::fprintf(stderr, "[ggc] archive identifier mismatch: %s\n", filename);
-		std::fflush(stderr);
+		fprintf(stderr, "[ggc] archive identifier mismatch: %s\n", filename);
+		fflush(stderr);
 		DEBUG_CRASH(("Error reading BIG file identifier in file %s", filename));
 		fp->close();
 		fp = nullptr;
@@ -432,8 +432,8 @@ Bool BIGFileSystem::loadArchiveFilesFromDirectory(AsciiString dir, AsciiString f
 			// skipped silently in release builds; every asset in the archive then
 			// stayed unavailable for the whole run. Say so where a release build
 			// can see it.
-			std::fprintf(stderr, "[ggc] ARCHIVE MOUNT FAILED, contents unavailable this run: %s\n", (*it).str());
-			std::fflush(stderr);
+			fprintf(stderr, "[ggc] ARCHIVE MOUNT FAILED, contents unavailable this run: %s\n", (*it).str());
+			fflush(stderr);
 		}
 
 		it++;

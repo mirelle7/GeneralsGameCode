@@ -23,9 +23,9 @@
 class RenderDeviceCleanupHook
 {
 public:
-	virtual ~RenderDeviceCleanupHook() = default;
+	virtual ~RenderDeviceCleanupHook() {}
 	virtual void ReleaseResources() = 0;
 	virtual void ReAcquireResources() = 0;
 };
 
-using DX8_CleanupHook = RenderDeviceCleanupHook;
+typedef RenderDeviceCleanupHook DX8_CleanupHook;
