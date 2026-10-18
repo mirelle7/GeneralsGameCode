@@ -169,13 +169,6 @@ else()
         registry.h
         registry_unix_stub.cpp
     )
-else()
-    # TheSuperHackers @build bobtista 13/06/2026 No-op RegistryClass for non-Windows
-    # (the real registry.cpp is Win32-only); see registry_stub_nonwindows.cpp.
-    list(APPEND WWLIB_SRC
-        registry_stub_nonwindows.cpp
-        registry.h
-    )
 endif()
 
 add_library(core_wwlib STATIC)
