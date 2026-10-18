@@ -18,7 +18,6 @@
 #if !defined(_WIN32)
 
 #include "PreRTS.h"
-#include "Common/MiniDumper.h"
 #include "Common/WorkerProcess.h"
 #include "Common/StackDump.h"
 #include "Common/OSDisplay.h"
@@ -29,15 +28,6 @@ AsciiString g_LastErrorDump;
 
 // --- OS busy-cursor state (Win32 SetCursor) ---------------------------------
 void OSDisplaySetBusyState(Bool, Bool) {}
-
-// --- Crash minidumper -------------------------------------------------------
-MiniDumper* TheMiniDumper = nullptr;
-
-MiniDumper::MiniDumper() {}
-Bool MiniDumper::IsInitialized() const { return FALSE; }
-void MiniDumper::TriggerMiniDump(DumpType) {}
-void MiniDumper::shutdownMiniDumper() {}
-void MiniDumper::initMiniDumper(const AsciiString&) {}
 
 // --- Worker process ---------------------------------------------------------
 WorkerProcess::WorkerProcess() : m_processHandle(nullptr), m_exitcode(0) {}
