@@ -1457,7 +1457,7 @@ void makeAlignToNormalMatrix( Real angle, const Coord3D& pos, const Coord3D& nor
 	/*
 		It is extremely important that the resulting matrix is such that
 		the xvector points in the angle we specified; specifically,
-		that WWMath::Atan2f(xvec.y, xvec.x) == angle. So we must construct
+		that WWMath::Atan2(xvec.y, xvec.x) == angle. So we must construct
 		the matrix carefully to ensure this!
 	*/
 	x.x = Cos( angle );
@@ -2373,7 +2373,7 @@ void TerrainLogic::setWaterHeight( const WaterHandle *water, Real height, Real d
 		center.z = 0.0f;  // irrelevant
 
 		// the max radius to scan around us is the diagonal of the bounding region
-		Real maxDist = WWMath::Sqrtf( affectedRegion.width() * affectedRegion.width() +
+		Real maxDist = WWMath::Sqrt( affectedRegion.width() * affectedRegion.width() +
 												 affectedRegion.height() * affectedRegion.height() );
 
 		// scan the objects in the area of the water affected
@@ -2687,12 +2687,16 @@ void TerrainLogic::flattenTerrain(Object *obj)
 			iMin.y = REAL_TO_INT_FLOOR(minY/MAP_XY_FACTOR);
 			iMax.x = REAL_TO_INT_FLOOR(maxX/MAP_XY_FACTOR);
 			iMax.y = REAL_TO_INT_FLOOR(maxY/MAP_XY_FACTOR);
+#if RETAIL_COMPATIBLE_CRC
+			// TheSuperHackers @info bobtista 29/09/2026 Retail scans from row 0, so rows below the map edge stay untouched.
+			iMin.y = std::max(0, iMin.y);
+#endif
 
 			Int i, j;
 			Real totalHeight = 0;
 			Int numSamples = 0;
 			for (i=iMin.x; i<=iMax.x; i++) {
-				for (j=0; j<=iMax.y; j++) {
+				for (j=iMin.y; j<=iMax.y; ++j) {
 					Vector3	testPt(i*MAP_XY_FACTOR, j*MAP_XY_FACTOR, 0);
 					Bool match = false;
 					unsigned char flags;
@@ -2718,7 +2722,7 @@ void TerrainLogic::flattenTerrain(Object *obj)
 			if (rawDataHeight>centerHeight) rawDataHeight = centerHeight;
 
 			for (i=iMin.x; i<=iMax.x; i++) {
-				for (j=0; j<=iMax.y; j++) {
+				for (j=iMin.y; j<=iMax.y; ++j) {
 					Vector3	testPt(i*MAP_XY_FACTOR, j*MAP_XY_FACTOR, 0);
 					Bool match = false;
 					unsigned char flags;
@@ -2778,12 +2782,16 @@ void TerrainLogic::flattenTerrain(Object *obj)
 			iMin.y = REAL_TO_INT_FLOOR((pos->y-radius)/MAP_XY_FACTOR);
 			iMax.x = REAL_TO_INT_FLOOR((pos->x+radius)/MAP_XY_FACTOR);
 			iMax.y = REAL_TO_INT_FLOOR((pos->y+radius)/MAP_XY_FACTOR);
+#if RETAIL_COMPATIBLE_CRC
+			// TheSuperHackers @info bobtista 29/09/2026 Retail scans from row 0, so rows below the map edge stay untouched.
+			iMin.y = std::max(0, iMin.y);
+#endif
 
 			Int i, j;
 			Real totalHeight = 0;
 			Int numSamples = 0;
 			for (i=iMin.x; i<=iMax.x; i++) {
-				for (j=0; j<=iMax.y; j++) {
+				for (j=iMin.y; j<=iMax.y; ++j) {
 					Vector3	testPt(i*MAP_XY_FACTOR, j*MAP_XY_FACTOR, 0);
 					Bool match = false;
 					Real dx = testPt.X - pos->x;
@@ -2801,7 +2809,7 @@ void TerrainLogic::flattenTerrain(Object *obj)
 			Real avgHeight = totalHeight/numSamples;
 			Int rawDataHeight = REAL_TO_INT_FLOOR(0.5f + avgHeight/MAP_HEIGHT_SCALE);
 			for (i=iMin.x; i<=iMax.x; i++) {
-				for (j=0; j<=iMax.y; j++) {
+				for (j=iMin.y; j<=iMax.y; ++j) {
 					Vector3	testPt(i*MAP_XY_FACTOR, j*MAP_XY_FACTOR, 0);
 					Bool match = false;
 					Real dx = testPt.X - pos->x;
@@ -2871,17 +2879,21 @@ void TerrainLogic::createCraterInTerrain(Object *obj)
   iMin.y = REAL_TO_INT_FLOOR( ( pos->y - radius ) / MAP_XY_FACTOR );
   iMax.x = REAL_TO_INT_FLOOR( ( pos->x + radius ) / MAP_XY_FACTOR );
 	iMax.y = REAL_TO_INT_FLOOR( ( pos->y + radius ) / MAP_XY_FACTOR );
+#if RETAIL_COMPATIBLE_CRC
+	// TheSuperHackers @info bobtista 29/09/2026 Retail scans from row 0, so rows below the map edge stay untouched.
+	iMin.y = std::max( 0, iMin.y );
+#endif
 
   Real deltaX, deltaY;
 
 	for (Int i = iMin.x; i <= iMax.x; i++ )
   {
-		for ( Int j=0; j <= iMax.y; j++ )
+		for ( Int j=iMin.y; j <= iMax.y; ++j )
     {
 			deltaX = ( i * MAP_XY_FACTOR ) - pos->x;
 			deltaY = ( j * MAP_XY_FACTOR ) - pos->y;
 
-      Real distance = WWMath::Sqrtf( sqr( deltaX ) + sqr( deltaY ) );
+      Real distance = WWMath::Sqrt( sqr( deltaX ) + sqr( deltaY ) );
 
 			if ( distance < radius ) //inside circle
       {

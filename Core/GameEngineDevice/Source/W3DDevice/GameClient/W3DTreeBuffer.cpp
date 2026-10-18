@@ -1221,6 +1221,8 @@ void W3DTreeBuffer::allocateTreeBuffers()
 		m_curNumTreeVertices[i]=0;
 		m_curNumTreeIndices[i]=0;
 	}
+	// TheSuperHackers @bugfix arcticdolphin 09/10/2026 Refill the new buffers after a device reset.
+	m_anythingChanged = true;
 
 	HRESULT hr;
 	const DWORD *declaration = reinterpret_cast<const DWORD *>(

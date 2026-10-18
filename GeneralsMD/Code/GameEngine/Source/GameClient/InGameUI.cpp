@@ -135,8 +135,6 @@ static UnicodeString formatIncomeValue(UnsignedInt cashPerMin)
 /// The InGameUI singleton instance.
 InGameUI *TheInGameUI = nullptr;
 
-GameWindow *m_replayWindow = nullptr;
-
 // ------------------------------------------------------------------------------------------------
 struct KindOfSelectionData
 {
@@ -250,38 +248,6 @@ static Bool similarUnitSelection( Drawable *test, void *userData )
 		}
 	}
 	return FALSE;
-}
-
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-void showReplayControls()
-{
-	if (m_replayWindow)
-	{
-		Bool show = TheGameLogic->isInReplayGame();
-		m_replayWindow->winHide(!show);
-	}
-}
-
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-void hideReplayControls()
-{
-	if (m_replayWindow)
-	{
-		m_replayWindow->winHide(TRUE);
-	}
-}
-
-// ------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------------------------------------------
-void toggleReplayControls()
-{
-	if (m_replayWindow)
-	{
-		Bool show = TheGameLogic->isInReplayGame() && m_replayWindow->winIsHidden();
-		m_replayWindow->winHide(!show);
-	}
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1163,6 +1129,7 @@ InGameUI::InGameUI()
 
 	}
 
+	m_controlBarWindow = nullptr;
 	m_replayWindow = nullptr;
 	m_messagesOn = TRUE;
 
@@ -1319,6 +1286,9 @@ InGameUI::~InGameUI()
 	// clear world animations
 	clearWorldAnimations();
 	resetIdleWorker();
+
+	destroyReplayControl();
+	destroyControlBar();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -4242,7 +4212,7 @@ void InGameUI::expireHint( HintType type, UnsignedInt hintIndex )
 void InGameUI::createControlBar()
 {
 
-	TheWindowManager->winCreateFromScript( "ControlBar.wnd" );
+	m_controlBarWindow = TheWindowManager->winCreateFromScript( "ControlBar.wnd" );
 	HideControlBar();
 /*
 	// hide all windows created from this layout
@@ -4251,6 +4221,16 @@ void InGameUI::createControlBar()
 		window->winHide( TRUE );
 */
 
+}
+
+void InGameUI::destroyControlBar()
+{
+	if (m_controlBarWindow != nullptr)
+	{
+		TheWindowManager->winDestroy(m_controlBarWindow);
+		m_controlBarWindow = nullptr;
+		m_idleWorkerWin = nullptr; // This window belongs to the Control Bar and is implicitly deleted as well.
+	}
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -4268,6 +4248,41 @@ void InGameUI::createReplayControl()
 		window->winHide( TRUE );
 */
 
+}
+
+void InGameUI::destroyReplayControl()
+{
+	if (m_replayWindow != nullptr)
+	{
+		TheWindowManager->winDestroy(m_replayWindow);
+		m_replayWindow = nullptr;
+	}
+}
+
+void InGameUI::showReplayControls()
+{
+	if (m_replayWindow)
+	{
+		Bool show = TheGameLogic->isInReplayGame();
+		m_replayWindow->winHide(!show);
+	}
+}
+
+void InGameUI::hideReplayControls()
+{
+	if (m_replayWindow)
+	{
+		m_replayWindow->winHide(TRUE);
+	}
+}
+
+void InGameUI::toggleReplayControls()
+{
+	if (m_replayWindow)
+	{
+		Bool show = TheGameLogic->isInReplayGame() && m_replayWindow->winIsHidden();
+		m_replayWindow->winHide(!show);
+	}
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -6031,17 +6046,7 @@ void InGameUI::resetIdleWorker()
 
 void InGameUI::recreateControlBar()
 {
-	// TheSuperHackers @bugfix bobtista 20/07/2026 The control bar layout has a single top-level window
-	// named "ControlBar.wnd:ControlBarParent" (see ControlBar.wnd); there is NO window named just
-	// "ControlBar.wnd". The old lookup for "ControlBar.wnd" returned NULL, so winDestroy was a no-op
-	// and every rebuild (each mid-match resize) stacked another control bar over the orphaned old one.
-	// Destroy the real parent; winDestroy recurses through every HUD child (radar, money, portrait).
-	static const NameKeyType controlBarParentKey = TheNameKeyGenerator->nameToKey("ControlBar.wnd:ControlBarParent");
-	GameWindow *win = TheWindowManager->winGetWindowFromId(nullptr, controlBarParentKey);
-	TheWindowManager->winDestroy(win);
-
-	m_idleWorkerWin = nullptr;
-
+	destroyControlBar();
 	createControlBar();
 
 	delete TheControlBar;
@@ -6453,7 +6458,13 @@ void InGameUI::drawPlayerInfoList()
 		const UnsignedInt xpValue = static_cast<UnsignedInt>(player->getSkillPoints());
 		const UnicodeString nameValue = player->getPlayerDisplayName();
 
-		const UnsignedInt currentValues[] = {teamValue, moneyValue, moneyPerMinuteValue, rankValue, xpValue};
+		const UnsignedInt currentValues[] = {
+			teamValue,
+			moneyValue,
+			moneyPerMinuteValue,
+			rankValue,
+			xpValue
+		};
 		for (column = 0; column < ARRAY_SIZE(currentValues); ++column)
 		{
 			UnsignedInt &lastValue = m_playerInfoList.lastValues.values[column][row];

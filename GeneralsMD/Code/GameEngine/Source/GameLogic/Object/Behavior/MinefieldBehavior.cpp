@@ -457,10 +457,7 @@ void MinefieldBehavior::onDamage( DamageInfo *damageInfo )
 
 	for (;;)
 	{
-		// TheSuperHackers @bugfix bobtista 10/06/2026 Guard zero max health: the division would be NaN/Inf
-		// and REAL_TO_INT of it is platform-divergent UB (arm64 vs x86) that desyncs the mine count.
-		const Real bodyMaxHealth = body->getMaxHealth();
-		Real virtualMinesExpectedF = (bodyMaxHealth > 0.0f) ? ((Real)d->m_numVirtualMines * body->getHealth() / bodyMaxHealth) : 0.0f;
+		Real virtualMinesExpectedF = WWMath::Div_Safe((Real)d->m_numVirtualMines * body->getHealth(), body->getMaxHealth());
 		Int virtualMinesExpected =
 			damageInfo->in.m_damageType == DAMAGE_HEALING ?
 			REAL_TO_INT_FLOOR(virtualMinesExpectedF) :
@@ -591,7 +588,7 @@ void MinefieldBehavior::setScootParms(const Coord3D& start, const Coord3D& end)
 		Real dx = endOnGround.x - start.x;
 		Real dy = endOnGround.y - start.y;
 		Real dz = endOnGround.z - start.z;
-		Real dist = WWMath::Sqrtf(sqr(dx) + sqr(dy));
+		Real dist = WWMath::Sqrt(sqr(dx) + sqr(dy));
 		if (dist <= 0.1f && WWMath::Fabs(dz) <= 0.1f)
 		{
 			obj->setPosition(&endOnGround);

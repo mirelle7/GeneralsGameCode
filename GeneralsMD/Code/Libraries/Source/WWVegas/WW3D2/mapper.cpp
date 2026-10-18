@@ -52,7 +52,6 @@
 
 Random4Class rand4;
 
-
 // HY 1/26/01
 // Rewritten to use DX 8 texture matrices
 

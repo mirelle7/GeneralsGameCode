@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.28)
 
 # Use packagename_ROOT for FindPackage.
 if(POLICY CMP0074)
@@ -60,7 +60,6 @@ if(GGC_BGFX_STANDALONE OR ((WIN32 OR "${CMAKE_SYSTEM}" MATCHES "Windows") AND ${
     include(cmake/dx8.cmake)
 endif()
 
-# Define a dummy stlport target when not on VC6.
 if (IS_VS6_BUILD)
     include(cmake/stlport.cmake)
 else()
@@ -69,7 +68,9 @@ endif()
 
 include(cmake/config.cmake)
 include(cmake/gamespy.cmake)
-if (NOT IS_VS6_BUILD)
+if (IS_VS6_BUILD)
+    add_library(gamemath INTERFACE)
+else()
     include(cmake/gamemath.cmake)
 endif()
 include(cmake/lzhl.cmake)
@@ -108,23 +109,23 @@ if(DEFINED GGC_RENDER_BACKEND_COMPILE_DEFINE)
     add_compile_definitions(${GGC_RENDER_BACKEND_COMPILE_DEFINE})
 endif()
 
-if (IS_VS6_BUILD)
-    # The original max sdk does not compile against a modern compiler.
-    # If there is a desire to make this work, then a fixed max sdk needs to be created.
-    add_subdirectory(Dependencies/MaxSDK)
+if(RTS_BUILD_OPTION_PROFILE_TRACY)
+    include(cmake/tracy.cmake)
+else()
+    add_library(core_profile_tracy INTERFACE)
 endif()
 
-add_subdirectory(Dependencies/Precompiled)
-add_subdirectory(Dependencies/Utility)
-add_subdirectory(Dependencies/Bink)
-add_subdirectory(Dependencies/Miles)
-if (WIN32)
-    add_subdirectory(Dependencies/DbgHelp)
-    add_subdirectory(Dependencies/Usp10)
-else()
-    add_library(dbghelploader INTERFACE)
-    add_library(usp10loader INTERFACE)
+if(RTS_BUILD_OPTION_TESTS)
+    # Must come before the subdirectories that add tests.
+    enable_testing()
+    include(cmake/googletest.cmake)
 endif()
+
+if(RTS_BUILD_OPTION_BENCHMARKS)
+    include(cmake/googlebenchmark.cmake)
+endif()
+
+add_subdirectory(Dependencies)
 
 add_subdirectory(resources)
 
@@ -137,6 +138,14 @@ endif()
 
 if(RTS_BUILD_GENERALS)
     add_subdirectory(Generals)
+endif()
+
+if(RTS_BUILD_OPTION_TESTS)
+    add_subdirectory(Tests)
+endif()
+
+if(RTS_BUILD_OPTION_BENCHMARKS)
+    add_subdirectory(Benchmarks)
 endif()
 
 feature_summary(WHAT ENABLED_FEATURES DESCRIPTION "Enabled features:")

@@ -481,6 +481,8 @@ W3DDisplay::W3DDisplay()
 
 	for (i = 0; i < DisplayStringCount; i++)
 		m_displayStrings[i] = nullptr;
+	m_benchmarkDisplayString = nullptr;
+	m_cinematicDisplayString = nullptr;
 
 	m_batchTexture = nullptr;
 	m_batchMode = DRAW_IMAGE_ALPHA;
@@ -515,6 +517,8 @@ W3DDisplay::~W3DDisplay()
 	if( m_benchmarkDisplayString ) {
 		TheDisplayStringManager->freeDisplayString(m_benchmarkDisplayString);
 	}
+
+	TheDisplayStringManager->freeDisplayString(m_cinematicDisplayString);
 
 	// delete 2D renderer
 	if( m_2DRender )
@@ -735,6 +739,12 @@ Bool W3DDisplay::setDisplayMode( UnsignedInt xres, UnsignedInt yres, UnsignedInt
 		Render2DClass::Set_Screen_Resolution(RectClass(0, 0, xres, yres));
 		Display::setDisplayMode(xres, yres, bitdepth, windowed);
 		WW3D::Get_Render_Backend()->Begin_Scene();
+
+		// TheSuperHackers @tweak Font point sizes are scaled from the resolution, so every glyph
+		// cached for the old resolution is now dead weight. Discard the current glyphs and start
+		// with a clean slate.
+		WW3DAssetManager::Get_Instance()->Free_All_FontChars_Glyph_Caches();
+
 		return TRUE;
 	}
 
@@ -1234,6 +1244,10 @@ void W3DDisplay::reset()
 
 	Display::reset();
 
+	// TheSuperHackers @tweak Discard the current glyphs and start with a clean slate.
+	// This can reduce the memory overhead from glyphs that are no longer needed from here on.
+	WW3DAssetManager::Get_Instance()->Free_All_FontChars_Glyph_Caches();
+
 	// Remove all render objects.
 
 	if (m_3DScene != nullptr)
@@ -1727,6 +1741,12 @@ void W3DDisplay::gatherDebugStats()
 		Int onScreenParticleCount = TheParticleSystemManager->getOnScreenParticleCount();
 		unibuffer.format( L"Particles: %d in world, %d being displayed", totalParticles, onScreenParticleCount );
 		m_displayStrings[Particles]->setText( unibuffer );
+
+		//display the terrain-conforming particle load
+		unibuffer.format( L"Terrain Particles: %d tris, %d draws",
+			Debug_Statistics::Get_Terrain_Particle_Triangles(),
+			Debug_Statistics::Get_Terrain_Particle_Batches() );
+		m_displayStrings[TerrainParticles]->setText( unibuffer );
 
 		//display the number of objects in the world
 		UnsignedInt objCount = TheGameLogic->getObjectCount();
@@ -2328,28 +2348,29 @@ AGAIN:
 				// display cinematicText over the black
 				if( m_cinematicText != AsciiString::TheEmptyString && m_cinematicTextFrames != 0)
 				{
-					DisplayString *displayString = TheDisplayStringManager->newDisplayString();
+					if( m_cinematicDisplayString == nullptr )
+						m_cinematicDisplayString = TheDisplayStringManager->newDisplayString();
 
 					// set word wrap if necessary
 
 					Int wordWrapWidth = TheDisplay->getWidth() - 20;
-					displayString->setWordWrap( wordWrapWidth );
-					displayString->setWordWrapCentered( TRUE );
+					m_cinematicDisplayString->setWordWrap( wordWrapWidth );
+					m_cinematicDisplayString->setWordWrapCentered( TRUE );
 
 					UnicodeString text;
 					text.translate( m_cinematicText );
-					displayString->setText( text );
+					m_cinematicDisplayString->setText( text );
 					Color color = GameMakeColor( 255, 255, 255, 255 );  // white
 					Color backColor = GameMakeColor( 0, 0, 0, 0 );      // black
-					displayString->setFont( m_cinematicFont );
+					m_cinematicDisplayString->setFont( m_cinematicFont );
 					Int height = TheDisplay->getHeight() * .9;
 
 					Int width;
-					if( displayString->getWidth() > TheDisplay->getWidth() )
+					if( m_cinematicDisplayString->getWidth() > TheDisplay->getWidth() )
 						width = 20;
 					else
-						width = ( TheDisplay->getWidth() - displayString->getWidth() ) / 2;
-					displayString->draw( width, height, color, backColor );
+						width = ( TheDisplay->getWidth() - m_cinematicDisplayString->getWidth() ) / 2;
+					m_cinematicDisplayString->draw( width, height, color, backColor );
 
 					m_cinematicTextFrames--;
 				}

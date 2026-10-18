@@ -3,7 +3,6 @@ add_library(z_wwcommon INTERFACE)
 
 target_link_libraries(z_wwcommon INTERFACE
     core_wwcommon
-    stlport
 )
 
 if(NOT GGC_RENDER_BACKEND STREQUAL "bgfx")
@@ -15,7 +14,7 @@ endif()
 # TheSuperHackers @build bobtista 29/04/2026 milesloader is Win-only.
 if(WIN32)
     target_link_libraries(z_wwcommon INTERFACE
-        milesloader
+        deps_miles
     )
 endif()
 

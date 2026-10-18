@@ -249,6 +249,10 @@ public:
 
 	Bool isQuitToDesktopRequested() const { return m_quitToDesktopAfterMatch; }
 
+#if RTS_GENERALS && RETAIL_COMPATIBLE_CRC
+	void friend_destroyInTunnelContain(const Object* strandedObject);
+#endif
+
 protected:
 
 	// snapshot methods
@@ -465,6 +469,11 @@ private:
 	ObjectTOCEntry *findTOCEntryById( UnsignedShort id );		///< find ObjectTOC by id
 	void xferObjectTOC( Xfer *xfer );												///< save/load object TOC for current state of map
 	void prepareLogicForObjectLoad();									///< prepare engine for object data from game file
+
+#if RTS_GENERALS && defined(_MSC_VER) && _MSC_VER < 1300
+public:
+	Bool m_onUnitProducedZeroInit;
+#endif
 
 };
 

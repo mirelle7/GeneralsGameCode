@@ -125,7 +125,6 @@ UnsignedInt SimulationMathCrc::calculate()
     setFPMode();
 
     appendSimulationMathCrc_Deterministic(xfer);
-    appendSimulationMathCrcDouble(xfer);
 
     _fpreset();
 

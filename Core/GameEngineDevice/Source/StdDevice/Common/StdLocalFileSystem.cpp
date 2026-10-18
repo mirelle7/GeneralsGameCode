@@ -127,15 +127,16 @@ static std::filesystem::path fixFilenameFromWindowsPath(const Char *filename, In
 		// Traverse path to try and match case-insensitively
 		std::filesystem::path parent = path.parent_path();
 
-		std::filesystem::path pathFixed;
-		std::filesystem::path pathCurrent;
+		// The walk begins at the root of the path, which is empty
+		// for a relative path. The first part of a relative path is then matched like the parts after it.
+		std::filesystem::path pathFixed = path.root_path();
+		std::filesystem::path pathCurrent = path.root_path();
 		// TheSuperHackers @build bobtista 29/04/2026 std::filesystem::path's
 		// iterator dereferences to a temporary on Apple Clang's libc++; use
 		// auto-by-value (or const ref) instead of non-const ref.
-		for (auto p : path)
+		for (auto p : path.relative_path())
 		{
 			std::filesystem::path pathFixedPart;
-
 			if (std::filesystem::exists(pathCurrent / p, ec))
 			{
 				pathFixedPart = p;
@@ -146,16 +147,10 @@ static std::filesystem::path fixFilenameFromWindowsPath(const Char *filename, In
 			}
 			else
 			{
-				// Check if the subpath exists using case-insensitive comparison.
-				// TheSuperHackers @bugfix bobtista 29/07/2026 Scan the working
-				// directory for the leading component of a relative path. It used to
-				// be copied through verbatim, so on a case-sensitive filesystem a
-				// literal such as "data\Scripts\SkirmishScripts.scb" never matched an
-				// on-disk "Data" and the open failed, leaving skirmish games with no
-				// scripts and no teams on Linux. Windows and macOS hid the bug behind
-				// a case-insensitive filesystem.
-				const std::filesystem::path scanDir = pathFixed.empty() ? std::filesystem::path(".") : pathFixed;
-				for (auto& entry : std::filesystem::directory_iterator(scanDir, ec))
+				// Check if the subpath exists using case-insensitive comparison
+				// The first part of a relative path is searched in the working directory.
+				const std::filesystem::path pathSearch = pathFixed.empty() ? std::filesystem::path(".") : pathFixed;
+				for (auto& entry : std::filesystem::directory_iterator(pathSearch, ec))
 				{
 					if (strcasecmp(entry.path().filename().string().c_str(), p.string().c_str()) == 0)
 					{
@@ -368,10 +363,10 @@ Bool StdLocalFileSystem::getFileInfo(const AsciiString& filename, FileInfo *file
 
 	// TODO: fix this to be win compatible (time since 1601)
 	auto time = write_time.time_since_epoch().count();
+	fileInfo->sizeHigh = file_size >> 32;
+	fileInfo->sizeLow = file_size & UINT32_MAX;
 	fileInfo->timestampHigh = time >> 32;
 	fileInfo->timestampLow = time & UINT32_MAX;
-	fileInfo->sizeHigh      = file_size >> 32;
-	fileInfo->sizeLow  = file_size & UINT32_MAX;
 
 	return TRUE;
 }

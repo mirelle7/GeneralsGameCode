@@ -1,15 +1,10 @@
 # Interface libraries to set common defines and includes, avoid duplication later
 add_library(core_wwcommon INTERFACE)
 
-target_compile_definitions(core_wwcommon INTERFACE
-    #NOMINMAX
-    WIN32_LEAN_AND_MEAN
-)
-
 target_link_libraries(core_wwcommon INTERFACE
-    dbghelploader
+    deps_dbghelp
+    deps_usp10
     stlport
-    usp10loader
 )
 
 if(NOT GGC_RENDER_BACKEND STREQUAL "bgfx")
@@ -22,7 +17,7 @@ endif()
 # Miles Sound System runtime loader). On non-Win we use OpenAL instead.
 if(WIN32)
     target_link_libraries(core_wwcommon INTERFACE
-        milesloader
+        deps_miles
     )
 endif()
 
@@ -37,7 +32,7 @@ if(UNIX OR ANDROID)
     # TheSuperHackers @build githubawn 18/06/2026 Skip under the Xcode generator:
     # Xcode emits this -include before its precompiled prefix-header include,
     # which makes clang ignore the PCH. On Xcode, windows.h is instead supplied
-    # via the core_utility PCH (see Dependencies/Utility/CMakeLists.txt).
+    # via the deps_utility PCH (see Dependencies/Utility/CMakeLists.txt).
     if(NOT XCODE)
         target_compile_options(core_wwcommon INTERFACE
             -include ${CMAKE_CURRENT_SOURCE_DIR}/compat/win32_shims/windows.h
