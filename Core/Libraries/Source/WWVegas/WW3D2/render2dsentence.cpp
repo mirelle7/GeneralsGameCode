@@ -838,8 +838,13 @@ Render2DSentenceClass::Allocate_New_Surface (const WCHAR *text, bool justCalcExt
 		//	The font does not fit the search range, so use the smallest texture that fits, limited to
 		//	the largest texture the device supports.
 		//
+#if defined(GGC_RENDER_BACKEND_BGFX)
+		// TheSuperHackers @build The bgfx backend has no DX8 caps. Every device it targets supports the 2048 px maximum.
+		const int max_device_size = 1 << TextureSizeMaxPow2;
+#else
 		const DX8Caps *dx8caps = DX8Wrapper::Get_Current_Caps ();
 		const int max_device_size = (int)min (dx8caps->Get_Max_Texture_Width (), dx8caps->Get_Max_Texture_Height ());
+#endif
 		while (max_pow2 > TextureSizeMinPow2 && (1 << max_pow2) > max_device_size) {
 			max_pow2 --;
 		}
