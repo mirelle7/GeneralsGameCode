@@ -205,16 +205,11 @@ const char *g_csfFile = "data/%s/Generals.csf";
 const char *gAppPrefix = "";
 
 // Stack-dump shims. The Win build provides these in core_debug; the engine
-// references them from RTS_DEBUG / IG_DEBUG_STACKTRACE-gated code so just
-// give them weak no-ops on non-Win.
+// references them from RTS_DEBUG / IG_DEBUG_STACKTRACE-gated code. StackDump.h
+// already provides inline no-ops for most of them on non-Win.
 #include "Common/StackDump.h"
 AsciiString g_LastErrorDump;
-void FillStackAddresses(void ** /*addresses*/, unsigned int /*count*/, unsigned int /*skip*/) {}
-void StackDumpFromAddresses(void ** /*addresses*/, unsigned int /*count*/, void (* /*cb*/)(const char *)) {}
-void StackDump(void (* /*cb*/)(const char *)) {}
 void StackDumpFromContext(unsigned long /*eip*/, unsigned long /*esp*/, unsigned long /*ebp*/, void (* /*cb*/)(const char *)) {}
-void GetFunctionDetails(void * /*p*/, char * /*name*/, char * /*filename*/, unsigned int * /*line*/, unsigned int * /*addr*/) {}
-void DumpExceptionInfo(unsigned int /*u*/, EXCEPTION_POINTERS * /*e*/) {}
 
 // OS busy-state UI is Win-only.
 void OSDisplaySetBusyState(Bool /*busyDisplay*/, Bool /*busySystem*/) {}
