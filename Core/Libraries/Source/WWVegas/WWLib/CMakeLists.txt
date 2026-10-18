@@ -163,13 +163,6 @@ if(WIN32)
         WWCOMUtil.h
 )
 else()
-    # TheSuperHackers @build bobtista 29/04/2026 Stub the legacy WWLib
-    # RegistryClass on non-Win so DX8Wrapper / W3DDisplay still link.
-    list(APPEND WWLIB_SRC
-        registry.h
-        registry_unix_stub.cpp
-    )
-else()
     # TheSuperHackers @build bobtista 13/06/2026 No-op RegistryClass for non-Windows
     # (the real registry.cpp is Win32-only); see registry_stub_nonwindows.cpp.
     list(APPEND WWLIB_SRC
