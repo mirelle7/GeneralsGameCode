@@ -256,6 +256,15 @@ void W3DTerrainParticles::flushBatch()
 			       m_numIndices * sizeof(UnsignedShort));
 		}
 
+#if defined(GGC_RENDER_BACKEND_BGFX)
+		WW3D::Get_Render_Backend()->Set_Index_Buffer(indexAccess, 0);
+		WW3D::Get_Render_Backend()->Set_Vertex_Buffer(vertexAccess);
+		DX8_RECORD_TERRAIN_PARTICLE_BATCH(m_numIndices / 3);
+		WW3D::Get_Render_Backend()->Draw_Triangles(0,
+		                                           m_numIndices / 3,
+		                                           0,
+		                                           m_numVertices);
+#else
 		DX8Wrapper::Set_Index_Buffer(indexAccess, 0);
 		DX8Wrapper::Set_Vertex_Buffer(vertexAccess);
 		DX8_RECORD_TERRAIN_PARTICLE_BATCH(m_numIndices / 3);
@@ -263,6 +272,7 @@ void W3DTerrainParticles::flushBatch()
 		                           m_numIndices / 3,
 		                           0,
 		                           m_numVertices);
+#endif
 	}
 
 	m_numVertices = 0;
