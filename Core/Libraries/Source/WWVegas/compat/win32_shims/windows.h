@@ -1274,6 +1274,10 @@ static inline BOOL GetUserNameA(char *buffer, SizeType *size)
         return FALSE;
     }
 
+#if defined(__ANDROID__) && __ANDROID_API__ < 28
+    // bionic only declares getlogin_r from API 28.
+    return FALSE;
+#else
     if (getlogin_r(buffer, (size_t)*size) != 0) {
         return FALSE;
     }
@@ -1281,6 +1285,7 @@ static inline BOOL GetUserNameA(char *buffer, SizeType *size)
     buffer[*size - 1] = '\0';
     *size = (SizeType)strlen(buffer) + 1;
     return TRUE;
+#endif
 }
 
 template <typename SizeType>
