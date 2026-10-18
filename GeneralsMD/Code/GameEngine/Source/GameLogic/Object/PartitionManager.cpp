@@ -303,36 +303,6 @@ inline Real calcSqrDist_3D(const Coord3D *dist)
 }
 
 //-----------------------------------------------------------------------------
-inline Int absInt(Int a)
-{
-	if (a < 0) return -a; else return a;
-}
-
-//-----------------------------------------------------------------------------
-inline Int minInt(Int a, Int b)
-{
-	if (a < b) return a; else return b;
-}
-
-//-----------------------------------------------------------------------------
-inline Int maxInt(Int a, Int b)
-{
-	if (a > b) return a; else return b;
-}
-
-//-----------------------------------------------------------------------------
-inline Real minReal(Real a, Real b)
-{
-	if (a < b) return a; else return b;
-}
-
-//-----------------------------------------------------------------------------
-inline Real maxReal(Real a, Real b)
-{
-	if (a > b) return a; else return b;
-}
-
-//-----------------------------------------------------------------------------
 //         Local Functions
 //-----------------------------------------------------------------------------
 
@@ -516,8 +486,8 @@ static Bool xy_collideTest_Rect_Circle(const CollideInfo *a, const CollideInfo *
 		{
 			vecDiff_2D(&b->position, &a->position, &cinfo->normal);
 			cinfo->normal.normalize();
-			cinfo->loc.x = (maxReal(circ_l, rect_l) + minReal(circ_r, rect_r)) * 0.5f;
-			cinfo->loc.y = (maxReal(circ_t, rect_t) + minReal(circ_b, rect_b)) * 0.5f;
+			cinfo->loc.x = (max(circ_l, rect_l) + min(circ_r, rect_r)) * 0.5f;
+			cinfo->loc.y = (max(circ_t, rect_t) + min(circ_b, rect_b)) * 0.5f;
 			cinfo->loc.z = (a->position.z + b->position.z) * 0.5f;
 		}
 		return true;
@@ -1077,7 +1047,7 @@ CellOutwardIterator::CellOutwardIterator(PartitionManager *mgr, Int x, Int y)
 	m_cellCenterX = x;
 	m_cellCenterY = y;
 	m_cellRadius = 0;
-	m_maxRadius = maxInt(maxInt(x, mgr->getCellCountX() - x), maxInt(y, mgr->getCellCountY() - y));
+	m_maxRadius = max(max(x, mgr->getCellCountX() - x), max(y, mgr->getCellCountY() - y));
 	m_delta[0] = m_delta[1] = 0;
 	m_inc = -1;
 	m_cnt = 0;
@@ -1118,7 +1088,7 @@ try_again:
 			m_axis = 0;
 			m_inc = -m_inc;
 			m_cnt += 1;
-			m_cellRadius = maxInt(absInt(m_delta[0]), absInt(m_delta[1]));
+			m_cellRadius = max(IABS(m_delta[0]), IABS(m_delta[1]));
 		}
 
 		m_iter = m_cnt;
@@ -1955,8 +1925,8 @@ void PartitionData::doSmallFill(
 	ThePartitionManager->worldToCell(centerX - radius, centerY - radius, &cx1, &cy1);
 	ThePartitionManager->worldToCell(centerX + radius, centerY + radius, &cx2, &cy2);
 
-	DEBUG_ASSERTCRASH(absInt(cx2-cx1)<=1,("bad cx"));
-	DEBUG_ASSERTCRASH(absInt(cy2-cy1)<=1,("bad cy"));
+	DEBUG_ASSERTCRASH(IABS(cx2-cx1)<=1,("bad cx"));
+	DEBUG_ASSERTCRASH(IABS(cy2-cy1)<=1,("bad cy"));
 
 	for (Int x = cx1; x <= cx2; x++)
 	{
@@ -3222,24 +3192,28 @@ Int PartitionManager::calcMinRadius(const ICoord2D& cur)
 		so it really shouldn't matter... (I hope)
 	*/
 
-	// TheSuperHackers @bugfix bobtista 10/06/2026 Single precision, not double: on 32-bit x86 the x87
-	// FPU runs at _PC_24, so double intermediates here diverge from the arm64 build's full-double math
-	// and can cross the REAL_TO_INT_CEIL boundary, corrupting the whole getClosestObjects radius table
-	// and breaking cross-platform lockstep. (The result is narrowed to float at Sqrtf regardless.)
-	Real minDistSqr = 1e12f;
+#if RETAIL_COMPATIBLE_CRC
+	typedef double RealOrDouble;
+#else
+	typedef Real RealOrDouble;
+#endif
+
+	RealOrDouble minDistSqr = (RealOrDouble)1e12;				// double, not real
 	for (int i = 0; i < 4; ++i)
 	{
 		for (int j = 0; j < 4; ++j)
 		{
-			Real dx = centerPos[i].x - otherPos[j].x;
-			Real dy = centerPos[i].y - otherPos[j].y;
-			Real curDistSqr = dx*dx + dy*dy;
+			// double, not real
+			RealOrDouble dx = centerPos[i].x - otherPos[j].x;
+			RealOrDouble dy = centerPos[i].y - otherPos[j].y;
+			RealOrDouble curDistSqr = dx*dx + dy*dy;
 			if (minDistSqr > curDistSqr)
 				minDistSqr = curDistSqr;
 		}
 	}
 
-	Real dist = WWMath::Sqrtf(minDistSqr);
+	// double, not real
+	RealOrDouble dist = WWMath::Sqrtf(minDistSqr);
 	Int minRadius = REAL_TO_INT_CEIL( dist / m_cellSize );
 
 	return minRadius;
@@ -3254,11 +3228,16 @@ void PartitionManager::calcRadiusVec()
 	Int cx = getCellCountX();
 	Int cy = getCellCountY();
 
-	// TheSuperHackers @bugfix bobtista 10/06/2026 Single precision, not double, for cross-platform
-	// determinism (x87 _PC_24 vs arm64 full-double would diverge at the REAL_TO_INT_CEIL boundary).
-	Real dx = (Real)cx * cellSize;
-	Real dy = (Real)cy * cellSize;
-	Real maxPossibleDist = WWMath::Sqrtf(dx*dx + dy*dy);
+#if RETAIL_COMPATIBLE_CRC
+	typedef double RealOrDouble;
+#else
+	typedef Real RealOrDouble;
+#endif
+
+	// double, not real
+	RealOrDouble dx = (RealOrDouble)cx * (RealOrDouble)cellSize;
+	RealOrDouble dy = (RealOrDouble)cy * (RealOrDouble)cellSize;
+	RealOrDouble maxPossibleDist = WWMath::Sqrt(dx*dx + dy*dy);
 
 	m_maxGcoRadius = REAL_TO_INT_CEIL(maxPossibleDist / cellSize);
 
@@ -3363,7 +3342,7 @@ Object *PartitionManager::getClosestObjects(
 	if (maxDist < HUGE_DIST)
 	{
 		// don't go outwards any farther than necessary.
-		maxRadius = minInt(m_maxGcoRadius, worldToCellDist(maxDist));
+		maxRadius = min(m_maxGcoRadius, worldToCellDist(maxDist));
 	}
 #if defined(INTENSE_DEBUG)
 	/*
@@ -3997,7 +3976,7 @@ Bool PartitionManager::findPositionAround( const Coord3D *center,
 	TheTerrainLogic->getMaximumPathfindExtent(&extent);
 	// If the goal is off the map, it is a scripted setup, so just
 	// use the center.
-	if (!extent.isInRegionNoZ(*center)) {
+	if (!extent.containsWithin(center->asCoord2D())) {
 		*result = *center;
 		return true;
 	}
@@ -5818,7 +5797,7 @@ void hLineAddThreat(Int x1, Int x2, Int y, void *threatValueParms)
 		if (x < 0 || x >= ThePartitionManager->m_cellCountX)
 			continue;
 
-		distance = WWMath::Sqrtf( WWMath::Sqrf(x - parms->xCenter) + WWMath::Sqrf(y - parms->yCenter) );
+		distance = WWMath::Sqrt( WWMath::Pow(x - parms->xCenter, 2) + WWMath::Pow(y - parms->yCenter, 2) );
 		mulVal = 1 - distance / parms->radius;
 		if (mulVal < 0.0f)
 			mulVal = 0.0f;
@@ -5846,7 +5825,7 @@ void hLineRemoveThreat(Int x1, Int x2, Int y, void *threatValueParms)
 		if (x < 0 || x >= ThePartitionManager->m_cellCountX)
 			continue;
 
-		distance = WWMath::Sqrtf( WWMath::Sqrf(x - parms->xCenter) + WWMath::Sqrf(y - parms->yCenter) );
+		distance = WWMath::Sqrt( WWMath::Pow(x - parms->xCenter, 2) + WWMath::Pow(y - parms->yCenter, 2) );
 		mulVal = 1 - distance / parms->radius;
 		if (mulVal < 0.0f)
 			mulVal = 0.0f;
@@ -5874,7 +5853,7 @@ void hLineAddValue(Int x1, Int x2, Int y, void *threatValueParms)
 		if (x < 0 || x >= ThePartitionManager->m_cellCountX)
 			continue;
 
-		distance = WWMath::Sqrtf( WWMath::Sqrf(x - parms->xCenter) + WWMath::Sqrf(y - parms->yCenter) );
+		distance = WWMath::Sqrt( WWMath::Pow(x - parms->xCenter, 2) + WWMath::Pow(y - parms->yCenter, 2) );
 		mulVal = 1 - distance / parms->radius;
 		if (mulVal < 0.0f)
 			mulVal = 0.0f;
@@ -5902,7 +5881,7 @@ void hLineRemoveValue(Int x1, Int x2, Int y, void *threatValueParms)
 		if (x < 0 || x >= ThePartitionManager->m_cellCountX)
 			continue;
 
-		distance = WWMath::Sqrtf( WWMath::Sqrf(x - parms->xCenter) + WWMath::Sqrf(y - parms->yCenter) );
+		distance = WWMath::Sqrt( WWMath::Pow(x - parms->xCenter, 2) + WWMath::Pow(y - parms->yCenter, 2) );
 		mulVal = 1 - distance / parms->radius;
 		if (mulVal < 0.0f)
 			mulVal = 0.0f;

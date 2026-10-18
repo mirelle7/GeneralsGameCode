@@ -34,6 +34,7 @@
 #include "Backend/RenderBackend.h"
 
 #include "IRenderBackend.h"
+#include "ww3d.h"
 
 #if defined(GGC_RENDER_BACKEND_BGFX)
 #include "Backend/BgfxBackend.h"
@@ -50,4 +51,52 @@ IRenderBackend * Create_Render_Backend(void * window, bool lite)
 #else
     return DX8Backend::Create(window, lite);
 #endif
+}
+
+// TheSuperHackers @refactor Static Renderer facade over the active IRenderBackend (see Renderer.h).
+void Renderer::Set_Gamma(float gamma, float bright, float contrast, bool calibrate, bool uselimit)
+{
+    WW3D::Get_Render_Backend()->Set_Gamma(gamma, bright, contrast, calibrate, uselimit);
+}
+
+void Renderer::Begin_Scene()
+{
+    WW3D::Get_Render_Backend()->Begin_Scene();
+}
+
+void Renderer::End_Scene(bool flip_frame)
+{
+    WW3D::Get_Render_Backend()->End_Scene(flip_frame);
+}
+
+void Renderer::Flip_To_Primary()
+{
+    WW3D::Get_Render_Backend()->Flip_To_Primary();
+}
+
+void Renderer::Clear(bool clear_color, bool clear_z_stencil,
+                     const Vector3 & color,
+                     float dest_alpha, float z, unsigned int stencil)
+{
+    WW3D::Get_Render_Backend()->Clear(clear_color, clear_z_stencil, color, dest_alpha, z, stencil);
+}
+
+void Renderer::Set_Viewport(const RenderViewport & viewport)
+{
+    WW3D::Get_Render_Backend()->Set_Viewport(viewport);
+}
+
+void Renderer::Invalidate_Cached_Render_States()
+{
+    WW3D::Get_Render_Backend()->Invalidate_Cached_Render_States();
+}
+
+void Renderer::Set_Ambient(const Vector3 & color)
+{
+    WW3D::Get_Render_Backend()->Set_Ambient(color);
+}
+
+void Renderer::Set_Light_Environment(LightEnvironmentClass * light_env)
+{
+    WW3D::Get_Render_Backend()->Set_Light_Environment(light_env);
 }

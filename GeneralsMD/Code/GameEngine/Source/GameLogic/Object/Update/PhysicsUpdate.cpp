@@ -103,7 +103,7 @@ static Real heightToSpeed(Real height)
 {
 	// don't bother trying to remember how far we've fallen; instead,
 	// back-calc it from our speed & gravity... v = sqrt(2*g*h)
-	return WWMath::Sqrtf(WWMath::Fabs(2.0f * TheGlobalData->m_gravity * height));
+	return WWMath::Sqrt(WWMath::Fabs(2.0f * TheGlobalData->m_gravity * height));
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -734,7 +734,7 @@ UpdateSleepTime PhysicsBehavior::update()
 			{
 				Vector3 xvec = mtx.Get_X_Vector();
 				Real xy = WWMath::Sqrtf(sqr(xvec.X) + sqr(xvec.Y));
-				Real pitchAngle = WWMath::Atan2f(xvec.Z, xy);
+				Real pitchAngle = WWMath::Atan2(xvec.Z, xy);
 				Real remainingAngle = (offset > 0) ? ((PI/2) - pitchAngle) : (-(PI/2) + pitchAngle);
 				Real s = Sin(remainingAngle);
 				pitchRateToUse *= s;
@@ -953,21 +953,24 @@ Real PhysicsBehavior::getVelocityMagnitude() const
 Real PhysicsBehavior::getForwardSpeed2D() const
 {
 	const Coord3D *dir = getObject()->getUnitDirectionVector2D();
-
 	Real vx = m_vel.x * dir->x;
 	Real vy = m_vel.y * dir->y;
-
 	Real dot = vx + vy;
 
-	Real speedSquared = vx*vx + vy*vy;
-//	DEBUG_ASSERTCRASH( speedSquared != 0, ("zero speedSquared will overflow sqrtf()!") );// lorenzen... sanity check
+	if (useLegacyForwardSpeed())
+	{
+		Real speed = (Real)WWMath::Sqrtf( vx*vx + vy*vy );
+		if (dot >= 0.0f)
+			return speed;
+		return -speed;
+	}
 
-	Real speed = (Real)WWMath::Sqrtf( speedSquared );
-
-	if (dot >= 0.0f)
-		return speed;
-
-	return -speed;
+	// TheSuperHackers @bugfix xezon 30/07/2026 Now returns the dot product instead of +-sqrtf(vx*vx+vy*vy).
+	// The retail formula understates the forward speed by up to 1/sqrt(2) on diagonal headings, which made
+	// the Locomotor overshoot its goal speed there. The dot product is the true projection of the velocity
+	// onto the facing vector, so this now reports real distance per logic frame and can be used for distance
+	// and time calculations. The speeds the Locomotor commands are compensated to match, in LocomotorTemplate.
+	return dot;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -978,20 +981,33 @@ Real PhysicsBehavior::getForwardSpeed2D() const
 Real PhysicsBehavior::getForwardSpeed3D() const
 {
 	Vector3 dir = getObject()->getTransformMatrix()->Get_X_Vector();
-
 	Real vx = m_vel.x * dir.X;
 	Real vy = m_vel.y * dir.Y;
 	Real vz = m_vel.z * dir.Z;
-
 	Real dot = vx + vy + vz;
 
-	Real speed = (Real)WWMath::Sqrtf( vx*vx + vy*vy + vz*vz );
+	if (useLegacyForwardSpeed())
+	{
+		Real speed = (Real)WWMath::Sqrtf( vx*vx + vy*vy + vz*vz );
+		if (dot >= 0.0f)
+			return speed;
+		return -speed;
+	}
 
-	if (dot >= 0.0f)
-		return speed;
-
-	return -speed;
+	// TheSuperHackers @bugfix xezon 30/07/2026 Now returns the dot product instead of
+	// +-sqrtf(vx*vx+vy*vy+vz*vz). See getForwardSpeed2D for the rationale.
+	return dot;
 }
+
+#if USE_RETAIL_PHYSICS_FORWARD_SPEED_DISCREPANCY_IN_CINEMATICS()
+//-------------------------------------------------------------------------------------------------
+Bool PhysicsBehavior::useLegacyForwardSpeedInCinematics()
+{
+	// TheSuperHackers @info The retail speeds are kept for the duration of a cinematic, because
+	// legacy missions time their cinematics against them.
+	return TheScriptEngine->isLetterBoxActive();
+}
+#endif
 
 //-------------------------------------------------------------------------------------------------
 Bool PhysicsBehavior::isCurrentlyOverlapped(Object *obj) const

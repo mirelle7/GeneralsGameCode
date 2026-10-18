@@ -44,6 +44,8 @@
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#ifndef DISABLE_GAMEMEMORY
+
 // SYSTEM INCLUDES
 #include <cstddef>
 // USER INCLUDES
@@ -307,7 +309,7 @@ static void doStackDumpOutput(const char* m)
 	const char *PREPEND = "STACKTRACE";
 	if (*m == 0)
 	{
-		DEBUG_LOG((m));
+		DEBUG_LOG(("%s", m));
 	}
 	else
 	{
@@ -3629,7 +3631,7 @@ void initMemoryManager()
 		userMemoryManagerInitPools();
 		thePreMainInitFlag = false;
 
-		DEBUG_INIT(DEBUG_FLAGS_DEFAULT);
+		GAME_DEBUG_INIT(DEBUG_FLAGS_DEFAULT);
 		DEBUG_LOG(("*** Initialized the Memory Manager"));
 	}
 	else
@@ -3679,7 +3681,7 @@ static NOINLINE void preMainInitMemoryManagerImpl()
 		userMemoryManagerInitPools();
 		thePreMainInitFlag = true;
 
-		DEBUG_INIT(DEBUG_FLAGS_DEFAULT);
+		GAME_DEBUG_INIT(DEBUG_FLAGS_DEFAULT);
 		DEBUG_LOG(("*** Initialized the Memory Manager prior to main!"));
 	}
 }
@@ -3764,3 +3766,5 @@ void freeFromW3DMemPool(void* pool, void* p)
 	DEBUG_ASSERTCRASH(pool, ("pool is null"));
 	((MemoryPool*)pool)->freeBlock(p);
 }
+
+#endif // DISABLE_GAMEMEMORY

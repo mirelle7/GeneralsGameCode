@@ -600,13 +600,28 @@ void WorldHeightMapEdit::saveToFile(DataChunkOutput &chunkWriter)
 	chunkWriter.closeDataChunk();
 
 	/***************BLEND TILE DATA ***************/
-	chunkWriter.openDataChunk("BlendTileData", K_BLEND_TILE_VERSION_8);
+#if RTS_GENERALS && RETAIL_COMPATIBLE_DATA
+	const DataChunkVersionType blendTileVersion = K_BLEND_TILE_VERSION_7;
+#else
+	const DataChunkVersionType blendTileVersion = K_BLEND_TILE_VERSION_8;
+#endif
+	chunkWriter.openDataChunk("BlendTileData", blendTileVersion);
 		chunkWriter.writeInt(m_dataSize);
 		chunkWriter.writeArrayOfBytes((char*)m_tileNdxes, m_dataSize*sizeof(Short));
 		chunkWriter.writeArrayOfBytes((char*)m_blendTileNdxes, m_dataSize*sizeof(Short));
 		chunkWriter.writeArrayOfBytes((char*)m_extraBlendTileNdxes, m_dataSize*sizeof(Short));
 		chunkWriter.writeArrayOfBytes((char*)m_cliffInfoNdxes, m_dataSize*sizeof(Short));
-		chunkWriter.writeArrayOfBytes((char*)m_cellCliffState, m_height*m_flipStateWidth);
+		if (blendTileVersion >= K_BLEND_TILE_VERSION_7) {
+			if (blendTileVersion == K_BLEND_TILE_VERSION_7) {
+				// Version 7 uses the legacy row width, even when the in-memory rows are wider.
+				Int byteWidth = (m_width+1)/8;
+				for (Int j=0; j<m_height; j++) {
+					chunkWriter.writeArrayOfBytes((char*)m_cellCliffState + j*m_flipStateWidth, byteWidth);
+				}
+			} else {
+				chunkWriter.writeArrayOfBytes((char*)m_cellCliffState, m_height*m_flipStateWidth);
+			}
+		}
 		chunkWriter.writeInt(m_numBitmapTiles);
 		chunkWriter.writeInt(m_numBlendedTiles);
 		chunkWriter.writeInt(m_numCliffInfo);
@@ -2205,7 +2220,6 @@ AsciiString WorldHeightMapEdit::getTexClassUiName(int ndx)
 
 static const Real HEIGHT_SCALE = MAP_HEIGHT_SCALE / MAP_XY_FACTOR;
 static const Real STRETCH_LIMIT = 1.5f;	 // If it is stretching less than this, don't adjust.
-static inline Int IABS(Int x) {	if (x>=0) return x; return -x;};
 
 static const Real TEX_PER_CELL = 32.0f/TEXTURE_WIDTH; // we use 32 texels per cell.
 

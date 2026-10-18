@@ -185,7 +185,7 @@ void ToppleUpdate::applyTopplingForce( const Coord3D* toppleDirection, Real topp
 	// yeah, it assumes the models are constructed appropriately, but is a cheap way
 	// of minimizing the problem. (srj)
 	Real curAngleX = normalizeAngle(getObject()->getOrientation());
-	Real toppleAngle = normalizeAngle(WWMath::Atan2f(m_toppleDirection.y, m_toppleDirection.x));
+	Real toppleAngle = normalizeAngle(WWMath::Atan2(m_toppleDirection.y, m_toppleDirection.x));
 	if (d->m_toppleLeftOrRightOnly)
 	{
 		// it's a fence or such, and can only topple left or right, so pick the closest
@@ -201,14 +201,7 @@ void ToppleUpdate::applyTopplingForce( const Coord3D* toppleDirection, Real topp
 	}
 	// desired angle is toppleAngle +/- pi/2, whichever is closer to curangle
 	Real desiredAngleX = angleClosestTo(toppleAngle + PI/2, toppleAngle - PI/2, curAngleX);
-	// TheSuperHackers @bugfix bobtista 10/06/2026 Guard the divisor: a zero angular velocity gives
-	// Inf, and REAL_TO_INT_FLOOR(Inf) is platform-divergent UB (x87 fistp vs arm64 lroundf) that
-	// breaks cross-platform lockstep. The < 1 clamp below is too late (the bad cast already happened).
-	const Real angularSpeed = m_angularVelocity * 2;
-	if (angularSpeed > 0.0f)
-		m_numAngleDeltaX = REAL_TO_INT_FLOOR(ANGULAR_LIMIT / angularSpeed);
-	else
-		m_numAngleDeltaX = 1;
+	m_numAngleDeltaX = REAL_TO_INT_FLOOR(WWMath::Div_Safe(ANGULAR_LIMIT, m_angularVelocity * 2.0f));
 	if (m_numAngleDeltaX < 1)
 		m_numAngleDeltaX = 1;
 	m_angleDeltaX = (desiredAngleX - curAngleX) / m_numAngleDeltaX;

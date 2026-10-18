@@ -82,6 +82,41 @@ static_assert(ARRAY_SIZE(TheLocomotorPriorityNames) == LOCOMOTOR_PRIORITY_COUNT 
 // PRIVATE FUNCTIONS //////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+#if USE_RETAIL_PHYSICS_FORWARD_SPEED_AVERAGE()
+
+// TheSuperHackers @bugfix xezon 30/07/2026 The compensation that equalizes straight and diagonal
+// movement speeds at their harmonic mean.
+//
+// Retail measured forward speed as sqrt(sum of (vi * di)^2) rather than the true projection of the
+// velocity onto the heading, sum of (vi * di). For a unit heading d that understates the speed by
+// sqrt(sum of di^4), which is 1 on an axis aligned heading and falls to 1/sqrt(2) on a 2d diagonal
+// and 1/sqrt(3) on a 3d body diagonal. The 2d movers compare that measurement directly against
+// their goal speed, so they kept accelerating until the real speed was between 1x and sqrt(2)x the
+// authored speed, decided by nothing but which way the object happened to face.
+//
+// getForwardSpeed2D and getForwardSpeed3D now report the true projection, so the real speed equals
+// the commanded speed on every heading. The speeds commanded by the 2d movers are scaled by a single
+// constant, which picks where inside the old range that now uniform speed sits.
+//
+// The constant is the harmonic mean of the two ends of the old range, 1 and sqrt(2). Axis aligned
+// headings become exactly as much faster as diagonal headings become slower, 17.16% each, so no
+// heading changes its speed by more than that, whatever mix of headings a map produces.
+//
+// Averaging the old factor over all headings instead would preserve the average pace of the game,
+// but only for an even mix of headings, and the result depends on whether that mix is even over
+// distance travelled (harmonic mean, 1.1630) or over time spent (arithmetic mean, 1.1803). The
+// constant sits between the two, within 0.75% of both. The midpoint of the old range, 1.2071, lies
+// above all of them and would quietly speed the whole game up.
+//
+// THRUST, the only mover that measures itself with getForwardSpeed3D, is deliberately not scaled.
+// Its thrust is damped by the velocity times acceleration over max speed, which cancels the thrust
+// at exactly the max speed on every heading, so the understated measurement never raised its speed.
+// Scaling it would make missiles faster than retail.
+
+constexpr const Real DiagonalCompensation2D = 1.17157288f; // 2*sqrt(2) / (1 + sqrt(2)) = 4 - 2*sqrt(2)
+
+#endif
+
 //-------------------------------------------------------------------------------------------------
 static Real calcSlowDownDist(Real curSpeed, Real desiredSpeed, Real maxBraking)
 {
@@ -236,9 +271,9 @@ static void calcDirectionToApplyThrust(
 
 	Bool foundSolution = false;
 	Real distToGoalSqr = vecToGoal.Length2();
-	Real distToGoal = WWMath::Sqrtf(distToGoalSqr);
+	Real distToGoal = WWMath::Sqrt(distToGoalSqr);
 	Real curVelMagSqr = curVel.Length2();
-	Real curVelMag = WWMath::Sqrtf(curVelMagSqr);
+	Real curVelMag = WWMath::Sqrt(curVelMagSqr);
 	Real maxAccelSqr = sqr(maxAccel);
 
 	Real denom = curVelMagSqr - maxAccelSqr;
@@ -294,6 +329,9 @@ LocomotorTemplate::LocomotorTemplate()
 	m_braking = BIGNUM;
 	m_minSpeed = 0.0f;
 	m_minTurnSpeed = BIGNUM;
+#if USE_RETAIL_PHYSICS_FORWARD_SPEED_AVERAGE()
+	m_speedScale = DiagonalCompensation2D;
+#endif
 	m_behaviorZ = Z_NO_Z_MOTIVE_FORCE;
 	m_appearance = LOCO_OTHER;
 	m_movePriority = LOCO_MOVES_MIDDLE;
@@ -434,6 +472,45 @@ void LocomotorTemplate::validate()
 	if (m_decelPitchLimit == 0.0f)
 		m_decelPitchLimit = m_accelPitchLimit;
 #endif
+
+#if USE_RETAIL_PHYSICS_FORWARD_SPEED_AVERAGE()
+	// TheSuperHackers @info THRUST is not scaled, see DiagonalCompensation2D.
+	m_speedScale = (m_appearance == LOCO_THRUST) ? 1.0f : DiagonalCompensation2D;
+#endif
+}
+
+//-------------------------------------------------------------------------------------------------
+Real LocomotorTemplate::getActualMaxSpeed() const
+{
+	return scaleSpeed(m_maxSpeed);
+}
+
+//-------------------------------------------------------------------------------------------------
+Real LocomotorTemplate::getActualMaxSpeedDamaged() const
+{
+	return scaleSpeed(m_maxSpeedDamaged);
+}
+
+//-------------------------------------------------------------------------------------------------
+Real LocomotorTemplate::getActualMinSpeed() const
+{
+	return scaleSpeed(m_minSpeed);
+}
+
+//-------------------------------------------------------------------------------------------------
+Real LocomotorTemplate::getActualMinTurnSpeed() const
+{
+	return scaleSpeed(m_minTurnSpeed);
+}
+
+//-------------------------------------------------------------------------------------------------
+Real LocomotorTemplate::scaleSpeed(Real speed) const
+{
+#if USE_RETAIL_PHYSICS_FORWARD_SPEED_AVERAGE()
+	if (!PhysicsBehavior::useLegacyForwardSpeed())
+		return speed * m_speedScale;
+#endif
+	return speed;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -797,14 +874,33 @@ Real Locomotor::getMaxSpeedForCondition(BodyDamageType condition) const
 	Real speed;
 
 	if( IS_CONDITION_BETTER( condition, TheGlobalData->m_movementPenaltyDamageState ) )
-		speed = m_template->m_maxSpeed;
+		speed = m_template->getActualMaxSpeed();
 	else
-		speed = m_template->m_maxSpeedDamaged;
+		speed = m_template->getActualMaxSpeedDamaged();
 
-	if (speed > m_maxSpeed)
-		speed = m_maxSpeed;
+	Real maxSpeed = getMaxSpeedOverride();
+	if (speed > maxSpeed)
+		speed = maxSpeed;
 
 	return speed;
+}
+
+//-------------------------------------------------------------------------------------------------
+Real Locomotor::getMaxSpeedOverride() const
+{
+	return m_template->scaleSpeed(m_maxSpeed);
+}
+
+//-------------------------------------------------------------------------------------------------
+Real Locomotor::getMinSpeed() const
+{
+	return m_template->getActualMinSpeed();
+}
+
+//-------------------------------------------------------------------------------------------------
+Real Locomotor::getMinTurnSpeed() const
+{
+	return m_template->getActualMinTurnSpeed();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1008,7 +1104,7 @@ void Locomotor::locoUpdate_moveTowardsPosition(Object* obj, const Coord3D& goalP
 	Real dx = goalPos.x - obj->getPosition()->x;
 	Real dy = goalPos.y - obj->getPosition()->y;
 	Real dz = goalPos.z - obj->getPosition()->z;
-	Real dist = WWMath::Sqrtf(dx*dx+dy*dy);
+	Real dist = WWMath::Sqrt(dx*dx+dy*dy);
 	if (dist>onPathDistToGoal)
 	{
 		if (!obj->isKindOf(KINDOF_PROJECTILE) && dist>2*onPathDistToGoal)
@@ -1126,7 +1222,7 @@ void Locomotor::locoUpdate_moveTowardsPosition(Object* obj, const Coord3D& goalP
 			// Projectiles never stop braking once they start.  jba.
 			obj->setStatus( MAKE_OBJECT_STATUS_MASK( OBJECT_STATUS_BRAKING ) );
 			// Projectiles cheat in 3 dimensions.
-			dist = WWMath::Sqrtf(dx*dx+dy*dy+dz*dz);
+			dist = WWMath::Sqrt(dx*dx+dy*dy+dz*dz);
 			Real vel = physics->getVelocityMagnitude();
 			if (vel < MIN_VEL)
 				vel = MIN_VEL;
@@ -1297,11 +1393,11 @@ void Locomotor::moveTowardsPositionWheels(Object* obj, PhysicsBehavior *physics,
 	//
 	// See if we are turning.  If so, use the min turn speed.
 	//
-	Real turnSpeed = m_template->m_minTurnSpeed;
+	Real turnSpeed = getMinTurnSpeed();
 	Real angle = obj->getOrientation();
 //	Real relAngle = ThePartitionManager->getRelativeAngle2D( obj, &goalPos );
 //	Real desiredAngle = angle + relAngle;
-	Real desiredAngle = WWMath::Atan2f(goalPos.y - obj->getPosition()->y, goalPos.x - obj->getPosition()->x);
+	Real desiredAngle = WWMath::Atan2(goalPos.y - obj->getPosition()->y, goalPos.x - obj->getPosition()->x);
 	Real relAngle = stdAngleDiff(desiredAngle, angle);
 
 	Bool moveBackwards = false;
@@ -1576,7 +1672,7 @@ Bool Locomotor::fixInvalidPosition(Object* obj, PhysicsBehavior *physics)
 		//physics->clearAcceleration();
 
 		if (dot<0) {
-			dot = WWMath::Sqrtf(-dot);
+			dot = WWMath::Sqrt(-dot);
 			correctionNormalized.x *= dot*physics->getMass();
 			correctionNormalized.y *= dot*physics->getMass();
 			physics->applyMotiveForce(&correctionNormalized);
@@ -1640,7 +1736,7 @@ void Locomotor::moveTowardsPositionLegs(Object* obj, PhysicsBehavior *physics, c
 	Real angle = obj->getOrientation();
 //	Real relAngle = ThePartitionManager->getRelativeAngle2D( obj, &goalPos );
 //	Real desiredAngle = angle + relAngle;
-	Real desiredAngle = WWMath::Atan2f(goalPos.y - obj->getPosition()->y, goalPos.x - obj->getPosition()->x);
+	Real desiredAngle = WWMath::Atan2(goalPos.y - obj->getPosition()->y, goalPos.x - obj->getPosition()->x);
 
 	if (m_template->m_wanderWidthFactor != 0.0f) {
 		Real angleLimit = PI/8 * m_template->m_wanderWidthFactor;
@@ -1673,10 +1769,10 @@ void Locomotor::moveTowardsPositionLegs(Object* obj, PhysicsBehavior *physics, c
 	Real goalSpeed = (1.0f - angleCoeff) * desiredSpeed;
 
 	//Real slowDownDist = (actualSpeed - m_template->m_minSpeed) / getBraking();
-	Real slowDownDist = calcSlowDownDist(actualSpeed, m_template->m_minSpeed, getBraking());
+	Real slowDownDist = calcSlowDownDist(actualSpeed, getMinSpeed(), getBraking());
 	if (onPathDistToGoal < slowDownDist && !getFlag(NO_SLOW_DOWN_AS_APPROACHING_DEST))
 	{
-		goalSpeed = m_template->m_minSpeed;
+		goalSpeed = getMinSpeed();
 	}
 
 
@@ -1773,7 +1869,7 @@ void Locomotor::moveTowardsPositionClimb(Object* obj, PhysicsBehavior *physics, 
 	Real angle = obj->getOrientation();
 //	Real relAngle = ThePartitionManager->getRelativeAngle2D( obj, &goalPos );
 //	Real desiredAngle = angle + relAngle;
-	Real desiredAngle = WWMath::Atan2f(goalPos.y - obj->getPosition()->y, goalPos.x - obj->getPosition()->x);
+	Real desiredAngle = WWMath::Atan2(goalPos.y - obj->getPosition()->y, goalPos.x - obj->getPosition()->x);
 	Real relAngle = stdAngleDiff(desiredAngle, angle);
 
 	if (moveBackwards) {
@@ -1800,10 +1896,10 @@ void Locomotor::moveTowardsPositionClimb(Object* obj, PhysicsBehavior *physics, 
 	}
 
 	//Real slowDownDist = (actualSpeed - m_template->m_minSpeed) / getBraking();
-	Real slowDownDist = calcSlowDownDist(actualSpeed, m_template->m_minSpeed, getBraking());
+	Real slowDownDist = calcSlowDownDist(actualSpeed, getMinSpeed(), getBraking());
 	if (onPathDistToGoal < slowDownDist && !getFlag(NO_SLOW_DOWN_AS_APPROACHING_DEST))
 	{
-		goalSpeed = m_template->m_minSpeed;
+		goalSpeed = getMinSpeed();
 	}
 
 	//
@@ -1864,7 +1960,7 @@ void Locomotor::moveTowardsPositionWings(Object* obj, PhysicsBehavior *physics, 
 			Real angleTowardPos =
 					(isNearlyZero(dx) && isNearlyZero(dy)) ?
 					obj->getOrientation() :
-					WWMath::Atan2f(dy, dx);
+					WWMath::Atan2(dy, dx);
 
 			Real aimDir = (PI - PI/8);
 			angleTowardPos += aimDir;
@@ -1920,15 +2016,15 @@ void Locomotor::moveTowardsPositionThrust(Object* obj, PhysicsBehavior *physics,
 	BodyDamageType bdt = obj->getBodyModule()->getDamageState();
 
 	Real maxForwardSpeed = getMaxSpeedForCondition(bdt);
-	desiredSpeed = clamp(m_template->m_minSpeed, desiredSpeed, maxForwardSpeed);
+	desiredSpeed = clamp(getMinSpeed(), desiredSpeed, maxForwardSpeed);
 	Real actualForwardSpeed = physics->getForwardSpeed3D();
 
 	if (getBraking() > 0)
 	{
 		//Real slowDownDist = (actualForwardSpeed - m_template->m_minSpeed) / getBraking();
-		Real slowDownDist = calcSlowDownDist(actualForwardSpeed, m_template->m_minSpeed, getBraking());
+		Real slowDownDist = calcSlowDownDist(actualForwardSpeed, getMinSpeed(), getBraking());
 		if (onPathDistToGoal < slowDownDist && !getFlag(NO_SLOW_DOWN_AS_APPROACHING_DEST))
-			desiredSpeed = m_template->m_minSpeed;
+			desiredSpeed = getMinSpeed();
 	}
 
 	Coord3D localGoalPos = goalPos;
@@ -2160,7 +2256,7 @@ PhysicsTurningType Locomotor::rotateObjAroundLocoPivot(Object* obj, const Coord3
 		Real dy = goalPos.y - turnPos.y;
 		// If we are very close to the goal, we twitch due to rounding error.  So just return. jba.
 		if (WWMath::Fabs(dx)<0.1f && WWMath::Fabs(dy)<0.1f) return TURN_NONE;
-		Real desiredAngle = WWMath::Atan2f(dy, dx);
+		Real desiredAngle = WWMath::Atan2(dy, dx);
 		Real amount = stdAngleDiff(desiredAngle, angle);
 		if (relAngle) *relAngle = amount;
 		if (amount>maxTurnRate) {
@@ -2182,7 +2278,7 @@ PhysicsTurningType Locomotor::rotateObjAroundLocoPivot(Object* obj, const Coord3
 		// so, the thing is, we want to rotate ourselves so that our *center* is rotated
 		// by the given amount, but the rotation must be around turnPos. so do a little
 		// back-calculation.
-		Real angleDesiredForTurnPos = WWMath::Atan2f(desiredPos.y - turnPos.y, desiredPos.x - turnPos.x);
+		Real angleDesiredForTurnPos = WWMath::Atan2(desiredPos.y - turnPos.y, desiredPos.x - turnPos.x);
 		amount = angleDesiredForTurnPos - angle;
 #endif
 		/// @todo srj -- there's probably a more efficient & more direct way to do this. find it.
@@ -2198,7 +2294,7 @@ PhysicsTurningType Locomotor::rotateObjAroundLocoPivot(Object* obj, const Coord3
 	}
 	else
 	{
-		Real desiredAngle = WWMath::Atan2f(goalPos.y - obj->getPosition()->y, goalPos.x - obj->getPosition()->x);
+		Real desiredAngle = WWMath::Atan2(goalPos.y - obj->getPosition()->y, goalPos.x - obj->getPosition()->x);
 		Real amount = stdAngleDiff(desiredAngle, angle);
 		if (relAngle) *relAngle = amount;
 		if (amount>maxTurnRate) {
@@ -2408,10 +2504,10 @@ void Locomotor::moveTowardsPositionOther(Object* obj, PhysicsBehavior *physics, 
 
 	if (!getFlag(NO_SLOW_DOWN_AS_APPROACHING_DEST))
 	{
-		Real slowDownDist = calcSlowDownDist(actualSpeed, m_template->m_minSpeed, getBraking());
+		Real slowDownDist = calcSlowDownDist(actualSpeed, getMinSpeed(), getBraking());
 		if (onPathDistToGoal < slowDownDist)
 		{
-			goalSpeed = m_template->m_minSpeed;
+			goalSpeed = getMinSpeed();
 		}
 	}
 
@@ -2546,7 +2642,7 @@ void Locomotor::maintainCurrentPositionWings(Object* obj, PhysicsBehavior *physi
 		Real angleTowardMaintainPos =
 				(isNearlyZero(dx) && isNearlyZero(dy)) ?
 				obj->getOrientation() :
-				WWMath::Atan2f(dy, dx);
+				WWMath::Atan2(dy, dx);
 
 		Real aimDir = (PI - PI/8);
 		if (turnRadius < 0)
@@ -2560,7 +2656,7 @@ void Locomotor::maintainCurrentPositionWings(Object* obj, PhysicsBehavior *physi
 		Coord3D desiredPos = m_maintainPos;
 		desiredPos.x += Cos(angleTowardMaintainPos) * turnRadius;
 		desiredPos.y += Sin(angleTowardMaintainPos) * turnRadius;
-		moveTowardsPositionWings(obj, physics, desiredPos, 0, m_template->m_minSpeed);
+		moveTowardsPositionWings(obj, physics, desiredPos, 0, getMinSpeed());
 	}
 }
 
@@ -2578,7 +2674,7 @@ void Locomotor::maintainCurrentPositionHover(Object* obj, PhysicsBehavior *physi
 		//
 		// Stop
 		//
-		Real minSpeed = max( 1.0E-10f, m_template->m_minSpeed );
+		Real minSpeed = max( 1.0E-10f, getMinSpeed() );
 		Real speedDelta = minSpeed - actualSpeed;
 		if (WWMath::Fabs(speedDelta) > minSpeed)
 		{

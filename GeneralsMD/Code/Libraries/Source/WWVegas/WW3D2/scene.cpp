@@ -68,6 +68,7 @@
 #include "camera.h"
 #include "lightenvironment.h"
 #include "ww3d.h"
+#include "Renderer.h"
 #include "rinfo.h"
 #include "WWLib/chunkio.h"
 #include "dx8renderer.h"

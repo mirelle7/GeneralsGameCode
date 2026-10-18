@@ -692,7 +692,7 @@ static void clampToMap(Coord3D *dest, PlayerType pt)
 	extent.hi.y -= PATHFIND_CELL_SIZE_F;
 	extent.lo.x += PATHFIND_CELL_SIZE_F;
 	extent.lo.y += PATHFIND_CELL_SIZE_F;
-	if (!extent.isInRegionNoZ(*dest)) {
+	if (!extent.containsWithin(dest->asCoord2D())) {
 		// clamp to in region. [8/28/2003]
 		if (dest->x < extent.lo.x) {
 			dest->x = extent.lo.x;
@@ -1570,7 +1570,7 @@ void clampWaypointPosition( Coord3D &position, Int margin )
   mapExtent.lo.x += margin;
   mapExtent.lo.y += margin;
 
-	if ( mapExtent.isInRegionNoZ( position ) == FALSE )
+	if ( mapExtent.containsWithin( position.asCoord2D() ) == FALSE )
   {
     if ( position.x > mapExtent.hi.x )
       position.x = mapExtent.hi.x;
@@ -1885,8 +1885,8 @@ void getHelicopterOffset( Coord3D& posOut, Int idx )
   }
 
   Coord3D tempCtr = posOut;
-  posOut.x = tempCtr.x + (WWMath::Sinf(angle) * radius);
-  posOut.y = tempCtr.y + (WWMath::Cosf(angle) * radius);
+  posOut.x = tempCtr.x + (WWMath::Sin(angle) * radius);
+  posOut.y = tempCtr.y + (WWMath::Cos(angle) * radius);
 
 }
 

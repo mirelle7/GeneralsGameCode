@@ -25,7 +25,9 @@
 #include "Common/Radar.h"
 
 #include "GameClient/ControlBar.h"
+#include "GameClient/Display.h"
 #include "GameClient/GameClient.h"
+#include "GameClient/GUICallbacks.h"
 #include "GameClient/InGameUI.h"
 #include "GameClient/ParticleSys.h"
 
@@ -196,6 +198,20 @@ void changeObservedPlayer(Player* player)
 		detail::changePlayerCommon(becomePlayer);
 	}
 	logPlayerContext("changeObservedPlayer:after", player);
+}
+
+void enableLetterBox(Bool enable)
+{
+	if (enable)
+	{
+		HideControlBar(TRUE);
+		TheDisplay->enableLetterBox(TRUE);
+	}
+	else
+	{
+		ShowControlBar(FALSE);
+		TheDisplay->enableLetterBox(FALSE);
+	}
 }
 
 } // namespace rts

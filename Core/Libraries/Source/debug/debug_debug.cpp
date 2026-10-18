@@ -27,7 +27,7 @@
 // Debug class implementation
 //////////////////////////////////////////////////////////////////////////////
 
-#include "debug.h"
+#include "debug/debug.h"
 #include "internal.h"
 #include "internal_except.h"
 #include "internal_io.h"
@@ -40,7 +40,8 @@
 #include <intrin.h>
 #pragma intrinsic(_ReturnAddress)
 #endif
-#include <WWLib/WWCommon.h>
+#include <Utility/stdio_adapter.h>
+#include <Utility/stringex.h>
 #include <new>      // needed for placement new prototype
 
 // a little dummy variable that makes the linker actually include
@@ -1263,7 +1264,7 @@ void Debug::UpdateFrameStatus(FrameHashEntry &entry)
       entry.frameType==FrameTypeCheck)
     wsprintf(help,"%s(%i)",entry.fileOrGroup,entry.line);
   else
-    strlcpy(help, entry.fileOrGroup, ARRAY_SIZE(help));
+    strlcpy(help, entry.fileOrGroup, sizeof(help));
 
   // update frame status
   bool active=entry.frameType!=FrameTypeLog;

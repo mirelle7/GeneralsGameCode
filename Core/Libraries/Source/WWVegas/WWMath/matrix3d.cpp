@@ -252,7 +252,7 @@ void Matrix3D::Set_Rotation(const Quaternion & q)
  *=============================================================================================*/
 float Matrix3D::Get_X_Rotation() const
 {
-	return WWMath::Atan2_Legacy(Row[2][1], Row[1][1]);
+	return WWMath::Atan2(Row[2][1], Row[1][1]);
 }
 
 
@@ -270,7 +270,7 @@ float Matrix3D::Get_X_Rotation() const
  *=============================================================================================*/
 float Matrix3D::Get_Y_Rotation() const
 {
-	return WWMath::Atan2_Legacy(Row[0][2], Row[2][2]);
+	return WWMath::Atan2(Row[0][2], Row[2][2]);
 }
 
 
@@ -288,7 +288,7 @@ float Matrix3D::Get_Y_Rotation() const
  *=============================================================================================*/
 float Matrix3D::Get_Z_Rotation() const
 {
-	return WWMath::Atan2_Legacy(Row[1][0], Row[0][0]);
+	return WWMath::Atan2(Row[1][0], Row[0][0]);
 }
 
 
@@ -376,7 +376,7 @@ void Matrix3D::Look_At_Dir(const Vector3 &pos, const Vector3 &dir, float roll)
 	float dz = dir.Z;
 
 	// length of projection onto XY plane
-	float len2 = (float)WWMath::Sqrt_Legacy(dx*dx + dy*dy);
+	float len2 = WWMath::Sqrt(dx*dx + dy*dy);
 
 	// pitch
 	sinp = dz;

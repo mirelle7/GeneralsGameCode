@@ -520,7 +520,7 @@ public:
 
 		Coord3D intermedPt;
 		Bool intermed = false;
-		Real orient = WWMath::Atan2f(ppinfo.runwayPrep.y - ppinfo.parkingSpace.y, ppinfo.runwayPrep.x - ppinfo.parkingSpace.x);
+		Real orient = WWMath::Atan2(ppinfo.runwayPrep.y - ppinfo.parkingSpace.y, ppinfo.runwayPrep.x - ppinfo.parkingSpace.x);
 		if (WWMath::Fabs(stdAngleDiff(orient, ppinfo.parkingOrientation)) > PI/128)
 		{
 			intermedPt.z = (ppinfo.parkingSpace.z + ppinfo.runwayPrep.z) * 0.5f;
@@ -739,7 +739,7 @@ public:
 		m_landingSoundPlayed = FALSE;
 		if (m_landing)
 		{
-			loco->setMaxSpeed(loco->getMinSpeed());
+			loco->setMaxSpeedToMinSpeed();
 		}
 		else
 		{
@@ -2320,7 +2320,7 @@ void JetAIUpdate::positionLockon()
 	Real dx = getObject()->getPosition()->x - pos.x;
 	Real dy = getObject()->getPosition()->y - pos.y;
 	if (dx || dy)
-		m_lockonDrawable->setOrientation(WWMath::Atan2f(dy, dx));
+		m_lockonDrawable->setOrientation(WWMath::Atan2(dy, dx));
 
 	// the Gaussian sum, to avoid keeping a running total:
 	//

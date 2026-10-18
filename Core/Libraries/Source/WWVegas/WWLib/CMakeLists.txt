@@ -134,7 +134,6 @@ set(WWLIB_SRC
     utf8.h
     vector.cpp
     Vector.h
-    visualc.h
     widestring.cpp
     widestring.h
     win.h
