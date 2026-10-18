@@ -65,7 +65,7 @@
 // to lock the source d3d8 buffer (which corrupts POOL_DEFAULT VBs on
 // some Intel UHD drivers). DX8 backend ignores the call.
 
-static constexpr unsigned short kDefaultDynamicVertexBufferSize = 5000;
+static const unsigned short kDefaultDynamicVertexBufferSize = 5000;
 
 static bool _DynamicSortingVertexArrayInUse=false;
 //static VertexFormatXYZNDUV2* _DynamicSortingVertexArray=nullptr;
@@ -87,9 +87,9 @@ static int _VertexBufferTotalVertices;
 static int _VertexBufferTotalSize;
 
 #if !defined(GGC_RENDER_BACKEND_BGFX)
-using LegacyVertexBuffer = IDirect3DVertexBuffer8;
+typedef IDirect3DVertexBuffer8 LegacyVertexBuffer;
 
-constexpr unsigned kLegacyBufferUsageWriteOnly = D3DUSAGE_WRITEONLY, kLegacyBufferUsageDynamic = D3DUSAGE_DYNAMIC, kLegacyBufferUsageNPatches = D3DUSAGE_NPATCHES, kLegacyBufferUsageSoftwareProcessing = D3DUSAGE_SOFTWAREPROCESSING;
+const unsigned kLegacyBufferUsageWriteOnly = D3DUSAGE_WRITEONLY, kLegacyBufferUsageDynamic = D3DUSAGE_DYNAMIC, kLegacyBufferUsageNPatches = D3DUSAGE_NPATCHES, kLegacyBufferUsageSoftwareProcessing = D3DUSAGE_SOFTWAREPROCESSING;
 
 static unsigned BuildLegacyBufferUsage(DX8VertexBufferClass::UsageType usage)
 {
@@ -99,12 +99,12 @@ static unsigned BuildLegacyBufferUsage(DX8VertexBufferClass::UsageType usage)
 		((usage&DX8VertexBufferClass::USAGE_SOFTWAREPROCESSING) ? kLegacyBufferUsageSoftwareProcessing : 0);
 }
 
-static auto GetLegacyBufferPool(DX8VertexBufferClass::UsageType usage)
+static D3DPOOL GetLegacyBufferPool(DX8VertexBufferClass::UsageType usage)
 {
 	return (usage&DX8VertexBufferClass::USAGE_DYNAMIC) ? D3DPOOL_DEFAULT : D3DPOOL_MANAGED;
 }
 
-static auto Legacy_Device()
+static IDirect3DDevice8 * Legacy_Device()
 {
 	return DX8Wrapper::_Get_D3D_Device8();
 }

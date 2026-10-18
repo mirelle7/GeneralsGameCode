@@ -115,7 +115,11 @@
 #include "GameLogic/Weapon.h"
 
 #if defined(__SWITCH__)
+#if defined(_MSC_VER) && _MSC_VER < 1300
+#include <stdio.h> // STLport on VC6 has a <cstdio> that clashes with Utility/stdio_adapter.h
+#else
 #include <cstdio>
+#endif
 extern "C" unsigned int svcOutputDebugString(const char *, unsigned long);
 static void ggc_gl_trace(const char *m) {
 	svcOutputDebugString(m, __builtin_strlen(m));

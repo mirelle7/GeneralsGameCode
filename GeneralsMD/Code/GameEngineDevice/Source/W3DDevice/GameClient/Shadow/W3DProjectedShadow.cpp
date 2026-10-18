@@ -38,7 +38,11 @@
 // functions in the global namespace only; alias them into std so the std::
 // qualified call sites resolve. Modern toolchains already provide std::.
 #if defined(_MSC_VER) && _MSC_VER < 1300
+#if defined(_MSC_VER) && _MSC_VER < 1300
+#include <stdio.h> // STLport on VC6 has a <cstdio> that clashes with Utility/stdio_adapter.h
+#else
 #include <cstdio>
+#endif
 #include <cstdlib>
 namespace std { using ::fopen; using ::fclose; using ::fprintf; using ::getenv; }
 #endif

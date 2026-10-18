@@ -26,6 +26,12 @@
 
 #pragma once
 
+#if defined(_MSC_VER) && _MSC_VER < 1300
+typedef __int64 BgfxProfileTicks;
+#else
+typedef long long BgfxProfileTicks;
+#endif
+
 namespace GGCRenderProfile
 {
 	enum Phase
@@ -64,7 +70,7 @@ namespace GGCRenderProfile
 
 	void Begin(Phase phase);
 	void End(Phase phase);
-	long long SnapshotTicks(Phase phase);
+	BgfxProfileTicks SnapshotTicks(Phase phase);
 	// Snapshot+reset the accumulators at a frame boundary (call at the top of the
 	// per-frame draw, before any scope of the new frame opens). The CSV emit reads
 	// the snapshot, so scopes that enclose the emit still report complete times.

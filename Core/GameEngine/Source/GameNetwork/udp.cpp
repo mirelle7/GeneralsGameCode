@@ -53,7 +53,11 @@
 #include <deque>
 #include <vector>
 #include <cstring>
+#if defined(_MSC_VER) && _MSC_VER < 1300
+#include <stdio.h> // STLport on VC6 has a <cstdio> that clashes with Utility/stdio_adapter.h
+#else
 #include <cstdio>
+#endif
 
 namespace
 {

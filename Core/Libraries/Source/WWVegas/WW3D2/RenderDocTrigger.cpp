@@ -19,8 +19,8 @@ struct RenderDocApiTable
     void (*entries[22])();
 };
 
-using TriggerCaptureFn = void(__cdecl *)(void);
-using GetAPIFn = int(__cdecl *)(int version, void **outApiPointers);
+typedef void (__cdecl *TriggerCaptureFn)(void);
+typedef int (__cdecl *GetAPIFn)(int version, void **outApiPointers);
 
 static const int kRENDERDOC_API_Version_1_0_0 = 10000;
 static const int kTriggerCaptureIndex = 15;

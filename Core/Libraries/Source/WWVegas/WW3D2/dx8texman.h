@@ -88,4 +88,4 @@ private:
 	WW3DZFormat ZFormat;
 };
 
-using DX8TextureManagerClass = TextureResourceManagerClass;
+typedef TextureResourceManagerClass DX8TextureManagerClass;

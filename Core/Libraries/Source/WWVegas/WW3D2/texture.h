@@ -171,7 +171,7 @@ public:
 		};
 		const std::vector<TextureMipSnapshot>& Get_CPU_Texture_Mips() const { return CPUTextureMips; }
 		bool Has_CPU_Texture_Mips() const { return !CPUTextureMips.empty(); }
-		void Release_CPU_Texture_Mips() { CPUTextureMips.clear(); CPUTextureMips.shrink_to_fit(); }
+		void Release_CPU_Texture_Mips() { std::vector<TextureMipSnapshot>().swap(CPUTextureMips); }
 		unsigned Get_CPU_Texture_Revision() const { return CPUTextureRevision; }
 		void Refresh_CPU_Texture_Snapshot();
 		void Share_Texture_Storage_With(const TextureBaseClass *source);
@@ -215,8 +215,8 @@ public:
 protected:
 
 	void Load_Locked_Surface();
-	void Set_CPU_Texture_Snapshot(std::vector<TextureMipSnapshot> &&mips);
-	void Update_CPU_Texture_Mip_Snapshot(unsigned int level, TextureMipSnapshot &&mip);
+	void Set_CPU_Texture_Snapshot(std::vector<TextureMipSnapshot> &mips);
+	void Update_CPU_Texture_Mip_Snapshot(unsigned int level, TextureMipSnapshot &mip);
 	std::vector<TextureMipSnapshot>& Mutable_CPU_Texture_Mips() { return CPUTextureMips; }
 	void Mark_CPU_Texture_Mips_Changed();
 
@@ -307,11 +307,12 @@ public:
 	};
 	struct MutableTextureMipView
 	{
-		WW3DFormat Format = WW3D_FORMAT_UNKNOWN;
-		unsigned Width = 0;
-		unsigned Height = 0;
-		unsigned Pitch = 0;
-		unsigned char *Data = nullptr;
+		MutableTextureMipView() : Format(WW3D_FORMAT_UNKNOWN), Width(0), Height(0), Pitch(0), Data(nullptr) {}
+		WW3DFormat Format;
+		unsigned Width;
+		unsigned Height;
+		unsigned Pitch;
+		unsigned char *Data;
 		bool Is_Valid() const { return Data != nullptr && Width != 0 && Height != 0 && Pitch != 0; }
 	};
 

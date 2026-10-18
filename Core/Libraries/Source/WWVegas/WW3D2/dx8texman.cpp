@@ -57,7 +57,7 @@
 #if !defined(GGC_RENDER_BACKEND_BGFX)
 namespace
 {
-	constexpr auto kLegacyDefaultPool = D3DPOOL_DEFAULT;
+	const D3DPOOL kLegacyDefaultPool = D3DPOOL_DEFAULT;
 }
 
 void DX8TextureTrackerClass::Recreate() const

@@ -87,7 +87,11 @@
 // TheSuperHackers @feature bobtista 14/06/2026 No GDI on non-Windows, so glyphs
 // are rasterized with stb_truetype (vendored by bgfx) against a system TrueType
 // font. Defining the implementation here keeps it in a single translation unit.
+#if defined(_MSC_VER) && _MSC_VER < 1300
+#include <stdio.h> // STLport on VC6 has a <cstdio> that clashes with Utility/stdio_adapter.h
+#else
 #include <cstdio>
+#endif
 #include <cstdlib>
 #include <cstring>
 #if defined(__APPLE__)
@@ -822,9 +826,9 @@ Render2DSentenceClass::Allocate_New_Surface (const WCHAR *text, bool justCalcExt
 	//	Fonts that fit search 64 to 256 px, which bounds the texture that every display string
 	//	allocates for itself. Larger fonts use the smallest texture that fits.
 	//
-	constexpr const int TextureSizeMinPow2 = 6; // 64 px, smallest texture
-	constexpr const int TextureSizeSearchMaxPow2 = 8; // 256 px, largest texture searched for fonts that fit
-	constexpr const int TextureSizeMaxPow2 = 11; // 2048 px, largest texture for any font
+	const int TextureSizeMinPow2 = 6; // 64 px, smallest texture
+	const int TextureSizeSearchMaxPow2 = 8; // 256 px, largest texture searched for fonts that fit
+	const int TextureSizeMaxPow2 = 11; // 2048 px, largest texture for any font
 
 	const int min_extent = max (char_height + 1, max_char_width + TEXTURE_OFFSET + 1);
 	int min_pow2 = TextureSizeMinPow2;
@@ -1704,7 +1708,7 @@ FontCharsClass::Store_GDI_Char (WCHAR ch)
 	std::vector<uint8> glyph_bitmap(static_cast<size_t>(char_width) * static_cast<size_t>(bitmap_height), 0);
 	CGColorSpaceRef color_space = CGColorSpaceCreateDeviceGray();
 	CGContextRef context = CGBitmapContextCreate(
-		glyph_bitmap.data(),
+		(&glyph_bitmap[0]),
 		char_width,
 		bitmap_height,
 		8,

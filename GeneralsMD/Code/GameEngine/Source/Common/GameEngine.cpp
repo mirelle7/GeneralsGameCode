@@ -164,7 +164,11 @@ SubsystemInterfaceList* TheSubsystemList = nullptr;
 
 //-------------------------------------------------------------------------------------------------
 #if defined(__SWITCH__)
+#if defined(_MSC_VER) && _MSC_VER < 1300
+#include <stdio.h> // STLport on VC6 has a <cstdio> that clashes with Utility/stdio_adapter.h
+#else
 #include <cstdio>
+#endif
 extern "C" unsigned int svcOutputDebugString(const char *, unsigned long);
 static void ggc_switch_trace(const char *a, const char *b, const char *c)
 {

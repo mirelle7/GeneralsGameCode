@@ -26,39 +26,43 @@
 
 struct NativeCompatibilitySurfaceDesc
 {
-	unsigned int Format = 0;
-	unsigned int Type = 0;
-	unsigned int Usage = 0;
-	unsigned int Pool = 0;
-	unsigned int Size = 0;
-	unsigned int MultiSampleType = 0;
-	unsigned int Width = 0;
-	unsigned int Height = 0;
+	NativeCompatibilitySurfaceDesc() : Format(0), Type(0), Usage(0), Pool(0), Size(0), MultiSampleType(0), Width(0), Height(0) {}
+	unsigned int Format;
+	unsigned int Type;
+	unsigned int Usage;
+	unsigned int Pool;
+	unsigned int Size;
+	unsigned int MultiSampleType;
+	unsigned int Width;
+	unsigned int Height;
 };
 
 struct NativeCompatibilityVolumeDesc
 {
-	unsigned int Format = 0;
-	unsigned int Type = 0;
-	unsigned int Usage = 0;
-	unsigned int Pool = 0;
-	unsigned int Size = 0;
-	unsigned int Width = 0;
-	unsigned int Height = 0;
-	unsigned int Depth = 0;
+	NativeCompatibilityVolumeDesc() : Format(0), Type(0), Usage(0), Pool(0), Size(0), Width(0), Height(0), Depth(0) {}
+	unsigned int Format;
+	unsigned int Type;
+	unsigned int Usage;
+	unsigned int Pool;
+	unsigned int Size;
+	unsigned int Width;
+	unsigned int Height;
+	unsigned int Depth;
 };
 
 struct NativeCompatibilityLockedRect
 {
-	int Pitch = 0;
-	void *pBits = nullptr;
+	NativeCompatibilityLockedRect() : Pitch(0), pBits(nullptr) {}
+	int Pitch;
+	void *pBits;
 };
 
 struct NativeCompatibilityLockedBox
 {
-	int RowPitch = 0;
-	int SlicePitch = 0;
-	void *pBits = nullptr;
+	NativeCompatibilityLockedBox() : RowPitch(0), SlicePitch(0), pBits(nullptr) {}
+	int RowPitch;
+	int SlicePitch;
+	void *pBits;
 };
 
 enum NativeCompatibilityCubeFace

@@ -51,11 +51,11 @@ static StringClass CapsWorkString;
 
 namespace
 {
-	using LegacyDirect3D = IDirect3D8;
-	using LegacyDevice = IDirect3DDevice8;
-	using LegacyCaps = D3DCAPS8;
-	using LegacyAdapterIdentifier = D3DADAPTER_IDENTIFIER8;
-	using LegacyFormat = D3DFORMAT;
+	typedef IDirect3D8 LegacyDirect3D;
+	typedef IDirect3DDevice8 LegacyDevice;
+	typedef D3DCAPS8 LegacyCaps;
+	typedef D3DADAPTER_IDENTIFIER8 LegacyAdapterIdentifier;
+	typedef D3DFORMAT LegacyFormat;
 
 	LegacyCaps& Mutable_Legacy_Caps(void* caps)
 	{
@@ -68,14 +68,23 @@ namespace
 	}
 
 #if !defined(GGC_RENDER_BACKEND_BGFX)
-	constexpr auto kLegacySoftwareVertexProcessingState = D3DRS_SOFTWAREVERTEXPROCESSING;
+	const D3DRENDERSTATETYPE kLegacySoftwareVertexProcessingState = D3DRS_SOFTWAREVERTEXPROCESSING;
 #endif
-	constexpr auto kLegacyHardwareTransformAndLight = D3DDEVCAPS_HWTRANSFORMANDLIGHT, kLegacyNPatches = D3DDEVCAPS_NPATCHES;
-	constexpr auto kLegacyZBias = D3DPRASTERCAPS_ZBIAS, kLegacyRangeFog = D3DPRASTERCAPS_FOGRANGE, kLegacyFullscreenGamma = D3DCAPS2_FULLSCREENGAMMA;
-	constexpr auto kLegacyModulateAlphaAddColor = D3DTEXOPCAPS_MODULATEALPHA_ADDCOLOR, kLegacyDotProduct3 = D3DTEXOPCAPS_DOTPRODUCT3, kLegacyBumpEnv = D3DTEXOPCAPS_BUMPENVMAP, kLegacyBumpEnvLuminance = D3DTEXOPCAPS_BUMPENVMAPLUMINANCE;
-	constexpr auto kLegacyCubeMap = D3DPTEXTURECAPS_CUBEMAP, kLegacyMagAnisotropic = D3DPTFILTERCAPS_MAGFANISOTROPIC, kLegacyMinAnisotropic = D3DPTFILTERCAPS_MINFANISOTROPIC;
-	constexpr auto kLegacyTextureResource = D3DRTYPE_TEXTURE;
-	constexpr auto kLegacyRenderTargetUsage = D3DUSAGE_RENDERTARGET, kLegacyDepthStencilUsage = D3DUSAGE_DEPTHSTENCIL;
+	const DWORD kLegacyHardwareTransformAndLight = D3DDEVCAPS_HWTRANSFORMANDLIGHT;
+	const DWORD kLegacyNPatches = D3DDEVCAPS_NPATCHES;
+	const DWORD kLegacyZBias = D3DPRASTERCAPS_ZBIAS;
+	const DWORD kLegacyRangeFog = D3DPRASTERCAPS_FOGRANGE;
+	const DWORD kLegacyFullscreenGamma = D3DCAPS2_FULLSCREENGAMMA;
+	const DWORD kLegacyModulateAlphaAddColor = D3DTEXOPCAPS_MODULATEALPHA_ADDCOLOR;
+	const DWORD kLegacyDotProduct3 = D3DTEXOPCAPS_DOTPRODUCT3;
+	const DWORD kLegacyBumpEnv = D3DTEXOPCAPS_BUMPENVMAP;
+	const DWORD kLegacyBumpEnvLuminance = D3DTEXOPCAPS_BUMPENVMAPLUMINANCE;
+	const DWORD kLegacyCubeMap = D3DPTEXTURECAPS_CUBEMAP;
+	const DWORD kLegacyMagAnisotropic = D3DPTFILTERCAPS_MAGFANISOTROPIC;
+	const DWORD kLegacyMinAnisotropic = D3DPTFILTERCAPS_MINFANISOTROPIC;
+	const D3DRESOURCETYPE kLegacyTextureResource = D3DRTYPE_TEXTURE;
+	const DWORD kLegacyRenderTargetUsage = D3DUSAGE_RENDERTARGET;
+	const DWORD kLegacyDepthStencilUsage = D3DUSAGE_DEPTHSTENCIL;
 
 #if !defined(GGC_RENDER_BACKEND_BGFX)
 	void Set_Legacy_Software_Vertex_Processing(LegacyDevice *device, BOOL enabled)

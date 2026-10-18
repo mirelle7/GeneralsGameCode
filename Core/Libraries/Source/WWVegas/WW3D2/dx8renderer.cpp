@@ -1645,6 +1645,37 @@ unsigned DX8TextureCategoryClass::Add_Mesh(
 
 // ----------------------------------------------------------------------------
 
+// Orders tasks so that opaque rigid meshes (instancing candidates) come first and order-sensitive
+// tasks keep their relative order at the tail.
+static bool PolyRenderTaskReorderEligible(PolyRenderTaskClass * t)
+{
+	MeshClass * m = t->Peek_Mesh();
+	return m->Get_Base_Vertex_Offset() != VERTEX_BUFFER_OVERFLOW
+		&& m->Get_Alpha_Override() == 1.0f
+		&& m->Get_ObjectScale() == 1.0f
+		&& !(m->Get_User_Data() && *(int *)m->Get_User_Data() == RenderObjClass::USER_DATA_MATERIAL_OVERRIDE)
+		&& !m->Peek_Model()->Get_Flag(MeshModelClass::ALIGNED)
+		&& !m->Peek_Model()->Get_Flag(MeshModelClass::ORIENTED)
+		&& !m->Peek_Model()->Get_Flag(MeshModelClass::SKIN)
+		&& !m->Peek_Model()->Get_Flag(MeshGeometryClass::COPLANAR_NORMAL_BIAS)
+		&& !((!!m->Peek_Model()->Get_Flag(MeshGeometryClass::SORT)) && WW3D::Is_Sorting_Enabled());
+}
+
+struct PolyRenderTaskReorderLess
+{
+	bool operator()(PolyRenderTaskClass * a, PolyRenderTaskClass * b) const
+	{
+		const bool ea = PolyRenderTaskReorderEligible(a);
+		const bool eb = PolyRenderTaskReorderEligible(b);
+		if (ea != eb) { return ea; } // eligible opaques first, order-sensitive tail keeps relative order
+		if (!ea) { return false; }
+		DX8PolygonRendererClass * ra = a->Peek_Polygon_Renderer();
+		DX8PolygonRendererClass * rb = b->Peek_Polygon_Renderer();
+		if (ra != rb) { return ra < rb; }
+		return a->Peek_Mesh()->Get_Base_Vertex_Offset() < b->Peek_Mesh()->Get_Base_Vertex_Offset();
+	}
+};
+
 void DX8TextureCategoryClass::Render()
 {
 #if defined(__ANDROID__)
@@ -1731,28 +1762,7 @@ void DX8TextureCategoryClass::Render()
 			// translucents, overridden/aligned/skin meshes - keep their relative order and move
 			// after the opaque group so translucents still draw over the opaques they overlap.
 			// The previous whole-list sort could shuffle translucent draw order per frame.
-			auto reorderEligible = [](PolyRenderTaskClass * t) {
-				MeshClass * m = t->Peek_Mesh();
-				return m->Get_Base_Vertex_Offset() != VERTEX_BUFFER_OVERFLOW
-					&& m->Get_Alpha_Override() == 1.0f
-					&& m->Get_ObjectScale() == 1.0f
-					&& !(m->Get_User_Data() && *(int *)m->Get_User_Data() == RenderObjClass::USER_DATA_MATERIAL_OVERRIDE)
-					&& !m->Peek_Model()->Get_Flag(MeshModelClass::ALIGNED)
-					&& !m->Peek_Model()->Get_Flag(MeshModelClass::ORIENTED)
-					&& !m->Peek_Model()->Get_Flag(MeshModelClass::SKIN)
-					&& !m->Peek_Model()->Get_Flag(MeshGeometryClass::COPLANAR_NORMAL_BIAS)
-					&& !((!!m->Peek_Model()->Get_Flag(MeshGeometryClass::SORT)) && WW3D::Is_Sorting_Enabled());
-			};
-			std::stable_sort(tasks.begin(), tasks.end(), [&reorderEligible](PolyRenderTaskClass * a, PolyRenderTaskClass * b) {
-				const bool ea = reorderEligible(a);
-				const bool eb = reorderEligible(b);
-				if (ea != eb) { return ea; } // eligible opaques first, order-sensitive tail keeps relative order
-				if (!ea) { return false; }
-				auto * ra = a->Peek_Polygon_Renderer();
-				auto * rb = b->Peek_Polygon_Renderer();
-				if (ra != rb) { return ra < rb; }
-				return a->Peek_Mesh()->Get_Base_Vertex_Offset() < b->Peek_Mesh()->Get_Base_Vertex_Offset();
-			});
+			std::stable_sort(tasks.begin(), tasks.end(), PolyRenderTaskReorderLess());
 			render_task_head = tasks[0];
 			for (unsigned i = 0; i + 1 < count; i++) {
 				tasks[i]->Set_Next_Visible(tasks[i + 1]);

@@ -85,7 +85,7 @@ void MissingTexture::_Deinit()
 
 void MissingTexture::Build_CPU_Texture_Mips(std::vector<TextureBaseClass::TextureMipSnapshot> &mips)
 {
-	constexpr unsigned kMissingPixel = 0x7FFF00FF;
+	const unsigned kMissingPixel = 0x7FFF00FF;
 	unsigned width = missing_image_width;
 	unsigned height = missing_image_height;
 	mips.clear();
@@ -101,14 +101,14 @@ void MissingTexture::Build_CPU_Texture_Mips(std::vector<TextureBaseClass::Textur
 
 		for (unsigned y = 0; y < height; ++y)
 		{
-			unsigned char *row = mip.Data.data() + static_cast<size_t>(mip.Pitch) * y;
+			unsigned char *row = (&mip.Data[0]) + static_cast<size_t>(mip.Pitch) * y;
 			for (unsigned x = 0; x < width; ++x)
 			{
 				std::memcpy(row + x * sizeof(kMissingPixel), &kMissingPixel, sizeof(kMissingPixel));
 			}
 		}
 
-		mips.push_back(std::move(mip));
+		mips.push_back(mip);
 		if (width == 1 && height == 1) {
 			break;
 		}

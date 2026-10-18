@@ -41,8 +41,14 @@
 #include "WW3D2/lightenvironment.h"
 #include "surfaceclass.h"
 #include "texture.h"
+#if !defined(_MSC_VER) || _MSC_VER >= 1300
 #include <cstdint>
+#endif
+#if defined(_MSC_VER) && _MSC_VER < 1300
+#include <stdio.h> // STLport on VC6 has a <cstdio> that clashes with Utility/stdio_adapter.h
+#else
 #include <cstdio>
+#endif
 #include <cstdlib>
 #include <cstring>
 #include <d3dx8core.h>
@@ -427,7 +433,7 @@ bool DX8Backend::Get_Device_Identity(RenderBackendDeviceIdentity & identity) con
         return false;
     }
 
-    identity = {};
+    memset(&identity, 0, sizeof(identity));
     identity.max_simultaneous_textures = caps->Get_Max_Simultaneous_Textures();
     identity.pixel_shader_major = caps->Get_Pixel_Shader_Major_Version();
     identity.pixel_shader_minor = caps->Get_Pixel_Shader_Minor_Version();
@@ -542,7 +548,7 @@ bool DX8Backend::Capture_Back_Buffer_Image(unsigned int num, RenderBackendImage 
 
     for (unsigned row = 0; row < image.Height; ++row)
     {
-        memcpy(image.Bytes.data() + static_cast<size_t>(row) * image.Pitch,
+        memcpy((&image.Bytes[0]) + static_cast<size_t>(row) * image.Pitch,
                source_bits + static_cast<size_t>(row) * source_pitch,
                row_bytes);
     }
@@ -599,31 +605,31 @@ int DX8Backend::Get_Texture_Bitdepth() const
 
 bool DX8Backend::Supports_Texture_Format(WW3DFormat format) const
 {
-    const auto * caps = DX8Wrapper::Get_Current_Caps();
+    const DX8Caps * caps = DX8Wrapper::Get_Current_Caps();
     return caps != nullptr && caps->Support_Texture_Format(format);
 }
 
 bool DX8Backend::Supports_Compressed_Textures() const
 {
-    const auto * caps = DX8Wrapper::Get_Current_Caps();
+    const DX8Caps * caps = DX8Wrapper::Get_Current_Caps();
     return caps != nullptr && caps->Support_DXTC();
 }
 
 bool DX8Backend::Supports_Bump_Envmap() const
 {
-    const auto * caps = DX8Wrapper::Get_Current_Caps();
+    const DX8Caps * caps = DX8Wrapper::Get_Current_Caps();
     return caps != nullptr && caps->Support_Bump_Envmap();
 }
 
 bool DX8Backend::Supports_Bump_Envmap_Luminance() const
 {
-    const auto * caps = DX8Wrapper::Get_Current_Caps();
+    const DX8Caps * caps = DX8Wrapper::Get_Current_Caps();
     return caps != nullptr && caps->Support_Bump_Envmap_Luminance();
 }
 
 bool DX8Backend::Supports_Texture_Filter(RenderBackendTextureFilterCapability capability) const
 {
-    const auto * caps = DX8Wrapper::Get_Current_Caps();
+    const DX8Caps * caps = DX8Wrapper::Get_Current_Caps();
     if (caps == nullptr)
     {
         return false;
@@ -649,7 +655,7 @@ bool DX8Backend::Supports_Texture_Filter(RenderBackendTextureFilterCapability ca
 
 bool DX8Backend::Supports_Texture_Op(RenderBackendTextureOpCapability capability) const
 {
-    const auto * caps = DX8Wrapper::Get_Current_Caps();
+    const DX8Caps * caps = DX8Wrapper::Get_Current_Caps();
     if (caps == nullptr)
     {
         return false;
@@ -691,13 +697,13 @@ bool DX8Backend::Supports_Texture_Op(RenderBackendTextureOpCapability capability
 
 bool DX8Backend::Supports_Fog() const
 {
-    const auto * caps = DX8Wrapper::Get_Current_Caps();
+    const DX8Caps * caps = DX8Wrapper::Get_Current_Caps();
     return caps != nullptr && caps->Is_Fog_Allowed();
 }
 
 bool DX8Backend::Is_Legacy_Voodoo3() const
 {
-    const auto * caps = DX8Wrapper::Get_Current_Caps();
+    const DX8Caps * caps = DX8Wrapper::Get_Current_Caps();
     return caps != nullptr
         && caps->Get_Vendor() == DX8Caps::VENDOR_3DFX
         && caps->Get_Device() == DX8Caps::DEVICE_3DFX_VOODOO_3;
@@ -705,50 +711,50 @@ bool DX8Backend::Is_Legacy_Voodoo3() const
 
 bool DX8Backend::Supports_NPatches() const
 {
-    const auto * caps = DX8Wrapper::Get_Current_Caps();
+    const DX8Caps * caps = DX8Wrapper::Get_Current_Caps();
     return caps != nullptr && caps->Support_NPatches();
 }
 
 bool DX8Backend::Supports_Hardware_Transform_And_Lighting() const
 {
-    const auto * caps = DX8Wrapper::Get_Current_Caps();
+    const DX8Caps * caps = DX8Wrapper::Get_Current_Caps();
     return caps != nullptr && caps->Support_TnL();
 }
 
 bool DX8Backend::Supports_Point_Sprites() const
 {
-    const auto * caps = DX8Wrapper::Get_Current_Caps();
+    const DX8Caps * caps = DX8Wrapper::Get_Current_Caps();
     return caps != nullptr && caps->Support_PointSprites();
 }
 
 RenderBackendTextureLimits DX8Backend::Get_Texture_Limits() const
 {
-    const auto * caps = DX8Wrapper::Get_Current_Caps();
+    const DX8Caps * caps = DX8Wrapper::Get_Current_Caps();
     if (caps == nullptr)
     {
         return IRenderBackend::Get_Texture_Limits();
     }
 
     const D3DCAPS8 & dx8caps = caps->Get_DX8_Caps();
-    return {
-        dx8caps.MaxTextureWidth,
-        dx8caps.MaxTextureHeight,
-        dx8caps.MaxVolumeExtent,
+    RenderBackendTextureLimits limits;
+    limits.max_width = dx8caps.MaxTextureWidth;
+    limits.max_height = dx8caps.MaxTextureHeight;
+    limits.max_volume_extent = dx8caps.MaxVolumeExtent;
         // TheSuperHackers @bugfix bobtista 22/06/2026 The original clamped to a literal 8
         // regardless of the (often 0 = unrestricted) MaxTextureAspectRatio cap; keep that.
-        8u
-    };
+    limits.max_aspect_ratio = 8u;
+    return limits;
 }
 
 int DX8Backend::Get_Max_Texture_Stages() const
 {
-    const auto * caps = DX8Wrapper::Get_Current_Caps();
+    const DX8Caps * caps = DX8Wrapper::Get_Current_Caps();
     return caps != nullptr ? caps->Get_Max_Textures_Per_Pass() : RB_MAX_TEXTURE_STAGES;
 }
 
 bool DX8Backend::Supports_Z_Bias() const
 {
-    const auto * caps = DX8Wrapper::Get_Current_Caps();
+    const DX8Caps * caps = DX8Wrapper::Get_Current_Caps();
     return caps != nullptr && caps->Support_ZBias();
 }
 
@@ -780,13 +786,14 @@ namespace
 // mechanism; GDI capture cannot see D3D8 surfaces, so this writes a BMP from the back buffer.
 struct Dx8ScreenshotState
 {
-    int targetFrame = -1;
-    int interval = 0;
-    char basePath[512] = {};
-    bool envResolved = false;
-    int frameIndex = 0;
-    int targetLogicFrame = 0;
-    bool logicShotDone = false;
+    Dx8ScreenshotState() : targetFrame(-1), interval(0), envResolved(false), frameIndex(0), targetLogicFrame(0), logicShotDone(false) { basePath[0] = 0; }
+    int targetFrame;
+    int interval;
+    char basePath[512];
+    bool envResolved;
+    int frameIndex;
+    int targetLogicFrame;
+    bool logicShotDone;
 };
 
 Dx8ScreenshotState & Get_Dx8_Screenshot_State()
@@ -845,7 +852,7 @@ bool Save_Bgra_Bmp(const char * path, unsigned width, unsigned height,
     const std::uint32_t bf_size = 14 + 40 + pixel_data_bytes;
 
     // BITMAPFILEHEADER
-    std::uint8_t header[14] = {};
+    std::uint8_t header[14] = { 0 };
     header[0] = 'B'; header[1] = 'M';
     header[2] = static_cast<std::uint8_t>(bf_size & 0xFF);
     header[3] = static_cast<std::uint8_t>((bf_size >> 8) & 0xFF);
@@ -855,7 +862,7 @@ bool Save_Bgra_Bmp(const char * path, unsigned width, unsigned height,
     std::fwrite(header, 1, sizeof(header), f);
 
     // BITMAPINFOHEADER (40 bytes), height NEGATIVE so it's top-down
-    std::uint8_t info[40] = {};
+    std::uint8_t info[40] = { 0 };
     info[0] = 40;
     info[4] = static_cast<std::uint8_t>(width & 0xFF);
     info[5] = static_cast<std::uint8_t>((width >> 8) & 0xFF);
@@ -888,9 +895,9 @@ void DX8Backend::End_Scene(bool flip_frame)
         if (Capture_Back_Buffer_Image(0, img) && img.Is_Valid()) {
             Dx8ScreenshotState & s = Get_Dx8_Screenshot_State();
             char path[640];
-            std::snprintf(path, sizeof(path), "%s.%06d.bmp",
+            snprintf(path, sizeof(path), "%s.%06d.bmp",
                 s.basePath, s.frameIndex);
-            Save_Bgra_Bmp(path, img.Width, img.Height, img.Pitch, img.Bytes.data());
+            Save_Bgra_Bmp(path, img.Width, img.Height, img.Pitch, (&img.Bytes[0]));
         }
     }
 
@@ -907,9 +914,9 @@ void DX8Backend::End_Scene(bool flip_frame)
                 RenderBackendImage img;
                 if (Capture_Back_Buffer_Image(0, img) && img.Is_Valid()) {
                     char path[640];
-                    std::snprintf(path, sizeof(path), "%s.L%06d.bmp",
+                    snprintf(path, sizeof(path), "%s.L%06d.bmp",
                         s.basePath, curLogicFrame);
-                    Save_Bgra_Bmp(path, img.Width, img.Height, img.Pitch, img.Bytes.data());
+                    Save_Bgra_Bmp(path, img.Width, img.Height, img.Pitch, (&img.Bytes[0]));
                 }
             }
         }
@@ -1224,12 +1231,14 @@ bool DX8Backend::Capture_Back_Buffer_RGBA(unsigned int display_width,
 
     DX8Wrapper::Set_Pixel_Shader(g_profilerSwizzleShader);
     shader_changed = true;
-    static const float kMaskR[4] = {1.0f, 0.0f, 0.0f, 0.0f};
-    static const float kMaskG[4] = {0.0f, 1.0f, 0.0f, 0.0f};
-    static const float kMaskB[4] = {0.0f, 0.0f, 1.0f, 0.0f};
-    Set_Pixel_Shader_Constant(0, kMaskR, 1);
-    Set_Pixel_Shader_Constant(1, kMaskG, 1);
-    Set_Pixel_Shader_Constant(2, kMaskB, 1);
+    {
+        static const float kMaskR[4] = {1.0f, 0.0f, 0.0f, 0.0f};
+        static const float kMaskG[4] = {0.0f, 1.0f, 0.0f, 0.0f};
+        static const float kMaskB[4] = {0.0f, 0.0f, 1.0f, 0.0f};
+        Set_Pixel_Shader_Constant(0, kMaskR, 1);
+        Set_Pixel_Shader_Constant(1, kMaskG, 1);
+        Set_Pixel_Shader_Constant(2, kMaskB, 1);
+    }
 
     // TheSuperHackers @build bobtista 01/06/2026 Wrap initialized locals in
     // block scopes so the subsequent `goto cleanup` statements don't cross
@@ -1244,10 +1253,10 @@ bool DX8Backend::Capture_Back_Buffer_RGBA(unsigned int display_width,
         const float top = -0.5f;
         const float right = static_cast<float>(image_size) - 0.5f;
         const float bottom = static_cast<float>(capture_height) - 0.5f;
-        vtx[0] = {right, bottom, 0.0f, 1.0f, 1.0f, 1.0f};
-        vtx[1] = {right, top,    0.0f, 1.0f, 1.0f, 0.0f};
-        vtx[2] = {left,  bottom, 0.0f, 1.0f, 0.0f, 1.0f};
-        vtx[3] = {left,  top,    0.0f, 1.0f, 0.0f, 0.0f};
+        { QuadVertex qv = {right, bottom, 0.0f, 1.0f, 1.0f, 1.0f}; vtx[0] = qv; }
+        { QuadVertex qv = {right, top,    0.0f, 1.0f, 1.0f, 0.0f}; vtx[1] = qv; }
+        { QuadVertex qv = {left,  bottom, 0.0f, 1.0f, 0.0f, 1.0f}; vtx[2] = qv; }
+        { QuadVertex qv = {left,  top,    0.0f, 1.0f, 0.0f, 0.0f}; vtx[3] = qv; }
         DX8Wrapper::Set_DX8_Texture(0, intermediate_texture);
         texture_changed = true;
         DX8Wrapper::Set_Vertex_Shader(D3DFVF_XYZRHW | D3DFVF_TEX1);
@@ -1356,7 +1365,7 @@ void DX8Backend::Apply_Sorted_Batch_State(const RenderBackendSortedBatchState & 
     // TheSuperHackers @bugfix bobtista 22/06/2026 Bind only the stages the device
     // supports (the original sorted-draw path looped Get_Max_Textures_Per_Pass()).
     // Setting beyond the cap trips a debug assert in Commit_Fixed_Function_Texture.
-    const auto * caps = DX8Wrapper::Get_Current_Caps();
+    const DX8Caps * caps = DX8Wrapper::Get_Current_Caps();
     unsigned max_stages = RB_MAX_TEXTURE_STAGES;
     if (caps != nullptr && (unsigned)caps->Get_Max_Textures_Per_Pass() < max_stages)
     {
@@ -1383,11 +1392,11 @@ void DX8Backend::Apply_Sorted_Batch_State(const RenderBackendSortedBatchState & 
             D3DTS_VIEW,
             reinterpret_cast<const D3DMATRIX &>(*state.view));
     }
-    for (int i = 0; i < 4; ++i)
+    for (int li = 0; li < 4; ++li)
     {
-        if (state.lights.enabled[i])
+        if (state.lights.enabled[li])
         {
-            const RenderBackendLight & src = state.lights.lights[i];
+            const RenderBackendLight & src = state.lights.lights[li];
             D3DLIGHT8 light;
             memset(&light, 0, sizeof(light));
             light.Type = static_cast<D3DLIGHTTYPE>(src.type);
@@ -1416,11 +1425,11 @@ void DX8Backend::Apply_Sorted_Batch_State(const RenderBackendSortedBatchState & 
             light.Attenuation2 = src.attenuation[2];
             light.Theta = src.theta;
             light.Phi = src.phi;
-            DX8Wrapper::Set_DX8_Light(i, &light);
+            DX8Wrapper::Set_DX8_Light(li, &light);
         }
         else
         {
-            DX8Wrapper::Set_DX8_Light(i, nullptr);
+            DX8Wrapper::Set_DX8_Light(li, nullptr);
         }
     }
 }
@@ -1648,7 +1657,7 @@ void DX8Backend::Set_Hardware_Cursor_Image(int hotspot_x, int hotspot_y, const R
     if (pDev != nullptr && image.Is_Valid())
     {
         SurfaceClass surface(image.Width, image.Height, image.Format);
-        surface.Copy(image.Bytes.data(), image.Pitch);
+        surface.Copy((&image.Bytes[0]), image.Pitch);
         pDev->SetCursorProperties(
             static_cast<UINT>(hotspot_x),
             static_cast<UINT>(hotspot_y),

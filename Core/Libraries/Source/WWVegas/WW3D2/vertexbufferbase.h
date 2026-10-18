@@ -92,5 +92,7 @@ protected:
 	bool						m_backendStaticEligible;
 	RenderResource				m_backendHandle;
 	void Set_Backend_Static_Eligible(bool eligible) { m_backendStaticEligible = eligible; }
+public:
+	// Public because VC6 does not let the nested lock classes use protected members of the enclosing class.
 	void Update_CPU_Buffer_Data(unsigned byte_offset, const void * data, unsigned size);
 };

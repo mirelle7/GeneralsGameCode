@@ -102,7 +102,11 @@
 
 #include "shdlib.h"
 
+#if defined(_MSC_VER) && _MSC_VER < 1300
+#include <stdio.h> // STLport on VC6 has a <cstdio> that clashes with Utility/stdio_adapter.h
+#else
 #include <cstdio>
+#endif
 #include <cstring>
 
 #if defined(GGC_RENDER_BACKEND_BGFX)
@@ -444,15 +448,10 @@ static void Fill_Standalone_Adapter_Identifier(D3DADAPTER_IDENTIFIER8 &identifie
 
 #endif
 
-template <typename T>
-static T Legacy_Value(unsigned value)
-{
-	return static_cast<T>(value);
-}
 
-static auto Legacy_Format(unsigned value) { return Legacy_Value<decltype(_PresentParameters.BackBufferFormat)>(value); }
-static auto Legacy_Multisample_Type(unsigned value) { return Legacy_Value<decltype(_PresentParameters.MultiSampleType)>(value); }
-static auto Legacy_Swap_Effect(unsigned value) { return Legacy_Value<decltype(_PresentParameters.SwapEffect)>(value); }
+static D3DFORMAT Legacy_Format(unsigned value) { return static_cast<D3DFORMAT>(value); }
+static D3DMULTISAMPLE_TYPE Legacy_Multisample_Type(unsigned value) { return static_cast<D3DMULTISAMPLE_TYPE>(value); }
+static D3DSWAPEFFECT Legacy_Swap_Effect(unsigned value) { return static_cast<D3DSWAPEFFECT>(value); }
 static DynamicVectorClass<StringClass>					_RenderDeviceNameTable;
 static DynamicVectorClass<StringClass>					_RenderDeviceShortNameTable;
 static DynamicVectorClass<RenderDeviceDescClass>	_RenderDeviceDescriptionTable;

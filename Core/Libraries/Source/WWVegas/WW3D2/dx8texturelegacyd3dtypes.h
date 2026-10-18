@@ -24,17 +24,17 @@
 
 #include "d3d8.h"
 
-using LegacyBaseTexture = IDirect3DBaseTexture8;
-using LegacySurface = IDirect3DSurface8;
-using NativeCompatibilityTextureSurface = IDirect3DSurface8;
-using LegacySurfaceDesc = D3DSURFACE_DESC;
-using LegacyVolumeDesc = D3DVOLUME_DESC;
-using LegacyLockedRect = D3DLOCKED_RECT;
+typedef IDirect3DBaseTexture8 LegacyBaseTexture;
+typedef IDirect3DSurface8 LegacySurface;
+typedef IDirect3DSurface8 NativeCompatibilityTextureSurface;
+typedef D3DSURFACE_DESC LegacySurfaceDesc;
+typedef D3DVOLUME_DESC LegacyVolumeDesc;
+typedef D3DLOCKED_RECT LegacyLockedRect;
 
-using LegacyLoaderTexture = IDirect3DTexture8;
-using LegacyLoaderSurface = IDirect3DSurface8;
-using LegacyLoaderCubeTexture = IDirect3DCubeTexture8;
-using LegacyLoaderVolumeTexture = IDirect3DVolumeTexture8;
-using LegacyLoaderLockedRect = D3DLOCKED_RECT;
-using LegacyLoaderLockedBox = D3DLOCKED_BOX;
-using LegacyLoaderCubeFace = D3DCUBEMAP_FACES;
+typedef IDirect3DTexture8 LegacyLoaderTexture;
+typedef IDirect3DSurface8 LegacyLoaderSurface;
+typedef IDirect3DCubeTexture8 LegacyLoaderCubeTexture;
+typedef IDirect3DVolumeTexture8 LegacyLoaderVolumeTexture;
+typedef D3DLOCKED_RECT LegacyLoaderLockedRect;
+typedef D3DLOCKED_BOX LegacyLoaderLockedBox;
+typedef D3DCUBEMAP_FACES LegacyLoaderCubeFace;

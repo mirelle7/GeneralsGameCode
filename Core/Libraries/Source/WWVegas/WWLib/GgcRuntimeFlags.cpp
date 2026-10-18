@@ -18,8 +18,14 @@
 
 #include "GgcRuntimeFlags.h"
 
+#if !defined(_MSC_VER) || _MSC_VER >= 1300
 #include <atomic>
+#endif
+#if defined(_MSC_VER) && _MSC_VER < 1300
+#include <stdio.h> // STLport on VC6 has a <cstdio> that clashes with Utility/stdio_adapter.h
+#else
 #include <cstdio>
+#endif
 #include <cstdlib>
 #include <cstring>
 
@@ -56,7 +62,16 @@ struct GgcFlagState
 };
 
 GgcFlagState s_state[GgcFlagCount];
+#if defined(_MSC_VER) && _MSC_VER < 1300
+// VC6 has no <atomic>; a volatile int is enough for the x86 acquire/release ordering needed here.
+volatile int s_resolved[GgcFlagCount];
+inline void StoreResolved(int id) { s_resolved[id] = 1; }
+inline int LoadResolved(int id) { return s_resolved[id]; }
+#else
 std::atomic<int> s_resolved[GgcFlagCount];
+inline void StoreResolved(int id) { s_resolved[id].store(1, std::memory_order_release); }
+inline int LoadResolved(int id) { return s_resolved[id].load(std::memory_order_acquire); }
+#endif
 
 // Diagnostic- and probe-tier flags resolve as unset when the build does not
 // compile the diagnostic tools in, so they cannot be enabled in such builds.
@@ -120,13 +135,13 @@ void StoreResolvedValue(GgcFlagId id, const char *value)
 	// Concurrent first reads compute identical values from the same
 	// environment, so racing writers are benign - same guarantee the
 	// per-site function-local statics gave before the registry.
-	s_resolved[id].store(1, std::memory_order_release);
+	StoreResolved(id);
 }
 
 const GgcFlagState &Resolve(GgcFlagId id)
 {
 	GgcFlagState &state = s_state[id];
-	if (s_resolved[id].load(std::memory_order_acquire) != 0)
+	if (LoadResolved(id) != 0)
 	{
 		return state;
 	}
@@ -214,15 +229,15 @@ void DumpTableIfRequested()
 		char valueText[64];
 		if (!TierResolvable(info.tier))
 		{
-			std::snprintf(valueText, sizeof(valueText), "(compiled out)");
+			snprintf(valueText, sizeof(valueText), "(compiled out)");
 		}
 		else if (value == NULL)
 		{
-			std::snprintf(valueText, sizeof(valueText), "(unset)");
+			snprintf(valueText, sizeof(valueText), "(unset)");
 		}
 		else
 		{
-			std::snprintf(valueText, sizeof(valueText), "\"%s\"", value);
+			snprintf(valueText, sizeof(valueText), "\"%s\"", value);
 		}
 		std::fprintf(stderr, "[ggc]   %-11s %-8s %-48s %-16s %s\n",
 			tierNames[info.tier], typeNames[info.type], info.name, valueText, info.help);

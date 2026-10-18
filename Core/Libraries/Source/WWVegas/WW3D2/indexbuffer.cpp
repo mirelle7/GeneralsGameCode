@@ -61,7 +61,7 @@
 // data into the active render backend at write-lock time. See the
 // matching comment in vertexbuffer.cpp.
 
-static constexpr unsigned short kDefaultDynamicIndexBufferSize = 5000;
+static const unsigned short kDefaultDynamicIndexBufferSize = 5000;
 
 static bool _DynamicSortingIndexArrayInUse=false;
 static SortingIndexBufferClass* _DynamicSortingIndexArray;
@@ -78,10 +78,10 @@ static int _IndexBufferTotalIndices;
 static int _IndexBufferTotalSize;
 
 #if !defined(GGC_RENDER_BACKEND_BGFX)
-using LegacyIndexBuffer = IDirect3DIndexBuffer8;
+typedef IDirect3DIndexBuffer8 LegacyIndexBuffer;
 
-constexpr unsigned kLegacyBufferUsageWriteOnly = D3DUSAGE_WRITEONLY, kLegacyBufferUsageDynamic = D3DUSAGE_DYNAMIC, kLegacyBufferUsageNPatches = D3DUSAGE_NPATCHES, kLegacyBufferUsageSoftwareProcessing = D3DUSAGE_SOFTWAREPROCESSING;
-constexpr auto kLegacyIndexFormat = D3DFMT_INDEX16;
+const unsigned kLegacyBufferUsageWriteOnly = D3DUSAGE_WRITEONLY, kLegacyBufferUsageDynamic = D3DUSAGE_DYNAMIC, kLegacyBufferUsageNPatches = D3DUSAGE_NPATCHES, kLegacyBufferUsageSoftwareProcessing = D3DUSAGE_SOFTWAREPROCESSING;
+const D3DFORMAT kLegacyIndexFormat = D3DFMT_INDEX16;
 
 static unsigned BuildLegacyBufferUsage(DX8IndexBufferClass::UsageType usage)
 {
@@ -91,12 +91,12 @@ static unsigned BuildLegacyBufferUsage(DX8IndexBufferClass::UsageType usage)
 		((usage&DX8IndexBufferClass::USAGE_SOFTWAREPROCESSING) ? kLegacyBufferUsageSoftwareProcessing : 0);
 }
 
-static auto GetLegacyBufferPool(DX8IndexBufferClass::UsageType usage)
+static D3DPOOL GetLegacyBufferPool(DX8IndexBufferClass::UsageType usage)
 {
 	return (usage&DX8IndexBufferClass::USAGE_DYNAMIC) ? D3DPOOL_DEFAULT : D3DPOOL_MANAGED;
 }
 
-static auto Legacy_Device()
+static IDirect3DDevice8 * Legacy_Device()
 {
 	return DX8Wrapper::_Get_D3D_Device8();
 }

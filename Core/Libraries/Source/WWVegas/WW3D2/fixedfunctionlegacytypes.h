@@ -57,11 +57,11 @@ struct LegacyFixedFunctionLight
 };
 
 #if defined(GGC_RENDER_BACKEND_BGFX)
-using LegacyRawTexture = void;
+typedef void LegacyRawTexture;
 #else
-using LegacyRawTexture = IDirect3DBaseTexture8;
+typedef IDirect3DBaseTexture8 LegacyRawTexture;
 #endif
-using LegacyTransformMatrix = D3DMATRIX;
+typedef D3DMATRIX LegacyTransformMatrix;
 
 const unsigned LEGACY_D3DTS_WORLD = 256;
 const unsigned LEGACY_FIXED_FUNCTION_TRANSFORM_COUNT = LEGACY_D3DTS_WORLD + 1;

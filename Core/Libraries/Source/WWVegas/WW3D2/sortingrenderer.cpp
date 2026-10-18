@@ -57,7 +57,11 @@
 #include <WWDebug/wwprofile.h>
 #include <algorithm>
 #include <list>
+#if defined(_MSC_VER) && _MSC_VER < 1300
+#include <stdio.h> // STLport on VC6 has a <cstdio> that clashes with Utility/stdio_adapter.h
+#else
 #include <cstdio>
+#endif
 #include <cstdlib>
 #include <cstring>
 #include <vector>
@@ -94,14 +98,14 @@ struct TempIndexStruct
 	float z;
 };
 
-enum BgfxSortedPacketDiagSource : unsigned char
+enum BgfxSortedPacketDiagSource CPP_11(: unsigned char)
 {
 	BGFX_SORTED_PACKET_SOURCE_OTHER = 0,
 	BGFX_SORTED_PACKET_SOURCE_POINT_GROUP,
 	BGFX_SORTED_PACKET_SOURCE_STREAK
 };
 
-enum BgfxSortedPacketDiagFallback : unsigned char
+enum BgfxSortedPacketDiagFallback CPP_11(: unsigned char)
 {
 	BGFX_SORTED_PACKET_FALLBACK_NONE = 0,
 	BGFX_SORTED_PACKET_FALLBACK_DEPTH_WRITE,
@@ -110,7 +114,7 @@ enum BgfxSortedPacketDiagFallback : unsigned char
 	BGFX_SORTED_PACKET_FALLBACK_UNKNOWN
 };
 
-enum BgfxSortedPacketDiagBlendClass : unsigned
+enum BgfxSortedPacketDiagBlendClass CPP_11(: unsigned)
 {
 	BGFX_SORTED_PACKET_BLEND_ALPHA = 0,
 	BGFX_SORTED_PACKET_BLEND_MULTIPLY,
@@ -126,17 +130,20 @@ static bool Sorted_Packet_Collector_Diag_Enabled()
 	return enabled;
 }
 
+static unsigned Sorted_Packet_Collector_Diag_Read_Max_Flushes()
+{
+	const char* env = GgcFlags::StringValue(GgcFlag_BgfxSortedPacketCollectorDiagLimit);
+	if (env == nullptr)
+	{
+		return 512;
+	}
+	const int parsed = std::atoi(env);
+	return parsed > 0 ? static_cast<unsigned>(parsed) : 512;
+}
+
 static unsigned Sorted_Packet_Collector_Diag_Max_Flushes()
 {
-	static const unsigned maxFlushes = []() -> unsigned {
-		const char* env = GgcFlags::StringValue(GgcFlag_BgfxSortedPacketCollectorDiagLimit);
-		if (env == nullptr)
-		{
-			return 512;
-		}
-		const int parsed = std::atoi(env);
-		return parsed > 0 ? static_cast<unsigned>(parsed) : 512;
-	}();
+	static const unsigned maxFlushes = Sorted_Packet_Collector_Diag_Read_Max_Flushes();
 	return maxFlushes;
 }
 
@@ -549,7 +556,7 @@ void SortingRendererClass::Insert_To_Sorting_Pool(SortingNodeStruct* state)
 
 static RenderBackendLight Make_Render_Backend_Light(const RenderStateStruct & render_state, int index)
 {
-	const auto & light = render_state.Lights[index];
+	const LegacyFixedFunctionLight & light = render_state.Lights[index];
 	RenderBackendLight rb_light;
 	rb_light.type = light.Type;
 	rb_light.position[0] = light.Position.x;
@@ -639,9 +646,9 @@ static RenderBackendSortedBatchState Make_Render_Backend_Sorted_State(const Rend
 	RenderBackendSortedBatchState rb_state;
 	rb_state.shader = &render_state.shader;
 	rb_state.material = render_state.material;
-	for (unsigned i = 0; i < RB_MAX_TEXTURE_STAGES; ++i)
+	for (unsigned stage = 0; stage < RB_MAX_TEXTURE_STAGES; ++stage)
 	{
-		rb_state.textures[i] = render_state.Textures[i];
+		rb_state.textures[stage] = render_state.Textures[stage];
 	}
 	rb_state.world = &reinterpret_cast<const Matrix4x4&>(render_state.world);
 	rb_state.view = &reinterpret_cast<const Matrix4x4&>(render_state.view);
@@ -871,13 +878,13 @@ static bool Sorted_Array_Dbg_Enabled()
 	static const bool enabled = Should_Log_Sort_Effect_Diag() || GgcFlags::Enabled(GgcFlag_Trace);
 	return enabled;
 }
-static unsigned s_sortedArrayBreakMaskCounts[256] = {};
+static unsigned s_sortedArrayBreakMaskCounts[256] = { 0 };
 static unsigned s_sortedArrayDbgNodes = 0;
 static unsigned s_sortedArrayDbgEligible = 0;
 static unsigned s_sortedArrayDbgMerges = 0;
 static unsigned s_sortedArrayDbgFlushes = 0;
 
-enum BgfxSortedPacketBreakReason : unsigned
+enum BgfxSortedPacketBreakReason CPP_11(: unsigned)
 {
 	BGFX_SORTED_PACKET_BREAK_SHADER = 0,
 	BGFX_SORTED_PACKET_BREAK_FLAGS,
@@ -984,13 +991,21 @@ static inline bool Is_Coalescable_Additive(const RenderStateStruct& rs)
 		&& rs.shader.Get_Dst_Blend_Func() == ShaderClass::DSTBLEND_ONE;
 }
 
-static inline unsigned long long Sort_Fnv1a(const void* data, unsigned len, unsigned long long hash)
+#if defined(_MSC_VER) && _MSC_VER < 1300
+typedef unsigned __int64 SortKey64;
+#define SORT_KEY_CONST(x) x##ui64
+#else
+typedef unsigned long long SortKey64;
+#define SORT_KEY_CONST(x) x##ULL
+#endif
+
+static inline SortKey64 Sort_Fnv1a(const void* data, unsigned len, SortKey64 hash)
 {
 	const unsigned char* p = static_cast<const unsigned char*>(data);
 	for (unsigned i = 0; i < len; ++i)
 	{
 		hash ^= p[i];
-		hash *= 1099511628211ULL;
+		hash *= SORT_KEY_CONST(1099511628211);
 	}
 	return hash;
 }
@@ -999,9 +1014,9 @@ static inline unsigned long long Sort_Fnv1a(const void* data, unsigned len, unsi
 // collision between differing states only places them adjacently - the draw
 // loop still splits them with the exact Render_State_Matches test, so the
 // reorder can never merge states that do not truly match.
-static unsigned long long Sort_Node_State_Key(const RenderStateStruct& rs)
+static SortKey64 Sort_Node_State_Key(const RenderStateStruct& rs)
 {
-	unsigned long long hash = 1469598103934665603ULL;
+	SortKey64 hash = SORT_KEY_CONST(1469598103934665603);
 	const unsigned int shaderBits = rs.shader.Get_Bits();
 	hash = Sort_Fnv1a(&shaderBits, sizeof(shaderBits), hash);
 	hash = Sort_Fnv1a(&rs.sorted_draw_flags, sizeof(rs.sorted_draw_flags), hash);
@@ -1036,7 +1051,7 @@ static unsigned Count_Sorted_Runs(const TempIndexStruct* tis, unsigned tri_count
 	return runs;
 }
 
-static unsigned long long* sorted_packet_diag_segment_keys;
+static SortKey64* sorted_packet_diag_segment_keys;
 static unsigned sorted_packet_diag_segment_key_count;
 
 static void Emit_Sorted_Packet_Collector_Diag(const TempIndexStruct* tis, unsigned tri_count, unsigned draw_runs)
@@ -1056,7 +1071,7 @@ static void Emit_Sorted_Packet_Collector_Diag(const TempIndexStruct* tis, unsign
 	{
 		delete[] sorted_packet_diag_segment_keys;
 		sorted_packet_diag_segment_key_count = tri_count;
-		sorted_packet_diag_segment_keys = W3DNEWARRAY unsigned long long[sorted_packet_diag_segment_key_count];
+		sorted_packet_diag_segment_keys = W3DNEWARRAY SortKey64[sorted_packet_diag_segment_key_count];
 	}
 
 	unsigned candidate_tris = 0;
@@ -1076,12 +1091,12 @@ static void Emit_Sorted_Packet_Collector_Diag(const TempIndexStruct* tis, unsign
 	unsigned run_break_candidate_to_candidate = 0;
 	unsigned run_break_fallback_to_fallback = 0;
 	unsigned run_break_mixed_candidate_fallback = 0;
-	unsigned run_break_reasons[BGFX_SORTED_PACKET_BREAK_COUNT] = {};
-	unsigned texture_stage_breaks[RB_MAX_TEXTURE_STAGES] = {};
+	unsigned run_break_reasons[BGFX_SORTED_PACKET_BREAK_COUNT] = { 0 };
+	unsigned texture_stage_breaks[RB_MAX_TEXTURE_STAGES] = { 0 };
 	unsigned texture0_same_name_breaks = 0;
-	unsigned fallback_reasons[BGFX_SORTED_PACKET_FALLBACK_UNKNOWN + 1] = {};
-	unsigned fallback_blend_tris[BGFX_SORTED_PACKET_BLEND_COUNT] = {};
-	unsigned pointgroup_fallback_blend_tris[BGFX_SORTED_PACKET_BLEND_COUNT] = {};
+	unsigned fallback_reasons[BGFX_SORTED_PACKET_FALLBACK_UNKNOWN + 1] = { 0 };
+	unsigned fallback_blend_tris[BGFX_SORTED_PACKET_BLEND_COUNT] = { 0 };
+	unsigned pointgroup_fallback_blend_tris[BGFX_SORTED_PACKET_BLEND_COUNT] = { 0 };
 
 	for (unsigned a = 0; a < tri_count; ++a)
 	{
@@ -1198,7 +1213,7 @@ static void Emit_Sorted_Packet_Collector_Diag(const TempIndexStruct* tis, unsign
 			unsigned unique_keys = 0;
 			for (unsigned a = segment_start; a < segment_end; ++a)
 			{
-				const unsigned long long key = Sort_Node_State_Key(overlapping_nodes[tis[a].idx]->sorting_state);
+				const SortKey64 key = Sort_Node_State_Key(overlapping_nodes[tis[a].idx]->sorting_state);
 				bool found = false;
 				for (unsigned k = 0; k < unique_keys; ++k)
 				{
@@ -1236,7 +1251,7 @@ static void Emit_Sorted_Packet_Collector_Diag(const TempIndexStruct* tis, unsign
 		unsigned unique_keys = 0;
 		for (unsigned a = segment_start; a < segment_end; ++a)
 		{
-			const unsigned long long key = Sort_Node_State_Key(overlapping_nodes[tis[a].idx]->sorting_state);
+			const SortKey64 key = Sort_Node_State_Key(overlapping_nodes[tis[a].idx]->sorting_state);
 			bool found = false;
 			for (unsigned k = 0; k < unique_keys; ++k)
 			{
@@ -1315,7 +1330,7 @@ static TempIndexStruct* coalesce_scratch;
 static unsigned coalesce_scratch_count;
 static bool* coalesce_consumed;
 static unsigned coalesce_consumed_count;
-static unsigned long long* coalesce_node_key;
+static SortKey64* coalesce_node_key;
 static bool* coalesce_node_add;
 static unsigned coalesce_node_capacity;
 
@@ -1331,14 +1346,14 @@ static void Coalesce_Sorted_Pool(TempIndexStruct* tis, unsigned tri_count)
 		delete[] coalesce_node_key;
 		delete[] coalesce_node_add;
 		coalesce_node_capacity = overlapping_node_count;
-		coalesce_node_key = W3DNEWARRAY unsigned long long[coalesce_node_capacity];
+		coalesce_node_key = W3DNEWARRAY SortKey64[coalesce_node_capacity];
 		coalesce_node_add = W3DNEWARRAY bool[coalesce_node_capacity];
 	}
 	for (unsigned node_id = 0; node_id < overlapping_node_count; ++node_id)
 	{
 		const RenderStateStruct& rs = overlapping_nodes[node_id]->sorting_state;
 		coalesce_node_add[node_id] = Is_Coalescable_Additive(rs);
-		coalesce_node_key[node_id] = coalesce_node_add[node_id] ? Sort_Node_State_Key(rs) : 0ULL;
+		coalesce_node_key[node_id] = coalesce_node_add[node_id] ? Sort_Node_State_Key(rs) : SORT_KEY_CONST(0);
 	}
 
 	if (tri_count > coalesce_scratch_count)
@@ -1377,16 +1392,16 @@ static void Coalesce_Sorted_Pool(TempIndexStruct* tis, unsigned tri_count)
 			coalesce_consumed[a] = false;
 		}
 		unsigned out = 0;
-		for (unsigned a = i; a < segment_end; ++a)
+		for (unsigned b2 = i; b2 < segment_end; ++b2)
 		{
-			if (coalesce_consumed[a])
+			if (coalesce_consumed[b2])
 			{
 				continue;
 			}
-			const unsigned long long key = coalesce_node_key[tis[a].idx];
-			coalesce_scratch[out++] = tis[a];
-			coalesce_consumed[a] = true;
-			for (unsigned b = a + 1; b < segment_end; ++b)
+			const SortKey64 key = coalesce_node_key[tis[b2].idx];
+			coalesce_scratch[out++] = tis[b2];
+			coalesce_consumed[b2] = true;
+			for (unsigned b = b2 + 1; b < segment_end; ++b)
 			{
 				if (!coalesce_consumed[b] && coalesce_node_key[tis[b].idx] == key)
 				{
@@ -1666,7 +1681,7 @@ void SortingRendererClass::Flush_Sorting_Pool()
 			GGC_RPROFILE(SORT_POOL_DRAW);
 			// TheSuperHackers @fix stephanmeesters 10/06/2026
 			// Split rendering into chunks to prevent a crash when exceeding the 16-bit index buffer limit.
-			constexpr const unsigned MAX_INDEX_CHUNK = 65535;
+			const unsigned MAX_INDEX_CHUNK = 65535;
 
 			// route bgfx submits through the dedicated sort view
 			// id for the rest of this flush. No-op on DX8Backend.

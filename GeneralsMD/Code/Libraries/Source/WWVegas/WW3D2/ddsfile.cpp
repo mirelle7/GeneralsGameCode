@@ -34,13 +34,8 @@
 
 // ----------------------------------------------------------------------------
 
-static constexpr unsigned Make_DDS_FourCC(char a, char b, char c, char d)
-{
-	return static_cast<unsigned>(a) |
-		(static_cast<unsigned>(b) << 8) |
-		(static_cast<unsigned>(c) << 16) |
-		(static_cast<unsigned>(d) << 24);
-}
+#define Make_DDS_FourCC(a, b, c, d) \
+	((unsigned)(a) | ((unsigned)(b) << 8) | ((unsigned)(c) << 16) | ((unsigned)(d) << 24))
 
 static WW3DFormat DDS_FourCC_To_WW3D_Format(unsigned fourcc)
 {

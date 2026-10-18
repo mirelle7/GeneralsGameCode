@@ -67,11 +67,11 @@
 
 namespace
 {
-	using LegacyRect = RECT;
+	typedef RECT LegacyRect;
 
-	constexpr unsigned kLegacyLockReadOnly = 0x00000010L;
-	constexpr unsigned kLegacySurfaceCopyNoFilter = 1;
-	constexpr unsigned kLegacySurfaceCopyTriangleFilter = 4;
+	const unsigned kLegacyLockReadOnly = 0x00000010L;
+	const unsigned kLegacySurfaceCopyNoFilter = 1;
+	const unsigned kLegacySurfaceCopyTriangleFilter = 4;
 
 	bool Is_Block_Compressed_Format(WW3DFormat format)
 	{
@@ -112,7 +112,8 @@ namespace
 
 struct SurfaceCompatibilityState
 {
-	void *NativeSurface = nullptr;
+	SurfaceCompatibilityState() : NativeSurface(nullptr) {}
+	void *NativeSurface;
 };
 
 #define NativeCompatibilitySurface CompatibilityState->NativeSurface
@@ -121,7 +122,8 @@ struct SurfaceCompatibilityState
 
 static LegacySurfaceCopyRect To_Legacy_Surface_Copy_Rect(const LegacyRect& rect)
 {
-	return {rect.left, rect.top, rect.right, rect.bottom};
+	LegacySurfaceCopyRect copy_rect = {rect.left, rect.top, rect.right, rect.bottom};
+	return copy_rect;
 }
 
 void Convert_Pixel(Vector3 &rgb, const SurfaceClass::SurfaceDescription &sd, const unsigned char * pixel)
@@ -226,14 +228,33 @@ void Convert_Pixel(unsigned char * pixel,const SurfaceClass::SurfaceDescription 
 	}
 }
 
+static SurfaceClass::SurfaceDescription Make_Surface_Description(WW3DFormat format, unsigned width, unsigned height)
+{
+	SurfaceClass::SurfaceDescription desc;
+	desc.Format = format;
+	desc.Width = width;
+	desc.Height = height;
+	return desc;
+}
+
+static SurfaceClass::SurfaceImageData Make_Surface_Image(WW3DFormat format, unsigned width, unsigned height)
+{
+	SurfaceClass::SurfaceImageData image;
+	image.Format = format;
+	image.Width = width;
+	image.Height = height;
+	image.Pitch = 0;
+	return image;
+}
+
 /*************************************************************************
 **                             SurfaceClass
 *************************************************************************/
 SurfaceClass::SurfaceClass(unsigned width, unsigned height, WW3DFormat format):
 	CompatibilityState(new SurfaceCompatibilityState),
 	SurfaceFormat(format),
-	Description{format, width, height},
-	ImageData{format, width, height, 0, {}},
+	Description(Make_Surface_Description(format, width, height)),
+	ImageData(Make_Surface_Image(format, width, height)),
 	RefreshCPUAfterUnlock(false),
 	CPULockActive(false),
 	CPUImagePossiblyStale(false),
@@ -262,8 +283,8 @@ SurfaceClass::SurfaceClass(unsigned width, unsigned height, WW3DFormat format):
 SurfaceClass::SurfaceClass(const char *filename):
 	CompatibilityState(new SurfaceCompatibilityState),
 	SurfaceFormat(WW3D_FORMAT_UNKNOWN),
-	Description{WW3D_FORMAT_UNKNOWN, 0, 0},
-	ImageData{WW3D_FORMAT_UNKNOWN, 0, 0, 0, {}},
+	Description(Make_Surface_Description(WW3D_FORMAT_UNKNOWN, 0, 0)),
+	ImageData(Make_Surface_Image(WW3D_FORMAT_UNKNOWN, 0, 0)),
 	RefreshCPUAfterUnlock(false),
 	CPULockActive(false),
 	CPUImagePossiblyStale(false),
@@ -299,8 +320,8 @@ SurfaceClass::SurfaceClass(const char *filename):
 SurfaceClass::SurfaceClass(const SurfaceImageData &image):
 	CompatibilityState(new SurfaceCompatibilityState),
 	SurfaceFormat(image.Format),
-	Description{image.Format, image.Width, image.Height},
-	ImageData{image.Format, image.Width, image.Height, 0, {}},
+	Description(Make_Surface_Description(image.Format, image.Width, image.Height)),
+	ImageData(Make_Surface_Image(image.Format, image.Width, image.Height)),
 	RefreshCPUAfterUnlock(false),
 	CPULockActive(false),
 	CPUImagePossiblyStale(false),
@@ -318,8 +339,8 @@ SurfaceClass::SurfaceClass(const SurfaceImageData &image):
 	for (unsigned int row = 0; row < Description.Height; ++row)
 	{
 		memcpy(
-			ImageData.Data.data() + row * ImageData.Pitch,
-			image.Data.data() + row * image.Pitch,
+			(&ImageData.Data[0]) + row * ImageData.Pitch,
+			(&image.Data[0]) + row * image.Pitch,
 			row_size);
 	}
 }
@@ -327,8 +348,8 @@ SurfaceClass::SurfaceClass(const SurfaceImageData &image):
 SurfaceClass::SurfaceClass(void *native_compatibility_surface)	:
 	CompatibilityState(new SurfaceCompatibilityState),
 	SurfaceFormat(WW3D_FORMAT_UNKNOWN),
-	Description{WW3D_FORMAT_UNKNOWN, 0, 0},
-	ImageData{WW3D_FORMAT_UNKNOWN, 0, 0, 0, {}},
+	Description(Make_Surface_Description(WW3D_FORMAT_UNKNOWN, 0, 0)),
+	ImageData(Make_Surface_Image(WW3D_FORMAT_UNKNOWN, 0, 0)),
 	RefreshCPUAfterUnlock(false),
 	CPULockActive(false),
 	CPUImagePossiblyStale(false),
@@ -388,7 +409,7 @@ SurfaceClass::LockedSurfacePtr SurfaceClass::Lock(int *pitch)
 		*pitch = ImageData.Pitch;
 		RefreshCPUAfterUnlock = false;
 		CPULockActive = true;
-		return static_cast<LockedSurfacePtr>(ImageData.Data.data());
+		return static_cast<LockedSurfacePtr>((&ImageData.Data[0]));
 	}
 
 #if defined(GGC_RENDER_BACKEND_BGFX)
@@ -416,7 +437,7 @@ SurfaceClass::LockedSurfacePtr SurfaceClass::Lock(int *pitch, const Vector2i &mi
 		RefreshCPUAfterUnlock = false;
 		CPULockActive = true;
 		return static_cast<LockedSurfacePtr>(
-			ImageData.Data.data() +
+			(&ImageData.Data[0]) +
 			min.J * ImageData.Pitch +
 			min.I * pixel_size);
 	}
@@ -494,7 +515,7 @@ void SurfaceClass::Clear()
 		const unsigned int row_size = size * sd.Width;
 		for (unsigned int row = 0; row < sd.Height; ++row)
 		{
-			memset(ImageData.Data.data() + row * ImageData.Pitch, 0, row_size);
+			memset((&ImageData.Data[0]) + row * ImageData.Pitch, 0, row_size);
 		}
 		Upload_CPU_Surface_Snapshot_To_Native_Compatibility_Surface();
 		return;
@@ -565,7 +586,7 @@ void SurfaceClass::Copy(const unsigned char *other, unsigned int pitch)
 		const unsigned int row_size = size * sd.Width;
 		for (unsigned int row = 0; row < sd.Height; ++row)
 		{
-			memcpy(ImageData.Data.data() + row * ImageData.Pitch, other + row * pitch, row_size);
+			memcpy((&ImageData.Data[0]) + row * ImageData.Pitch, other + row * pitch, row_size);
 		}
 		Upload_CPU_Surface_Snapshot_To_Native_Compatibility_Surface();
 		return;
@@ -623,7 +644,7 @@ void SurfaceClass::Copy(const Vector2i &min, const Vector2i &max, const unsigned
 		for (int i=min.J; i<max.J; i++)
 		{
 			unsigned char *dst =
-				ImageData.Data.data() +
+				(&ImageData.Data[0]) +
 				i * ImageData.Pitch +
 				min.I * size;
 			memcpy(dst,&other[(i*sd.Width+min.I)*size],size*dx);
@@ -695,7 +716,7 @@ unsigned char *SurfaceClass::CreateCopy(int *width,int *height,int*size,bool fli
 	{
 		for (unsigned int i = 0; i < sd.Height; i++)
 		{
-			const unsigned char *src = ImageData.Data.data() + i * ImageData.Pitch;
+			const unsigned char *src = (&ImageData.Data[0]) + i * ImageData.Pitch;
 			if (flip)
 			{
 				memcpy(&other[(sd.Height-i-1)*sd.Width*mysize],src,mysize*sd.Width);
@@ -819,7 +840,7 @@ void SurfaceClass::Copy(
 		{
 			if (dst_has_cpu_snapshot)
 			{
-				unsigned char *base = ImageData.Data.data();
+				unsigned char *base = (&ImageData.Data[0]);
 				for (unsigned int y = 0; y < copy_height; ++y)
 				{
 					unsigned char *dst_row = base + (dsty + y) * ImageData.Pitch + dstx * pixel_size;
@@ -852,7 +873,7 @@ void SurfaceClass::Copy(
 			const unsigned char *src_mem = nullptr;
 			unsigned int src_pitch = 0;
 			if (can_copy_from_cpu) {
-				src_mem = other->ImageData.Data.data() + srcy * other->ImageData.Pitch + srcx * pixel_size;
+				src_mem = (&other->ImageData.Data[0]) + srcy * other->ImageData.Pitch + srcx * pixel_size;
 				src_pitch = other->ImageData.Pitch;
 			} else {
 				LegacyRect src_rect;
@@ -867,7 +888,7 @@ void SurfaceClass::Copy(
 
 			if (dst_has_cpu_snapshot)
 			{
-				unsigned char *dst_mem = ImageData.Data.data() + dsty * ImageData.Pitch + dstx * pixel_size;
+				unsigned char *dst_mem = (&ImageData.Data[0]) + dsty * ImageData.Pitch + dstx * pixel_size;
 				for (unsigned int y = 0; y < copy_height; ++y)
 				{
 					memcpy(dst_mem, src_mem, row_size);
@@ -1045,7 +1066,7 @@ void SurfaceClass::FindBB(Vector2i *min,Vector2i*max)
 		for (y = min->J; y < max->J; y++) {
 			for (x = min->I; x < max->I; x++) {
 				const unsigned char *alpha =
-					ImageData.Data.data() +
+					(&ImageData.Data[0]) +
 					y * ImageData.Pitch +
 					x * size;
 				unsigned char myalpha=alpha[size-1];
@@ -1157,7 +1178,7 @@ bool SurfaceClass::Is_Transparent_Column(unsigned int column)
 		for (int y = 0; y < (int) sd.Height; y++)
 		{
 			const unsigned char *alpha =
-				ImageData.Data.data() +
+				(&ImageData.Data[0]) +
 				y * ImageData.Pitch +
 				column * size;
 			unsigned char myalpha=alpha[size-1];
@@ -1342,7 +1363,7 @@ void SurfaceClass::Capture_CPU_Surface_Snapshot()
 	DX8_ErrorCode(NATIVE_COMPATIBILITY_SURFACE->LockRect(&lock_rect, nullptr, kLegacyLockReadOnly));
 
 	const unsigned char *src = static_cast<const unsigned char *>(lock_rect.pBits);
-	unsigned char *dst = ImageData.Data.data();
+	unsigned char *dst = (&ImageData.Data[0]);
 	for (unsigned int row = 0; row < Description.Height; ++row)
 	{
 		memcpy(dst, src, row_size);
@@ -1381,7 +1402,7 @@ void SurfaceClass::Upload_CPU_Surface_Snapshot_To_Native_Compatibility_Surface()
 		::ZeroMemory(&lock_rect, sizeof(lock_rect));
 		DX8_ErrorCode(NATIVE_COMPATIBILITY_SURFACE->LockRect(&lock_rect, nullptr, 0));
 
-		const unsigned char *src = ImageData.Data.data();
+		const unsigned char *src = (&ImageData.Data[0]);
 		unsigned char *dst = static_cast<unsigned char *>(lock_rect.pBits);
 		for (unsigned int row = 0; row < Description.Height; ++row)
 		{

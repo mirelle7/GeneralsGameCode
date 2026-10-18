@@ -1436,9 +1436,9 @@ void WW3D::Make_Screen_Shot( const char * filename_base , const float gamma, con
 			// index for fb
 			index2=y*capture.Pitch+4*x;
 
-			image[index]   = gamma_lut[*(capture.Bytes.data() + index2+2)];
-			image[index+1] = gamma_lut[*(capture.Bytes.data() + index2+1)];
-			image[index+2] = gamma_lut[*(capture.Bytes.data() + index2+0)];
+			image[index]   = gamma_lut[*((&capture.Bytes[0]) + index2+2)];
+			image[index+1] = gamma_lut[*((&capture.Bytes[0]) + index2+1)];
+			image[index+2] = gamma_lut[*((&capture.Bytes[0]) + index2+0)];
 		}
 	}
 
@@ -1761,9 +1761,9 @@ void WW3D::Update_Movie_Capture()
 			// index for fb
 			index2=y*capture.Pitch+4*x;
 
-			image[index]=*((char *) capture.Bytes.data() + index2+0);
-			image[index+1]=*((char *) capture.Bytes.data() + index2+1);
-			image[index+2]=*((char *) capture.Bytes.data() + index2+2);
+			image[index]=*((char *) (&capture.Bytes[0]) + index2+0);
+			image[index+1]=*((char *) (&capture.Bytes[0]) + index2+1);
+			image[index+2]=*((char *) (&capture.Bytes[0]) + index2+2);
 		}
 	}
 

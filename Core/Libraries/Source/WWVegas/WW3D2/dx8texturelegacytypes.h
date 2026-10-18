@@ -25,18 +25,18 @@
 #endif
 
 #if defined(GGC_RENDER_BACKEND_BGFX)
-using LegacyBaseTexture = NativeCompatibilityBaseTexture;
-using LegacySurface = NativeCompatibilitySurface;
-using NativeCompatibilityTextureSurface = NativeCompatibilitySurface;
-using LegacySurfaceDesc = NativeCompatibilitySurfaceDesc;
-using LegacyVolumeDesc = NativeCompatibilityVolumeDesc;
-using LegacyLockedRect = NativeCompatibilityLockedRect;
+typedef NativeCompatibilityBaseTexture LegacyBaseTexture;
+typedef NativeCompatibilitySurface LegacySurface;
+typedef NativeCompatibilitySurface NativeCompatibilityTextureSurface;
+typedef NativeCompatibilitySurfaceDesc LegacySurfaceDesc;
+typedef NativeCompatibilityVolumeDesc LegacyVolumeDesc;
+typedef NativeCompatibilityLockedRect LegacyLockedRect;
 
-using LegacyLoaderTexture = NativeCompatibilityTexture2D;
-using LegacyLoaderSurface = NativeCompatibilitySurface;
-using LegacyLoaderCubeTexture = NativeCompatibilityCubeTexture;
-using LegacyLoaderVolumeTexture = NativeCompatibilityVolumeTexture;
-using LegacyLoaderLockedRect = NativeCompatibilityLockedRect;
-using LegacyLoaderLockedBox = NativeCompatibilityLockedBox;
-using LegacyLoaderCubeFace = NativeCompatibilityCubeFace;
+typedef NativeCompatibilityTexture2D LegacyLoaderTexture;
+typedef NativeCompatibilitySurface LegacyLoaderSurface;
+typedef NativeCompatibilityCubeTexture LegacyLoaderCubeTexture;
+typedef NativeCompatibilityVolumeTexture LegacyLoaderVolumeTexture;
+typedef NativeCompatibilityLockedRect LegacyLoaderLockedRect;
+typedef NativeCompatibilityLockedBox LegacyLoaderLockedBox;
+typedef NativeCompatibilityCubeFace LegacyLoaderCubeFace;
 #endif

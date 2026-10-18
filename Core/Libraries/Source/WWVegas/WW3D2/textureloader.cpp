@@ -66,7 +66,11 @@
 #include "bitmaphandler.h"
 #include "DXTUtils.h"
 #include "WWDebug/wwprofile.h"
+#if defined(_MSC_VER) && _MSC_VER < 1300
+#include <stdio.h> // STLport on VC6 has a <cstdio> that clashes with Utility/stdio_adapter.h
+#else
 #include <cstdio>
+#endif
 #include <cstring>
 #include <utility>
 
@@ -74,9 +78,9 @@ namespace
 {
 	unsigned s_mainRenderThreadId = 0;
 
-	constexpr auto kLegacyManagedPool = LEGACY_TEXTURE_POOL_MANAGED;
-	constexpr auto kLegacySystemPool = LEGACY_TEXTURE_POOL_SYSTEMMEM;
-	constexpr auto kLegacyDefaultPool = LEGACY_TEXTURE_POOL_DEFAULT;
+	const LegacyTexturePoolKind kLegacyManagedPool = LEGACY_TEXTURE_POOL_MANAGED;
+	const LegacyTexturePoolKind kLegacySystemPool = LEGACY_TEXTURE_POOL_SYSTEMMEM;
+	const LegacyTexturePoolKind kLegacyDefaultPool = LEGACY_TEXTURE_POOL_DEFAULT;
 
 	bool Is_CPU_Texture_Snapshot_Staging_Format(WW3DFormat format)
 	{
@@ -386,7 +390,7 @@ private:
 	unsigned int			Get_Locked_Volume_Slice_Pitch(unsigned int level);
 
 #if !defined(GGC_RENDER_BACKEND_BGFX)
-	auto*	Peek_Native_Compatibility_Volume_Texture()				{ return static_cast<decltype(Peek_Legacy_Volume_Texture(*Texture))>(NativeCompatibilityTexture);		}
+	LegacyLoaderVolumeTexture*	Peek_Native_Compatibility_Volume_Texture()				{ return static_cast<LegacyLoaderVolumeTexture *>(NativeCompatibilityTexture);		}
 #endif
 
 	unsigned	int			LockedSurfaceSlicePitch[MIP_LEVELS_MAX];
@@ -693,7 +697,12 @@ static RenderBackendTextureLimits Get_Backend_Texture_Limits()
 		return limits;
 	}
 
-	return { DEFAULT_MAX_TEXTURE_DIMENSION, DEFAULT_MAX_TEXTURE_DIMENSION, DEFAULT_MAX_TEXTURE_DIMENSION, DEFAULT_MAX_TEXTURE_ASPECT };
+	RenderBackendTextureLimits defaults;
+	defaults.max_width = DEFAULT_MAX_TEXTURE_DIMENSION;
+	defaults.max_height = DEFAULT_MAX_TEXTURE_DIMENSION;
+	defaults.max_volume_extent = DEFAULT_MAX_TEXTURE_DIMENSION;
+	defaults.max_aspect_ratio = DEFAULT_MAX_TEXTURE_ASPECT;
+	return defaults;
 }
 
 
@@ -973,25 +982,25 @@ static bool Build_CPU_Texture_Thumbnail(
 		BitmapHandlerClass::Copy_Image_Generate_Mipmap(
 			mips[level].Width,
 			mips[level].Height,
-			mips[level].Data.data(),
+			(&mips[level].Data[0]),
 			mips[level].Pitch,
 			dest_format,
 			src_surface,
 			src_pitch,
 			src_format,
-			mips[level + 1].Data.data(),
+			(&mips[level + 1].Data[0]),
 			mips[level + 1].Pitch,
 			hsv);
 		hsv = Vector3(0.0f, 0.0f, 0.0f);
 		src_format = dest_format;
-		src_surface = mips[level].Data.data();
+		src_surface = (&mips[level].Data[0]);
 		src_pitch = mips[level].Pitch;
 	}
 
 	if (level_count == 1)
 	{
 		BitmapHandlerClass::Copy_Image(
-			mips[0].Data.data(),
+			(&mips[0].Data[0]),
 			mips[0].Width,
 			mips[0].Height,
 			mips[0].Pitch,
@@ -1163,7 +1172,11 @@ bool TextureLoader::Load_Surface_Image_Immediate(
 {
 	WWASSERT(Is_Main_Render_Thread());
 
-	image = {WW3D_FORMAT_UNKNOWN, 0, 0, 0, {}};
+	image.Format = WW3D_FORMAT_UNKNOWN;
+	image.Width = 0;
+	image.Height = 0;
+	image.Pitch = 0;
+	image.Data.clear();
 	if (Is_Format_Compressed(texture_format, allow_compression)) {
 		return false;
 	}
@@ -1244,7 +1257,7 @@ bool TextureLoader::Load_Surface_Image_Immediate(
 	image.Data.resize(static_cast<size_t>(image.Pitch) * image.Height);
 
 	BitmapHandlerClass::Copy_Image(
-		image.Data.data(),
+		(&image.Data[0]),
 		width,
 		height,
 		image.Pitch,
@@ -1624,7 +1637,7 @@ void TextureLoader::Load_Thumbnail(TextureBaseClass *tc)
 			texture->TextureFormat = format;
 			texture->Width = mips[0].Width;
 			texture->Height = mips[0].Height;
-			texture->Set_CPU_Texture_Snapshot(std::move(mips));
+			texture->Set_CPU_Texture_Snapshot(mips);
 			texture->LastAccessed = WW3D::Get_Sync_Time();
 			if (WW3D::Get_Render_Backend() != nullptr) {
 				WW3D::Get_Render_Backend()->Invalidate_Cached_Texture(texture);
@@ -1638,7 +1651,7 @@ void TextureLoader::Load_Thumbnail(TextureBaseClass *tc)
 		texture->TextureFormat = WW3D_FORMAT_A8R8G8B8;
 		texture->Width = mips[0].Width;
 		texture->Height = mips[0].Height;
-		texture->Set_CPU_Texture_Snapshot(std::move(mips));
+		texture->Set_CPU_Texture_Snapshot(mips);
 		texture->Mark_Missing_Texture(true);
 		texture->LastAccessed = WW3D::Get_Sync_Time();
 		if (WW3D::Get_Render_Backend() != nullptr) {
@@ -2047,7 +2060,7 @@ void TextureLoadTaskClass::Apply_Missing_Texture()
 		texture->TextureFormat = WW3D_FORMAT_A8R8G8B8;
 		Texture->Width = mips[0].Width;
 		Texture->Height = mips[0].Height;
-		Texture->Set_CPU_Texture_Snapshot(std::move(mips));
+		Texture->Set_CPU_Texture_Snapshot(mips);
 		Texture->Initialized = true;
 		Texture->Mark_Missing_Texture(true);
 		Texture->LastAccessed = WW3D::Get_Sync_Time();
@@ -2236,8 +2249,8 @@ static void Validate_Reduction(const TextureBaseClass* texture, unsigned& reduct
 }
 
 // Will not present textures smaller than 4 pixels wide or high.
-static constexpr const unsigned MinTextureDim = 4u;
-static constexpr const unsigned MinTextureDepth = 1u;
+static const unsigned MinTextureDim = 4u;
+static const unsigned MinTextureDepth = 1u;
 
 // If the size doesn't match, try and see if texture reduction would help...
 // (mainly for cases where loaded texture is larger than hardware limit)
@@ -2736,7 +2749,7 @@ void TextureLoadTaskClass::Capture_CPU_Texture_Snapshot_From_Locked_Surfaces()
 		mips.push_back(mip);
 	}
 
-	Texture->Set_CPU_Texture_Snapshot(std::move(mips));
+	Texture->Set_CPU_Texture_Snapshot(mips);
 #endif
 }
 
@@ -2813,7 +2826,7 @@ void TextureLoadTaskClass::Allocate_CPU_Texture_Staging()
 		mip.Pitch = pitch;
 		mip.Format = Format;
 		mip.Data.resize(static_cast<size_t>(mip.Pitch) * rows);
-		LockedSurfacePtr[level] = mip.Data.data();
+		LockedSurfacePtr[level] = (&mip.Data[0]);
 		LockedSurfacePitch[level] = mip.Pitch;
 
 		width >>= 1;
@@ -2834,7 +2847,7 @@ void TextureLoadTaskClass::Commit_CPU_Texture_Staging(bool initialize)
 		Texture->Width = StagedCPUTextureMips[0].Width;
 		Texture->Height = StagedCPUTextureMips[0].Height;
 	}
-	Texture->Set_CPU_Texture_Snapshot(std::move(StagedCPUTextureMips));
+	Texture->Set_CPU_Texture_Snapshot(StagedCPUTextureMips);
 	StagedCPUTextureMips.clear();
 	if (initialize) {
 		Texture->Initialized = true;

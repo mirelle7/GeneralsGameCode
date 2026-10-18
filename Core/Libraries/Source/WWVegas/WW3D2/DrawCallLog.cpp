@@ -3,7 +3,11 @@
 #include "DrawCallLog.h"
 #include "GgcRuntimeFlags.h"
 
+#if defined(_MSC_VER) && _MSC_VER < 1300
+#include <stdio.h> // STLport on VC6 has a <cstdio> that clashes with Utility/stdio_adapter.h
+#else
 #include <cstdio>
+#endif
 #include <cstdlib>
 #include <cstring>
 
@@ -12,7 +16,7 @@ namespace
 
 static int s_targetFrame = -1;
 static int s_interval = 0;
-static char s_basePath[512] = {};
+static char s_basePath[512] = { 0 };
 static bool s_envResolved = false;
 static int s_frameIndex = 0;
 static FILE * s_currentFile = nullptr;
@@ -38,7 +42,7 @@ void Resolve_Env()
     // game's spawn chain resets the env block. See README for details.
     if (s_basePath[0] != '\0') {
         char marker[640];
-        std::snprintf(marker, sizeof(marker), "%s.startup.txt", s_basePath);
+        snprintf(marker, sizeof(marker), "%s.startup.txt", s_basePath);
         FILE * f = std::fopen(marker, "w");
         if (f != nullptr) {
             std::fprintf(f, "after=%d interval=%d path=%s\n",
@@ -70,7 +74,7 @@ void Open_Current_File_If_Needed()
         return;
     }
     char path[640];
-    std::snprintf(path, sizeof(path), "%s.%06d.csv", s_basePath, s_frameIndex);
+    snprintf(path, sizeof(path), "%s.%06d.csv", s_basePath, s_frameIndex);
     s_currentFile = std::fopen(path, "w");
     if (s_currentFile != nullptr) {
         std::fprintf(s_currentFile,
@@ -135,7 +139,7 @@ void DrawCallLog_End_Frame()
 
     if (s_basePath[0] != '\0' && (s_frameIndex % 60) == 0) {
         char marker[640];
-        std::snprintf(marker, sizeof(marker), "%s.heartbeat.txt", s_basePath);
+        snprintf(marker, sizeof(marker), "%s.heartbeat.txt", s_basePath);
         FILE * f = std::fopen(marker, "a");
         if (f != nullptr) {
             std::fprintf(f, "frame=%d\n", s_frameIndex);

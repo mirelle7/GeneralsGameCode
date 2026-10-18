@@ -79,10 +79,11 @@ struct RenderBackendLight
 
 struct RenderBackendImage
 {
-    unsigned Width = 0;
-    unsigned Height = 0;
-    WW3DFormat Format = WW3D_FORMAT_UNKNOWN;
-    unsigned Pitch = 0;
+    RenderBackendImage() : Width(0), Height(0), Format(WW3D_FORMAT_UNKNOWN), Pitch(0) {}
+    unsigned Width;
+    unsigned Height;
+    WW3DFormat Format;
+    unsigned Pitch;
     std::vector<std::uint8_t> Bytes;
 
     bool Is_Valid() const
@@ -93,9 +94,10 @@ struct RenderBackendImage
 
 struct RenderBackendSurfaceDescription
 {
-    unsigned Width = 0;
-    unsigned Height = 0;
-    WW3DFormat Format = WW3D_FORMAT_UNKNOWN;
+    RenderBackendSurfaceDescription() : Width(0), Height(0), Format(WW3D_FORMAT_UNKNOWN) {}
+    unsigned Width;
+    unsigned Height;
+    WW3DFormat Format;
 
     bool Is_Valid() const
     {
@@ -208,13 +210,14 @@ struct RenderBackendMaterialState
 
 struct RenderBackendSortedMaterialSnapshot
 {
-    float diffuse[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-    float ambient[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-    float specular[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-    float emissive[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-    float vertex_color_flags[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-    float lighting_enabled[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-    bool valid = false;
+    RenderBackendSortedMaterialSnapshot() : valid(false) { diffuse[0] = 1.0f; diffuse[1] = 1.0f; diffuse[2] = 1.0f; diffuse[3] = 1.0f; ambient[0] = 1.0f; ambient[1] = 1.0f; ambient[2] = 1.0f; ambient[3] = 1.0f; specular[0] = 0.0f; specular[1] = 0.0f; specular[2] = 0.0f; specular[3] = 1.0f; emissive[0] = 0.0f; emissive[1] = 0.0f; emissive[2] = 0.0f; emissive[3] = 0.0f; vertex_color_flags[0] = 0.0f; vertex_color_flags[1] = 0.0f; vertex_color_flags[2] = 0.0f; vertex_color_flags[3] = 0.0f; lighting_enabled[0] = 0.0f; lighting_enabled[1] = 0.0f; lighting_enabled[2] = 0.0f; lighting_enabled[3] = 0.0f; }
+    float diffuse[4];
+    float ambient[4];
+    float specular[4];
+    float emissive[4];
+    float vertex_color_flags[4];
+    float lighting_enabled[4];
+    bool valid;
 };
 
 struct RenderBackendDeviceIdentity
@@ -667,7 +670,12 @@ public:
     virtual bool Supports_Point_Sprites() const { return false; }
     virtual RenderBackendTextureLimits Get_Texture_Limits() const
     {
-        return { 2048, 2048, 2048, 8 };
+        RenderBackendTextureLimits limits;
+        limits.max_width = 2048;
+        limits.max_height = 2048;
+        limits.max_volume_extent = 2048;
+        limits.max_aspect_ratio = 8;
+        return limits;
     }
     virtual int Get_Max_Texture_Stages() const { return RB_MAX_TEXTURE_STAGES; }
     virtual bool Supports_Z_Bias() const { return false; }

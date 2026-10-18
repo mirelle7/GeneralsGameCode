@@ -50,7 +50,7 @@ namespace
 #endif
 
 	LegacyLoaderTexture *s_missingTexture = nullptr;
-	constexpr unsigned kLegacyMipFilterBox = 5;
+	const unsigned kLegacyMipFilterBox = 5;
 
 	HRESULT Filter_Legacy_Texture_Mips_Compat(LegacyBaseTexture *base_texture, unsigned int src_level)
 	{

@@ -394,6 +394,11 @@ const Blend dstBlendLUT[ShaderClass::DSTBLEND_MAX] =
 };
 
 
+static bool supports_texture_op(RenderBackendTextureOpCapability capability)
+{
+	return WW3D::Get_Render_Backend() && WW3D::Get_Render_Backend()->Supports_Texture_Op(capability);
+}
+
 /***********************************************************************************************
  * ShaderClass::Apply -- Apply the renderstates for this shader                                *
  *                                                                                             *
@@ -410,9 +415,6 @@ void ShaderClass::Apply()
 {
 	unsigned long diff;
 
-	auto supports_texture_op = [](RenderBackendTextureOpCapability capability) -> bool {
-		return WW3D::Get_Render_Backend() && WW3D::Get_Render_Backend()->Supports_Texture_Op(capability);
-	};
 
 	if (ShaderDirty)
 	{

@@ -40,7 +40,7 @@ public:
 	{
 	}
 
-	virtual ~TextureTrackerClass() = default;
+	virtual ~TextureTrackerClass() {}
 	virtual void Release() const = 0;
 	virtual void Recreate() const = 0;
 

@@ -224,7 +224,7 @@ Bitmap2DObjClass::Bitmap2DObjClass
 
 					const unsigned row_bytes = copy_width * bytes_per_pixel;
 					for (unsigned row = 0; row < copy_height; ++row) {
-						const unsigned char *src = source_mip->Data.data() + (tlpy + row) * source_mip->Pitch + tlpx * bytes_per_pixel;
+						const unsigned char *src = (&source_mip->Data[0]) + (tlpy + row) * source_mip->Pitch + tlpx * bytes_per_pixel;
 						unsigned char *dst = mip.Data + row * mip.Pitch;
 						::memcpy(dst, src, row_bytes);
 					}
