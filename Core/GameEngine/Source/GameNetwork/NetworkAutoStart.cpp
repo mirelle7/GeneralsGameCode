@@ -317,6 +317,7 @@ void NetworkAutoStart::fail(const char *message)
 	s_actionPending = false;
 	DEBUG_LOG(("NetworkAutoStart failed: %s", message));
 	printf("NetworkAutoStart failed: %s\n", message);
+	fflush(stdout);
 }
 
 void NetworkAutoStart::updateDirectConnect()
@@ -509,6 +510,7 @@ void NetworkAutoStart::onGameStart()
 	s_gameStarted = true;
 	DEBUG_LOG(("NetworkAutoStart entered the network game"));
 	printf("NetworkAutoStart entered the network game\n");
+	fflush(stdout);
 }
 
 #endif
