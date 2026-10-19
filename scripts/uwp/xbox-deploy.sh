@@ -37,12 +37,20 @@ for _ in $(seq 1 600); do
 done
 
 if [[ "$launch" == "--launch" ]]; then
-    full="$(curl -sk "${auth[@]}" -b "$jar" "$base/api/app/packagemanager/packages" |
-        python -X utf8 -c "import json,sys; d=json.load(sys.stdin); print(next(p['PackageFullName'] for p in d['InstalledPackages'] if p['PackageFullName'].startswith('TheSuperHackers.GeneralsZH_')))")"
-    praid="$(curl -sk "${auth[@]}" -b "$jar" "$base/api/app/packagemanager/packages" |
-        python -X utf8 -c "import json,sys; d=json.load(sys.stdin); print(next(p['PackageRelativeId'] for p in d['InstalledPackages'] if p['PackageFullName'].startswith('TheSuperHackers.GeneralsZH_')))")"
+    # Launch the package that was just installed: the newest GeneralsZH version listed,
+    # not the first one (an older version can still be listed right after an update).
+    info="$(curl -sk "${auth[@]}" -b "$jar" "$base/api/app/packagemanager/packages" |
+        python -X utf8 -c "
+import json,sys
+d=json.load(sys.stdin)
+p=[p for p in d['InstalledPackages'] if p['PackageFullName'].startswith('TheSuperHackers.GeneralsZH_')]
+v=lambda p:(p['Version']['Major'],p['Version']['Minor'],p['Version']['Build'],p['Version']['Revision'])
+p=max(p,key=v)
+print(p['PackageFullName']+'|'+p['PackageRelativeId'])")"
+    full="${info%%|*}"
+    praid="${info##*|}"
     echo "Launching $praid ($full)"
-    curl -sk "${auth[@]}" -b "$jar" -H "X-CSRF-Token: ${csrf}" -X POST -d "" \
-        "$base/api/taskmanager/app?appid=$(printf %s "$praid" | base64 -w0)&package=$(printf %s "$full" | base64 -w0)" \
-        -w '\nHTTP %{http_code}\n'
+    curl -sk "${auth[@]}" -b "$jar" -H "X-CSRF-Token: ${csrf}" -X POST -d ""         "$base/api/taskmanager/app?appid=$(printf %s "$praid" | base64 -w0)&package=$(printf %s "$full" | base64 -w0)"         -w '
+HTTP %{http_code}
+'
 fi
