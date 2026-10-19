@@ -48,7 +48,8 @@ target_sources(deps_utility PRIVATE ${UTILITY_SRC})
 if((UNIX OR ANDROID) AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(deps_utility INTERFACE
         ${CMAKE_SOURCE_DIR}/Core/Libraries/Source/WWVegas/compat/win32_shims
-        ${CMAKE_SOURCE_DIR}/Core/Libraries/Source/WWVegas) # for WWLib/bittype.h used by the shim windows.h
+        ${CMAKE_SOURCE_DIR}/Core/Libraries/Source/WWVegas
+        ${CMAKE_SOURCE_DIR}/Core/Libraries/Source/WWVegas/WWLib) # for bittype.h used by the shim windows.h
     target_precompile_headers(deps_utility INTERFACE <windows.h>)
 endif()
 

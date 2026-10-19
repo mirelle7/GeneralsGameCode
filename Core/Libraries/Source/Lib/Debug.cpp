@@ -52,6 +52,9 @@
 #include <string.h>
 #include <time.h>
 #include <Utility/stdio_adapter.h>
+#ifndef _WIN32
+#include <Utility/time_compat.h>
+#endif
 #include <Utility/stringex.h>
 #if !defined(_WIN32)
 #include <Utility/time_compat.h> // GetTickCount
