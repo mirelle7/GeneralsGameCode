@@ -45,6 +45,14 @@ target_link_libraries(core_libraries PRIVATE
     gamemath
 )
 
+# Debug.cpp reads <windows.h>; off Windows that resolves to the compat shim.
+if(NOT WIN32)
+    target_include_directories(core_libraries PRIVATE
+        ${CMAKE_SOURCE_DIR}/Core/Libraries/Source/WWVegas/compat/win32_shims
+        ${CMAKE_SOURCE_DIR}/Core/Libraries/Source/WWVegas
+    )
+endif()
+
 # Makes the game base macros and types available in every C++ translation unit
 # of the targets that link this.
 # Force included rather than precompiled, because a precompiled header entry

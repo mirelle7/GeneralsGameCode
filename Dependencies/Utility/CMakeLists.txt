@@ -44,7 +44,8 @@ target_sources(deps_utility PRIVATE ${UTILITY_SRC})
 # the PCH. This lets the Xcode generator drop the separate forced -include windows.h
 # (which it places before the PCH and thereby disables it). The include dir is added
 # so <windows.h> resolves to the shim during PCH compilation.
-if(UNIX OR ANDROID)
+# Not applied on Linux, where trunk never needed the shim PCH.
+if((UNIX OR ANDROID) AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(deps_utility INTERFACE
         ${CMAKE_SOURCE_DIR}/Core/Libraries/Source/WWVegas/compat/win32_shims
         ${CMAKE_SOURCE_DIR}/Core/Libraries/Source/WWVegas) # for WWLib/bittype.h used by the shim windows.h

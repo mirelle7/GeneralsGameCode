@@ -68,4 +68,10 @@ if(WIN32)
     target_link_libraries(core_profile_legacy PRIVATE
         core_debug
     )
+else()
+    # core_debug is not built here, but the debug headers that internal.h reads are.
+    # -iquote, not -I: an angle-bracket <debug/...> must keep resolving to libstdc++'s.
+    target_compile_options(core_profile_legacy PRIVATE
+        -iquote ${CMAKE_CURRENT_SOURCE_DIR}/../debug/Include
+    )
 endif()
