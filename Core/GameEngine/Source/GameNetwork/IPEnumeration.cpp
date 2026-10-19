@@ -55,11 +55,17 @@ extern "C" unsigned int ggc_url_ip_full(void)
 {
 	return (unsigned int)EM_ASM_INT({
 		var s = location.search || '';
-		var m = /[?&]ip=(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?:&|$)/.exec(s);
+		var m = /[?&]ip=([0-9.]+)/.exec(s);
 		if (!m) return 0;
-		var a = +m[1], b = +m[2], c = +m[3], d = +m[4];
-		if (a > 255 || b > 255 || c > 255 || d > 255) return 0;
-		return ((a << 24) | (b << 16) | (c << 8) | d) >>> 0;
+		var q = m[1].split('.');
+		if (q.length != 4) return 0;
+		var r = 0;
+		for (var k = 0; k < 4; ++k) {
+			var n = parseInt(q[k]);
+			if (!(n >= 0 && n <= 255)) return 0;
+			r = r * 256 + n;
+		}
+		return r | 0;
 	});
 }
 #endif
