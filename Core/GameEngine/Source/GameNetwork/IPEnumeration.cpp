@@ -48,10 +48,11 @@ extern "C" int ggc_url_ip_index(void)
 }
 #endif
 
-#ifndef _WIN32
+// TheSuperHackers @build Nintendo Switch (libnx) has no getifaddrs, so it offers no local IPs here.
+#if !defined(_WIN32) && !defined(__SWITCH__)
 #include <ifaddrs.h>
 #include <net/if.h>
-#else
+#elif defined(_WIN32)
 // TheSuperHackers @build bobtista 12/06/2026 INTERFACE_INFO / SIO_GET_INTERFACE_LIST (used by
 // getSubnetBroadcastAddress) are declared in ws2ipdef.h, which winsock2.h does not include by default.
 #if !defined(_MSC_VER) || _MSC_VER >= 1300 // VC6 declares these in winsock2.h
@@ -182,7 +183,7 @@ EnumeratedIP * IPEnumeration::getAddresses()
 			(UnsignedByte)entry[2],
 			(UnsignedByte)entry[3]);
 	}
-#else
+#elif !defined(__SWITCH__)
 	// TheSuperHackers @feature bobtista 09/06/2026 Enumerate every local IPv4 interface via
 	// getifaddrs. gethostbyname(hostname) only returns the addresses the host name resolves to
 	// on non-Windows, which omits VPN/tunnel adapters (Hamachi, ZeroTier, utun) that are needed
@@ -255,7 +256,7 @@ UnsignedInt IPEnumeration::getSubnetBroadcastAddress( UnsignedInt localIP )
 		}
 		closesocket(sock);
 	}
-#else
+#elif !defined(__SWITCH__)
 	struct ifaddrs *ifaddrList = nullptr;
 	if (getifaddrs(&ifaddrList) == 0)
 	{

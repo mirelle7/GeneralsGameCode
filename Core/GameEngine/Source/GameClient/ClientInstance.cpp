@@ -50,6 +50,11 @@ static int s_instanceLockFd = -1;
 
 static InstanceLockResult acquireInstanceLock(const char* name)
 {
+#if defined(__SWITCH__)
+	// TheSuperHackers @build Nintendo Switch has no flock and only ever runs one instance.
+	(void)name;
+	return INSTANCE_LOCK_ACQUIRED;
+#else
 	const char* tmpDir = std::getenv("TMPDIR");
 	std::string path = (tmpDir != nullptr && tmpDir[0] != '\0') ? tmpDir : "/tmp";
 	if (path[path.size() - 1] != '/')
@@ -73,6 +78,7 @@ static InstanceLockResult acquireInstanceLock(const char* name)
 	}
 	s_instanceLockFd = fd;
 	return INSTANCE_LOCK_ACQUIRED;
+#endif
 }
 #endif
 
