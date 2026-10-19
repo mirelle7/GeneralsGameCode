@@ -16,8 +16,11 @@
 # Control (WebSocket TEXT frame), relay -> client only:
 #   "IP a.b.c.d"   sent once on connect to tell the client its assigned virtual IP.
 
+import argparse
 import socket
 import struct
+import sys
+import time
 import threading
 import hashlib
 import base64
@@ -32,6 +35,15 @@ _lock = threading.Lock()
 _clients = {}          # assigned_ip(int) -> Client
 _next_host = 2         # 10.0.0.2 upward
 _dgram_count = 0       # routed-datagram counter (for throttled logging)
+
+# Optional bridge to the real LAN (--bridge-ip). Lets a browser tab whose identity is a real,
+# routable LAN IP (?ip=a.b.c.d) play against native builds (e.g. macOS) that speak real UDP.
+_bridge_ip = 0         # the LAN IP the bridged tab(s) use as identity (int, 0 = bridge off)
+_bridge_bcast = 0      # directed-broadcast address to send LAN broadcasts to (int)
+_bridge_ports = (8086, 8088)   # lobby (LANAPI) and game (NETWORK_BASE_PORT_NUMBER) ports
+_udp = {}              # local port -> real UDP socket
+_udp_lock = threading.Lock()
+_bridge_stats = {"lan_in": 0, "lan_out": 0, "self_dropped": 0}
 
 
 def ip_to_int(a, b, c, d):
@@ -141,10 +153,87 @@ def read_frame(conn):
     return opcode, payload
 
 
+def _is_lan_ip(ip):
+    """A real LAN address (not our virtual 10.0.0.x or a 127.x loopback identity)."""
+    top = (ip >> 24) & 255
+    return ip != 0 and ip != BROADCAST_IP and top not in (127,) and (ip >> 8) != 0x0A0000
+
+
+def get_udp(port):
+    """Real UDP socket bound to `port` on all interfaces (created on demand, with a reader)."""
+    with _udp_lock:
+        sock = _udp.get(port)
+        if sock is not None:
+            return sock
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        sock.bind(("0.0.0.0", port))
+        _udp[port] = sock
+        threading.Thread(target=udp_reader, args=(sock, port), daemon=True).start()
+        print("[bridge] real UDP socket bound on 0.0.0.0:%d" % port)
+        return sock
+
+
+def udp_reader(sock, port):
+    """Real LAN -> WebSocket: wrap each datagram and hand it to the bridged client(s)."""
+    while True:
+        try:
+            data, (ip, sport) = sock.recvfrom(65535)
+        except OSError:
+            return
+        a, b, c, d = (int(x) for x in ip.split("."))
+        src = ip_to_int(a, b, c, d)
+        if src == _bridge_ip:
+            # Our own outgoing datagram looped back (broadcasts are delivered locally).
+            _bridge_stats["self_dropped"] += 1
+            continue
+        frame = HEADER.pack(src, sport, _bridge_ip, port) + data
+        with _lock:
+            targets = [c for c in _clients.values() if c.declared_ip == _bridge_ip]
+        _bridge_stats["lan_in"] += 1
+        if _bridge_stats["lan_in"] <= 12 or _bridge_stats["lan_in"] % 500 == 0:
+            print("[bridge] LAN->ws #%d %s:%d -> :%d len=%d -> %d client(s)" %
+                  (_bridge_stats["lan_in"], ip, sport, port, len(data), len(targets)))
+        for t in targets:
+            t.send_binary(frame)
+
+
+def lan_send(src_port, dst_ip, dst_port, data):
+    """WebSocket -> real LAN."""
+    sock = get_udp(src_port)
+    dests = []
+    if dst_ip == BROADCAST_IP:
+        dests.append(int_to_ip(_bridge_bcast))
+    else:
+        dests.append(int_to_ip(dst_ip))
+    _bridge_stats["lan_out"] += 1
+    n = _bridge_stats["lan_out"]
+    for d in dests:
+        if n <= 12 or n % 500 == 0:
+            print("[bridge] ws->LAN #%d :%d -> %s:%d len=%d" % (n, src_port, d, dst_port, len(data)))
+        try:
+            sock.sendto(data, (d, dst_port))
+        except OSError as e:
+            print("[bridge] sendto %s:%d failed: %s" % (d, dst_port, e))
+
+
 def route_datagram(sender, payload):
     if len(payload) < HEADER.size:
         return
     src_ip, _src_port, dst_ip, _dst_port = HEADER.unpack(payload[:HEADER.size])
+    bridged = False
+    if _bridge_ip:
+        # Anything a bridged tab sends to a real LAN host (or broadcast) goes out as real UDP;
+        # a broadcast additionally fans out to the other WebSocket clients below.
+        if src_ip == _bridge_ip and (dst_ip == BROADCAST_IP or _is_lan_ip(dst_ip)):
+            with _lock:
+                known = any(c.declared_ip == dst_ip for c in _clients.values())
+            if dst_ip == BROADCAST_IP or not known:
+                lan_send(_src_port, dst_ip, _dst_port, payload[HEADER.size:])
+                bridged = True
+        if bridged and dst_ip != BROADCAST_IP:
+            return
     # The client declares its own identity (the IP it selected in Options) in the src
     # field. Learn it so peers can reach this client by that IP, and forward the frame
     # unchanged (keep the declared src so the receiver replies to the right address).
@@ -212,6 +301,24 @@ def handle(conn, peer):
 
 
 def main():
+    global _bridge_ip, _bridge_bcast
+    ap = argparse.ArgumentParser(description="WebSocket UDP relay for the web build's LAN play")
+    ap.add_argument("--bridge-ip", help="PC's real LAN IP; turns on the real-UDP bridge. The browser "
+                    "tab must use the same address as its identity (?ip=<this ip>)")
+    ap.add_argument("--bcast", help="directed broadcast address for LAN broadcasts "
+                    "(default: <bridge-ip>/24 .255)")
+    args = ap.parse_args()
+    if args.bridge_ip:
+        a, b, c, d = (int(x) for x in args.bridge_ip.split("."))
+        _bridge_ip = ip_to_int(a, b, c, d)
+        if args.bcast:
+            a, b, c, d = (int(x) for x in args.bcast.split("."))
+            _bridge_bcast = ip_to_int(a, b, c, d)
+        else:
+            _bridge_bcast = _bridge_ip | 0xFF
+        for p in _bridge_ports:
+            get_udp(p)
+        print("[bridge] on: identity %s, LAN broadcast -> %s" % (args.bridge_ip, int_to_ip(_bridge_bcast)))
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     srv.bind((HOST, PORT))

@@ -46,6 +46,22 @@ extern "C" int ggc_url_ip_index(void)
 		return (v >= 1 && v <= 8) ? v : 0;
 	});
 }
+
+// TheSuperHackers @feature 19/10/2026 Optional ?ip=a.b.c.d (a full dotted IPv4 address) lets a
+// tab take a real, routable LAN identity instead of a 127.0.0.N loopback one. Needed when the
+// relay is bridged to the real LAN (relay.py --bridge-ip) so native peers can unicast back.
+// Returns the address in host byte order, or 0 when unset or not a valid dotted address.
+extern "C" unsigned int ggc_url_ip_full(void)
+{
+	return (unsigned int)EM_ASM_INT({
+		var s = location.search || '';
+		var m = /[?&]ip=(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?:&|$)/.exec(s);
+		if (!m) return 0;
+		var a = +m[1], b = +m[2], c = +m[3], d = +m[4];
+		if (a > 255 || b > 255 || c > 255 || d > 255) return 0;
+		return ((a << 24) | (b << 16) | (c << 8) | d) >>> 0;
+	});
+}
 #endif
 
 // TheSuperHackers @build Nintendo Switch (libnx) has no getifaddrs, so it offers no local IPs here.
@@ -101,6 +117,12 @@ EnumeratedIP * IPEnumeration::getAddresses()
 	// - can still each take their own identity without touching Options. Read here rather
 	// than at startup because a GlobalData re-init would clobber an early m_defaultIP.
 	{
+		const unsigned int full = ggc_url_ip_full();
+		if (full != 0)
+		{
+			addNewIP((UnsignedByte)(full >> 24), (UnsignedByte)(full >> 16), (UnsignedByte)(full >> 8), (UnsignedByte)full);
+			return m_IPlist;
+		}
 		const int ipN = ggc_url_ip_index();
 		if (ipN >= 1 && ipN <= 8)
 		{
