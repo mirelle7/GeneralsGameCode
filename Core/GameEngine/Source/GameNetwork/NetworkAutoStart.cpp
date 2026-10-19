@@ -426,9 +426,9 @@ void NetworkAutoStart::updateGameOptions()
 		return;
 	}
 	hostSlot->setAccept();
-	for (Int i = 0; i < MAX_SLOTS; ++i)
+	for (Int slotIndex = 0; slotIndex < MAX_SLOTS; ++slotIndex)
 	{
-		LANGameSlot *slot = game->getLANSlot(i);
+		LANGameSlot *slot = game->getLANSlot(slotIndex);
 		if (slot != nullptr && slot->isHuman() && !slot->isAccepted())
 		{
 			return;
