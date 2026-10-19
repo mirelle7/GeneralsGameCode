@@ -907,7 +907,7 @@ WWINLINE void DX8Wrapper::Commit_Fixed_Function_Render_Value(unsigned state, uns
 #if defined(DEBUG_LOGGING) && !defined(GGC_RENDER_BACKEND_BGFX)
 	if (WW3D::Is_Snapshot_Activated()) {
 		StringClass value_name(0,true);
-		const auto legacy_state = static_cast<D3DRENDERSTATETYPE>(state);
+		const D3DRENDERSTATETYPE legacy_state = static_cast<D3DRENDERSTATETYPE>(state);
 		Get_DX8_Render_State_Value_Name(value_name,legacy_state,value);
 		SNAPSHOT_SAY(("DX8 - SetRenderState(state: %s, value: %s)",
 			Get_DX8_Render_State_Name(legacy_state),
@@ -953,7 +953,7 @@ WWINLINE void DX8Wrapper::Commit_Fixed_Function_Texture_Stage_Value(unsigned sta
 #if defined(DEBUG_LOGGING) && !defined(GGC_RENDER_BACKEND_BGFX)
 	if (WW3D::Is_Snapshot_Activated()) {
 		StringClass value_name(0,true);
-		const auto legacy_state = static_cast<D3DTEXTURESTAGESTATETYPE>(state);
+		const D3DTEXTURESTAGESTATETYPE legacy_state = static_cast<D3DTEXTURESTAGESTATETYPE>(state);
 		Get_DX8_Texture_Stage_State_Value_Name(value_name,legacy_state,value);
 		SNAPSHOT_SAY(("DX8 - SetTextureStageState(stage: %d, state: %s, value: %s)",
 			stage,
