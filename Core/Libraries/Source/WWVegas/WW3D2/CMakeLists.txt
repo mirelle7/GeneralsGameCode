@@ -262,7 +262,8 @@ if(EMSCRIPTEN)
     # the web build opens an embedded font by path instead of matching one.
     target_compile_options(corei_ww3d2 INTERFACE "-sUSE_FREETYPE=1")
     target_link_options(corei_ww3d2 INTERFACE "-sUSE_FREETYPE=1")
-elseif(UNIX AND NOT APPLE)
+elseif(UNIX AND NOT APPLE AND NOT ANDROID)
+    # Android rasterizes glyphs with stb_truetype (GGC_FONT_STB) and has no Fontconfig.
     find_package(Freetype REQUIRED)
     find_package(Fontconfig REQUIRED)
     target_link_libraries(corei_ww3d2 INTERFACE

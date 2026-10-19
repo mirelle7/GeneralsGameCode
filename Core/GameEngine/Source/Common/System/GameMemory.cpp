@@ -3454,20 +3454,7 @@ void operator delete[](void *p, size_t)
 // every new/delete form to the pool keeps allocation and deallocation consistent across the
 // app and the shared libc++. Guarded to non-Windows so retail VC6/Win32 behavior is unchanged.
 #if !defined(_WIN32)
-void operator delete(void *p, size_t) noexcept
-{
-	++theLinkTester;
-	preMainInitMemoryManager();
-	TheDynamicMemoryAllocator->freeBytes(p);
-}
-
-void operator delete[](void *p, size_t) noexcept
-{
-	++theLinkTester;
-	preMainInitMemoryManager();
-	TheDynamicMemoryAllocator->freeBytes(p);
-}
-
+// The C++14 sized delete forms are defined above.
 #if defined(__cpp_aligned_new)
 void *operator new(size_t size, std::align_val_t)
 {
@@ -3478,35 +3465,35 @@ void *operator new(size_t size, std::align_val_t)
 
 void *operator new[](size_t size, std::align_val_t)
 {
-	++theLinkTester;
+	LINK_TESTER_INCREMENT();
 	preMainInitMemoryManager();
 	return TheDynamicMemoryAllocator->allocateBytes(size, "global operator new[] (aligned)");
 }
 
 void operator delete(void *p, std::align_val_t) noexcept
 {
-	++theLinkTester;
+	LINK_TESTER_INCREMENT();
 	preMainInitMemoryManager();
 	TheDynamicMemoryAllocator->freeBytes(p);
 }
 
 void operator delete[](void *p, std::align_val_t) noexcept
 {
-	++theLinkTester;
+	LINK_TESTER_INCREMENT();
 	preMainInitMemoryManager();
 	TheDynamicMemoryAllocator->freeBytes(p);
 }
 
 void operator delete(void *p, size_t, std::align_val_t) noexcept
 {
-	++theLinkTester;
+	LINK_TESTER_INCREMENT();
 	preMainInitMemoryManager();
 	TheDynamicMemoryAllocator->freeBytes(p);
 }
 
 void operator delete[](void *p, size_t, std::align_val_t) noexcept
 {
-	++theLinkTester;
+	LINK_TESTER_INCREMENT();
 	preMainInitMemoryManager();
 	TheDynamicMemoryAllocator->freeBytes(p);
 }

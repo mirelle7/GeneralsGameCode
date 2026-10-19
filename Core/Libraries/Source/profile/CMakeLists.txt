@@ -18,7 +18,14 @@ set(PROFILE_SRC
 
 add_library(core_profile_legacy STATIC)
 
-target_sources(core_profile_legacy PRIVATE ${PROFILE_SRC})
+# TheSuperHackers @build bobtista 13/06/2026 The legacy EA profiling library needs
+# the Windows-only core_debug and is not referenced by the engine on Android, so
+# build an empty stub there.
+if(ANDROID)
+    target_sources(core_profile_legacy PRIVATE profile_stub_nonwindows.cpp)
+else()
+    target_sources(core_profile_legacy PRIVATE ${PROFILE_SRC})
+endif()
 
 target_include_directories(core_profile_legacy PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/Include
@@ -31,6 +38,11 @@ if(WIN32)
         [["Precompiled/precompiled.h"]] # Must be first
         "Include/profile/profile.h"
         "internal.h"
+        <windows.h>
+    )
+elseif(ANDROID)
+    target_precompile_headers(core_profile_legacy PRIVATE
+        [["Precompiled/precompiled.h"]] # Must be first
         <windows.h>
     )
 else()

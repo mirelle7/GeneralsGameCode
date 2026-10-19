@@ -47,4 +47,16 @@ inline To bit_cast(const From& from)
 
 #include <bit>
 
+// The libc++ shipped with Android NDK r25 has <bit> but no std::bit_cast. Clang provides the builtin it is made of.
+#if defined(__ANDROID__) && !defined(__cpp_lib_bit_cast)
+namespace std
+{
+template <class To, class From>
+constexpr To bit_cast(const From& from) noexcept
+{
+	return __builtin_bit_cast(To, from);
+}
+}
+#endif
+
 #endif
