@@ -918,6 +918,9 @@
             showSourceSwitch('server');
             await loadFromDevServer(Module, devWork);
             setStatus('Starting engine...');
+            // Returning from inside the try skips the release below, which left the
+            // runtime parked forever on the local-server path.
+            Module.removeRunDependency('game-data');
             return;
           }
           if (DATA_SOURCE === 'server') {
