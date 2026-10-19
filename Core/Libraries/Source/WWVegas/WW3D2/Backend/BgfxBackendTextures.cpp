@@ -343,7 +343,7 @@ static unsigned GetBytesPerPixel(bgfx::TextureFormat::Enum bgfxFmt)
     }
 }
 
-// TheSuperHackers @bugfix Follow what the backend can actually do rather than the host OS.
+// TheSuperHackers @bugfix mirelle7 31/07/2026 Follow what the backend can actually do rather than the host OS.
 // Emscripten maps BGR5A1 to GL_RGBA/GL_UNSIGNED_SHORT_5_5_5_1 and still advertises
 // BGFX_CAPS_FORMAT_TEXTURE_2D, so the cap alone would miss WebGL: the upload stays 16 bpp
 // but the packed layout (RGBA5551) differs from D3D's A1R5G5B5, scrambling the channels.
@@ -378,7 +378,7 @@ static bgfx::TextureFormat::Enum GetBgfxTextureUploadFormat(WW3DFormat fmt)
     }
     if (fmt == WW3D_FORMAT_A1R5G5B5 && ShouldExpandA1R5G5B5ToBGRA8())
     {
-        // TheSuperHackers @bugfix BGR5A1 either has no native 2D upload path or is
+        // TheSuperHackers @bugfix mirelle7 31/07/2026 BGR5A1 either has no native 2D upload path or is
         // uploaded with a different packed layout than D3D's A1R5G5B5. The terrain atlas
         // - the game's only large A1R5G5B5 surface - then reaches the screen as coloured
         // speckle. Expand to BGRA8 up front, like the A4R4G4B4 path above.
@@ -803,7 +803,7 @@ static bool IsTerrainAtlasTexture(TextureClass * tex2d,
 	// while bgfx creates a full mip chain whenever mips are enabled. Upload a
 		// complete atlas-safe chain only for textures explicitly tagged by the
 			// terrain atlas builder.
-		// TheSuperHackers @bugfix Also accept the format the atlas is expanded to (see
+		// TheSuperHackers @bugfix mirelle7 31/07/2026 Also accept the format the atlas is expanded to (see
 		// ShouldExpandA1R5G5B5ToBGRA8), or the terrain would silently lose its
 		// atlas-safe mip chain there.
 		return tex2d != nullptr

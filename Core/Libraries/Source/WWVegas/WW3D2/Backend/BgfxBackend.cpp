@@ -3827,7 +3827,7 @@ static void UpdateDramaLighting()
     g_draw.dramaDim[3] = g_draw.dramaAmbientDim;
 }
 
-// TheSuperHackers @bugfix Every pass using vs_scene_composite reads u_postTexelSize.z as
+// TheSuperHackers @bugfix mirelle7 30/07/2026 Every pass using vs_scene_composite reads u_postTexelSize.z as
 // its V-flip flag, and uniforms persist between submits, so each submit sets it explicitly.
 // Render-target to render-target passes (bloom, SSAO, smudge copy) keep the target's native
 // orientation (flip = false) so the chain stays consistent for the composite to sample; a
@@ -4557,7 +4557,7 @@ static void SubmitSceneComposite()
     // Texel size of the (supersampled) scene color the composite samples.
     const float texW = g_device.sceneRenderWidth > 0 ? static_cast<float>(g_device.sceneRenderWidth) : static_cast<float>(g_device.width);
     const float texH = g_device.sceneRenderHeight > 0 ? static_cast<float>(g_device.sceneRenderHeight) : static_cast<float>(g_device.height);
-    // TheSuperHackers @bugfix 30/07/2026 .z carries the V-flip flag for the
+    // TheSuperHackers @bugfix mirelle7 30/07/2026 .z carries the V-flip flag for the
     // composite. Render targets are bottom-left origin on GLES and WebGL but top-left on
     // DX11 and Metal, so without it the whole 3D scene comes out of this pass upside down
     // on those renderers, while the UI - drawn straight to the backbuffer - stays the right

@@ -7,7 +7,7 @@ $output v_texcoord0
 
 #include <bgfx_shader.sh>
 
-// TheSuperHackers @bugfix 30/07/2026 u_postTexelSize.z carries a V-flip flag
+// TheSuperHackers @bugfix mirelle7 30/07/2026 u_postTexelSize.z carries a V-flip flag
 // (1.0 on bottom-left-origin renderers like GLES and WebGL, 0.0 on DX11 and Metal) so the
 // scene render target is sampled the right way up. Without it this pass hands back a
 // vertically mirrored scene on those renderers - the UI draws straight to the swapchain and

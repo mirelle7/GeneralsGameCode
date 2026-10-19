@@ -436,7 +436,7 @@ static void translateWideFormat(const WideChar* in, WideChar* out, size_t outCap
 			}
 			++p;
 		}
-		// TheSuperHackers @bugfix 29/07/2026 Hold the length modifiers back until
+		// TheSuperHackers @bugfix mirelle7 29/07/2026 Hold the length modifiers back until
 		// the conversion character is known, because an 'h' on s/c has to be dropped rather
 		// than passed through. MSVC spells a narrow argument %hs/%hc, but musl (Emscripten)
 		// rejects that outright: vswprintf returns -1 and the whole string comes out empty.
