@@ -743,7 +743,7 @@ Int parseMaxCameraHeight(char *args[], int num)
 	return 1;
 }
 
-#if defined(RTS_DEBUG)
+#if ENABLE_NETWORK_AUTOSTART
 static Bool parsePositiveInt(const char *text, Int &result)
 {
 	if (text == nullptr || *text < '0' || *text > '9')
@@ -838,7 +838,9 @@ Int parseAutoNetworkTimeout(char *args[], int num)
 	exit(1);
 	return 1;
 }
+#endif // ENABLE_NETWORK_AUTOSTART
 
+#if defined(RTS_DEBUG)
 //=============================================================================
 //=============================================================================
 Int parseLatencyAverage(char *args[], int num)
@@ -1760,7 +1762,7 @@ static CommandLineParam paramsForStartup[] =
 	{ "-setCwd", parseSetCwd },
 	{ "-useCwd", parseUseCwd },
 
-#if defined(RTS_DEBUG)
+#if ENABLE_NETWORK_AUTOSTART
 	{ "-autoNetworkMode", parseAutoNetworkMode },
 #endif
 };
@@ -1768,7 +1770,7 @@ static CommandLineParam paramsForStartup[] =
 // These Params are parsed during Engine Init before INI data is loaded
 static CommandLineParam paramsForEngineInit[] =
 {
-#if defined(RTS_DEBUG)
+#if ENABLE_NETWORK_AUTOSTART
 	{ "-autoNetworkHost", parseAutoNetworkHost },
 	{ "-autoNetworkJoin", parseAutoNetworkJoin },
 	{ "-autoNetworkLocalAddress", parseAutoNetworkLocalAddress },

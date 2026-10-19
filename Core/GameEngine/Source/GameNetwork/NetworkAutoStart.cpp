@@ -18,7 +18,9 @@
 
 #include "PreRTS.h"
 
-#if defined(RTS_DEBUG)
+#include "GameNetwork/NetworkAutoStart.h" // Defines ENABLE_NETWORK_AUTOSTART
+
+#if ENABLE_NETWORK_AUTOSTART
 
 #include <limits.h>
 

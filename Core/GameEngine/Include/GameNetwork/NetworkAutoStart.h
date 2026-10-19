@@ -18,7 +18,13 @@
 
 #pragma once
 
-#if defined(RTS_DEBUG)
+// TheSuperHackers @feature Command line options (-autoNetworkMode, -autoNetworkHost, -autoNetworkJoin, ...) that boot straight into a
+// network game for multi-instance and cross-platform testing. They are available in Release builds too.
+#ifndef ENABLE_NETWORK_AUTOSTART
+#define ENABLE_NETWORK_AUTOSTART (1)
+#endif
+
+#if ENABLE_NETWORK_AUTOSTART
 
 #include "Common/AsciiString.h"
 #include "Common/UnicodeString.h"

@@ -829,7 +829,7 @@ void MainMenuUpdate( WindowLayout *layout, void *userData )
 		}
 	}
 #endif
-#if defined(RTS_DEBUG)
+#if ENABLE_NETWORK_AUTOSTART
 	if (NetworkAutoStart::shouldOpenDirectConnect())
 	{
 		NetworkAutoStart::markDirectConnectOpened();
