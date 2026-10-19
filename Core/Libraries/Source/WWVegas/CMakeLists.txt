@@ -33,7 +33,7 @@ if(UNIX OR ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
     # Xcode emits this -include before its precompiled prefix-header include,
     # which makes clang ignore the PCH. On Xcode, windows.h is instead supplied
     # via the deps_utility PCH (see Dependencies/Utility/CMakeLists.txt).
-    if(NOT XCODE)
+    if(NOT XCODE OR CMAKE_DISABLE_PRECOMPILE_HEADERS)
         target_compile_options(core_wwcommon INTERFACE
             -include ${CMAKE_CURRENT_SOURCE_DIR}/compat/win32_shims/windows.h
         )
@@ -67,7 +67,7 @@ target_include_directories(core_wwvegas INTERFACE
 )
 if(UNIX OR ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
     target_include_directories(core_wwvegas INTERFACE compat/win32_shims)
-    if(NOT XCODE)
+    if(NOT XCODE OR CMAKE_DISABLE_PRECOMPILE_HEADERS)
         target_compile_options(core_wwvegas INTERFACE
             -include ${CMAKE_CURRENT_SOURCE_DIR}/compat/win32_shims/windows.h
         )

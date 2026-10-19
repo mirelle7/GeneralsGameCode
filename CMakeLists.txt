@@ -37,6 +37,13 @@ include(cmake/config-vcpkg.cmake)
 # Top level project, doesn't really affect anything.
 project(genzh LANGUAGES C CXX)
 
+# The Xcode generator emits forced -include headers before its native precompiled prefix
+# header, which makes clang ignore the PCH, and the project relies on forced includes
+# (Precompiled/BasePrecomp.h) that must be read first. Build without PCH there.
+if(XCODE)
+    set(CMAKE_DISABLE_PRECOMPILE_HEADERS ON)
+endif()
+
 # This file handles extra settings wanted/needed for different compilers.
 include(cmake/compilers.cmake)
 
