@@ -161,6 +161,7 @@ static void ggcSwitchLog(const char* msg)
 #include "Common/GameEngine.h"
 #include "Common/GameMemory.h"
 #include "Common/GlobalData.h"
+#include "Common/WorkingDirectory.h"
 #include "Common/version.h"
 #include "GameClient/ClientInstance.h"
 #include "GgcRuntimeFlags.h"
@@ -537,7 +538,9 @@ int main(int argc, char **argv)
 		}
 		if (dataDir[0] != '\0')
 		{
-			SetCurrentDirectoryA(dataDir);
+			// TheSuperHackers @bugfix parseCommandLineForStartup() moves the working directory to the
+			// executable directory unless a setter already ran; mark ours so it keeps the data directory.
+			rts::WorkingDirectory::setCustomWorkingDirectory(dataDir);
 		}
 		if (prefPath != NULL)
 		{
