@@ -208,8 +208,11 @@ const char *gAppPrefix = "";
 // references them from RTS_DEBUG / IG_DEBUG_STACKTRACE-gated code. StackDump.h
 // already provides inline no-ops for most of them on non-Win.
 #include "Common/StackDump.h"
+#if !defined(_WIN32)
+// Windows builds link the real ones from StackDump.cpp.
 AsciiString g_LastErrorDump;
 void StackDumpFromContext(unsigned long /*eip*/, unsigned long /*esp*/, unsigned long /*ebp*/, void (* /*cb*/)(const char *)) {}
+#endif
 
 // OS busy-state UI is Win-only.
 void OSDisplaySetBusyState(Bool /*busyDisplay*/, Bool /*busySystem*/) {}

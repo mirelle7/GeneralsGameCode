@@ -535,8 +535,10 @@ void DumpExceptionInfo( unsigned int u, EXCEPTION_POINTERS* e_info )
 	{
 		DOUBLE_DEBUG (("Exception code is %x", e_info->ExceptionRecord->ExceptionCode));
 	}
+#if !defined(SAGE_USE_SDL3) // the SDL3 entry point has no WinMain
 	Int *winMainAddr = (Int *)WinMain;
 	DOUBLE_DEBUG(("WinMain at %x", winMainAddr));
+#endif
 	/*
 	** Match the exception type with the error string and print it out
 	*/
