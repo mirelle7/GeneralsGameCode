@@ -247,7 +247,7 @@ Bool W3DBridge::load(BodyDamageType curDamageState)
 	strlcat(right, ".BRIDGE_RIGHT", ARRAY_SIZE(right));
 
 	m_bridgeTexture = pMgr->Get_Texture(textureFile,  MIP_LEVELS_3);
-	if (m_bridgeTexture != nullptr && WW3D::Get_Render_Backend()->Has_Shader_Pipeline()) {
+	if (m_bridgeTexture != nullptr && !TheGlobalData->m_headless && WW3D::Get_Render_Backend()->Has_Shader_Pipeline()) {
 		// Bridge textures are compact atlases whose lower mips can collapse
 		// black padding into visible deck pixels under bgfx/Metal. Keep the
 		// authored level-0 texels stable; the bgfx backend binds a one-mip
