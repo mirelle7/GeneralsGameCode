@@ -65,6 +65,16 @@ public class GameActivity extends SDLActivity {
     protected String[] getLibraries() {
         return new String[] { "openal", "SDL3", "z_generals" };
     }
+
+    // Command-line arguments for the game: adb shell am start -n ... --es args "-mathCrcCheck"
+    @Override
+    protected String[] getArguments() {
+        String args = getIntent().getStringExtra("args");
+        if (args == null || args.trim().isEmpty()) {
+            return new String[0];
+        }
+        return args.trim().split("\\s+");
+    }
 }
 JAVA
 
