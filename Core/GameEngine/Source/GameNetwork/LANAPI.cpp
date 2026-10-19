@@ -103,7 +103,7 @@ void LANAPI::init()
 	// specific local IP does not receive limited broadcasts (255.255.255.255), which
 	// broke LAN discovery and broadcast join requests on the Mac. Bind to INADDR_ANY so
 	// broadcasts are received; m_localIP is still used as our identity in the protocol.
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__EMSCRIPTEN__) // wasm: the bound IP is our identity on the relay (udp.cpp)
 	m_transport->init(m_localIP, lobbyPort);
 #else
 	m_transport->init((UnsignedInt)0, lobbyPort);
@@ -1302,7 +1302,7 @@ Bool LANAPI::SetLocalIP( UnsignedInt localIP )
 	// TheSuperHackers @bugfix bobtista 09/06/2026 Bind to INADDR_ANY on macOS/BSD so the
 	// LAN socket receives limited broadcasts; binding to the specific m_localIP silently
 	// drops them on those platforms. m_localIP remains our identity in the protocol.
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__EMSCRIPTEN__) // wasm: the bound IP is our identity on the relay (udp.cpp)
 	retval = m_transport->init(m_localIP, lobbyPort);
 #else
 	retval = m_transport->init((UnsignedInt)0, lobbyPort);
