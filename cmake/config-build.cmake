@@ -64,6 +64,17 @@ endif()
 
 if(UNIX)
     target_compile_definitions(deps_config INTERFACE _UNIX)
+
+    # Off Windows the Win32 API comes from the compat shim headers. They go ahead of the system
+    # headers, and <windows.h> is read first because the DX8 SDK headers use its types without
+    # including it.
+    target_include_directories(deps_config BEFORE INTERFACE
+        ${CMAKE_SOURCE_DIR}/Core/Libraries/Source/WWVegas/compat/win32_shims
+        ${CMAKE_SOURCE_DIR}/Core/Libraries/Source/WWVegas
+    )
+    target_compile_options(deps_config INTERFACE
+        "$<$<COMPILE_LANGUAGE:CXX>:SHELL:-include windows.h>"
+    )
 endif()
 
 

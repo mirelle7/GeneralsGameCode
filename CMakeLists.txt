@@ -53,9 +53,9 @@ if(MINGW)
 endif()
 
 # Find/Add build dependencies and stubs shared by all projects
-if(WIN32 OR "${CMAKE_SYSTEM}" MATCHES "Windows")
-    include(cmake/dx8.cmake)
-endif()
+# The DX8 headers are needed everywhere: the engine uses their types and math even when it
+# never creates a device. cmake/dx8.cmake links the libraries on 32-bit Windows only.
+include(cmake/dx8.cmake)
 
 if (IS_VS6_BUILD)
     include(cmake/stlport.cmake)

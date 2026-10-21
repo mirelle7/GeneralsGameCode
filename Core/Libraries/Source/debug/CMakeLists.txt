@@ -21,26 +21,30 @@ set(DEBUG_SRC
     "internal.h"
 )
 
-add_library(core_debug STATIC)
+# core_debug is the Win32 crash and debug-output library and is built on Windows only.
+# Consumers guard their link on WIN32.
+if(WIN32)
+    add_library(core_debug STATIC)
 
-target_sources(core_debug PRIVATE ${DEBUG_SRC})
+    target_sources(core_debug PRIVATE ${DEBUG_SRC})
 
-target_include_directories(core_debug PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/Include
-)
+    target_include_directories(core_debug PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/Include
+    )
 
-target_precompile_headers(core_debug PRIVATE
-    [["Precompiled/precompiled.h"]] # Must be first
-    "Include/debug/debug.h"
-    "internal.h"
-    "internal_except.h"
-    "internal_io.h"
-    <windows.h>
-)
+    target_precompile_headers(core_debug PRIVATE
+        [["Precompiled/precompiled.h"]] # Must be first
+        "Include/debug/debug.h"
+        "internal.h"
+        "internal_except.h"
+        "internal_io.h"
+        <windows.h>
+    )
 
-target_link_libraries(core_debug PRIVATE
-    depsi_always # Gives force included headers. Link early.
-    core_config
-    deps_utility
-    stlport
-)
+    target_link_libraries(core_debug PRIVATE
+        depsi_always # Gives force included headers. Link early.
+        core_config
+        deps_utility
+        stlport
+    )
+endif()
