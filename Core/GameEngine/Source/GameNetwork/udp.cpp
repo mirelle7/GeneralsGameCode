@@ -35,6 +35,11 @@
 //#include "GameNetwork/NetworkInterface.h"
 #include "GameNetwork/udp.h"
 
+#ifdef _WIN32
+// Winsock 1.1 takes int lengths and has no socklen_t; POSIX sockets want socklen_t.
+typedef int socklen_t;
+#endif
+
 
 //-------------------------------------------------------------------------
 
