@@ -1282,7 +1282,7 @@ UnicodeString RecorderClass::readUnicodeString() {
 	}
 	str[index] = c;
 
-	while (index < 1024 && str[index] != 0) {
+	while (index < ARRAY_SIZE(str) - 1 && str[index] != 0) {
 		++index;
 		Int c = m_file->readWideChar();
 		if (c == EOF) {
@@ -1310,7 +1310,7 @@ AsciiString RecorderClass::readAsciiString() {
 	}
 	str[index] = c;
 
-	while (index < 1024 && str[index] != 0) {
+	while (index < ARRAY_SIZE(str) - 1 && str[index] != 0) {
 		++index;
 		Int c = m_file->readChar();
 		if (c == EOF) {
