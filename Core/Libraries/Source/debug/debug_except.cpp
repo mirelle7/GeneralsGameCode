@@ -265,7 +265,13 @@ static DebugStackwalk::Signature sig;
 
 // TheSuperHackers @build bobtista 12/06/2026 DLGPROC returns INT_PTR (64-bit on x64); BOOL no longer
 // matches the DialogBoxIndirect signature on x64. INT_PTR is identical to BOOL's int ABI on x86.
-static INT_PTR CALLBACK ExceptionDlgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+// VC6's headers still declare DLGPROC as returning BOOL.
+#if defined(_MSC_VER) && _MSC_VER < 1300
+typedef BOOL ExceptionDlgProcResult;
+#else
+typedef INT_PTR ExceptionDlgProcResult;
+#endif
+static ExceptionDlgProcResult CALLBACK ExceptionDlgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
   switch(uMsg)
   {

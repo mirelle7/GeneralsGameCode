@@ -269,9 +269,9 @@ namespace
 
 		std::vector<std::string> parts;
 		std::string current;
-		for (std::string::size_type i = 0; i < normalized.length(); ++i)
+		for (std::string::size_type j = 0; j < normalized.length(); ++j)
 		{
-			if (normalized[i] == '\\')
+			if (normalized[j] == '\\')
 			{
 				if (!current.empty())
 				{
@@ -284,7 +284,7 @@ namespace
 				continue;
 			}
 
-			current += normalized[i];
+			current += normalized[j];
 		}
 
 		if (!current.empty() && current != "wow6432node")
