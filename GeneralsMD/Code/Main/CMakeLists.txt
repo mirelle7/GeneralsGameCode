@@ -7,14 +7,28 @@ else()
     set_target_properties(z_generals PROPERTIES OUTPUT_NAME "generalszh${RTS_BUILD_OUTPUT_SUFFIX}")
 endif()
 
-target_link_libraries(z_generals PRIVATE
-    comctl32
-    imm32
-    vfw32
-    winmm
-    z_gameenginedevice
-    zi_always
-)
+# The engine and device libraries call into each other. GNU ld reads each static library
+# once, so it has to rescan the pair; the MSVC and Apple linkers rescan on their own.
+if(UNIX AND NOT APPLE)
+    target_link_libraries(z_generals PRIVATE
+        "$<LINK_GROUP:RESCAN,z_gameenginedevice,z_gameengine>"
+        zi_always
+    )
+else()
+    target_link_libraries(z_generals PRIVATE
+        z_gameenginedevice
+        zi_always
+    )
+endif()
+
+if(WIN32)
+    target_link_libraries(z_generals PRIVATE
+        comctl32
+        imm32
+        vfw32
+        winmm
+    )
+endif()
 
 # TODO Originally referred to build host and user, replace with git info perhaps?
 file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/GeneratedVersion.h
@@ -45,10 +59,17 @@ target_include_directories(z_generals PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-target_sources(z_generals PRIVATE
-    WinMain.cpp
-    WinMain.h
-)
+if(WIN32)
+    target_sources(z_generals PRIVATE
+        WinMain.cpp
+        WinMain.h
+    )
+else()
+    # Without a Win32 device layer the game only runs -headless.
+    target_sources(z_generals PRIVATE
+        HeadlessMain.cpp
+    )
+endif()
 
 # RC files optional for MinGW builds
 # Icon: LoadIcon() handles missing resource gracefully (uses default system icon)
