@@ -398,7 +398,20 @@ Int parseMathCrcCheck(char *args[], int)
 {
 	const UnsignedInt crc = SimulationMathCrc::calculate();
 	printf("SimulationMathCrc = %08X\n", crc);
+	fflush(stdout);
 	DEBUG_LOG(("SimulationMathCrc = %08X", crc));
+	// TheSuperHackers @feature bobtista 14/06/2026 Also write the result to a plain file so the
+	// parity probe is machine-readable on a Windows GUI build (no stdout) and in pure Release
+	// builds (DEBUG_LOG compiled out).
+	FILE *crcFile = fopen("SimulationMathCrc.txt", "wt");
+	if (crcFile != nullptr)
+	{
+		fprintf(crcFile, "SimulationMathCrc = %08X\n", crc);
+		fclose(crcFile);
+	}
+	// Pure math parity check - print and exit before launching the game so it can be run
+	// instantly on each machine and the value compared.
+	exit(0);
 	return 1;
 }
 
