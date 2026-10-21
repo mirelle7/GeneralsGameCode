@@ -258,8 +258,8 @@ target_link_libraries(corei_ww3d2 INTERFACE
 # TheSuperHackers @build bobtista 22/04/2026
 # In-tree implementations of the D3DX8 helpers the engine calls
 # (matrix math, mip filter, surface copy, FVF size, error string).
-# Compiled only for 64-bit builds, which have no d3dx8.lib.
-if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
+# Compiled for every build without d3dx8.lib: 64-bit and non-Windows.
+if(NOT WIN32 OR NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
     target_sources(corei_ww3d2 INTERFACE
         ${CMAKE_CURRENT_SOURCE_DIR}/D3DXStubs.cpp
     )

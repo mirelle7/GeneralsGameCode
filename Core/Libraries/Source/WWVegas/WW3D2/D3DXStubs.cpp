@@ -18,8 +18,9 @@
 
 // TheSuperHackers @build bobtista 22/04/2026
 // Minimal in-tree implementations of the D3DX8 helper functions the
-// engine actually calls. There is no 64-bit d3dx8.lib, so the x64 build
-// compiles this file instead. 32-bit builds keep linking d3dx8.lib.
+// engine actually calls. There is no d3dx8.lib for 64-bit Windows or for other
+// platforms, so those builds compile this file instead. 32-bit Windows builds keep
+// linking d3dx8.lib.
 //
 // Not implemented here:
 // - D3DXMatrixIdentity / D3DXMatrixIsIdentity — these are D3DXINLINE
@@ -28,7 +29,7 @@
 // - Non-critical functions (shader assemble from file/resource, mesh
 //   loaders, font create, etc.) that aren't called at runtime.
 
-#if defined(_WIN64)
+#if defined(_WIN64) || !defined(_WIN32)
 
 #include <cmath>
 #include <cstring>
@@ -707,4 +708,4 @@ extern "C" HRESULT WINAPI D3DXAssembleShader(
 	return E_NOTIMPL;
 }
 
-#endif // _WIN64
+#endif // _WIN64 || !_WIN32

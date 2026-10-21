@@ -31,7 +31,7 @@
 #include "Common/Registry.h"
 
 #ifdef _UNIX
-#include "registryini.h"
+#include "WWLib/registryini.h"
 
 #include <ctype.h>
 #include <stdlib.h>

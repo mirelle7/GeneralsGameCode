@@ -160,6 +160,10 @@ if(WIN32)
         WWCOMUtil.cpp
         WWCOMUtil.h
     )
+else()
+    list(APPEND WWLIB_SRC
+        registry_unix_stub.cpp
+    )
 endif()
 
 add_library(core_wwlib STATIC)

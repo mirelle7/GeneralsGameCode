@@ -58,6 +58,7 @@ static void drawFramerateBar();
 #include "GameClient/Drawable.h"
 #include "GameClient/GameText.h"
 #include "GameClient/GraphDraw.h"
+#include "GameClient/Keyboard.h"
 #include "GameClient/Line2D.h"
 #include "GameClient/Mouse.h"
 #include "GameClient/GlobalLanguage.h"
