@@ -34,7 +34,7 @@ public:
 	virtual AsciiString getMusicTrackName() const { return AsciiString::TheEmptyString; }
 	virtual void openDevice() {}
 	virtual void closeDevice() {}
-	virtual void *getDevice() {}
+	virtual void *getDevice() { return nullptr; }
 	virtual void notifyOfAudioCompletion( UnsignedInt audioCompleted, UnsignedInt flags ) {}
 	virtual UnsignedInt getProviderCount() const { return 0; }
 	virtual AsciiString getProviderName( UnsignedInt providerNum ) const { return AsciiString::TheEmptyString; }
@@ -47,6 +47,8 @@ public:
 	virtual UnsignedInt getNum2DSamples() const { return 0; }
 	virtual UnsignedInt getNum3DSamples() const { return 0; }
 	virtual UnsignedInt getNumStreams() const { return 0; }
+	virtual UnsignedInt getNumAvailable2DSamples() const { return 0; }
+	virtual UnsignedInt getNumAvailable3DSamples() const { return 0; }
 	virtual Bool doesViolateLimit( AudioEventRTS *event ) const { return FALSE; }
 	virtual Bool isPlayingLowerPriority( AudioEventRTS *event ) const { return FALSE; }
 	virtual Bool isPlayingAlready( AudioEventRTS *event ) const { return FALSE; }
@@ -55,7 +57,7 @@ public:
 	virtual void removePlayingAudio( AsciiString eventName ) {}
 	virtual void removeAllDisabledAudio() {}
 	virtual Bool has3DSensitiveStreamsPlaying() const { return FALSE; }
-	virtual void *getHandleForBink() {}
+	virtual void *getHandleForBink() { return nullptr; }
 	virtual void releaseHandleForBink() {}
 	virtual void friend_forcePlayAudioEventRTS(const AudioEventRTS* eventToPlay) {}
 	virtual void setPreferredProvider(AsciiString providerNdx) {}

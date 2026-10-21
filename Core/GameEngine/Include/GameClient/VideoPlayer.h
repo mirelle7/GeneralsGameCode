@@ -294,6 +294,7 @@ class VideoPlayer : public VideoPlayerInterface
 		virtual const FieldParse *getFieldParse() const override { return m_videoFieldParseTable; }		///< Return the field parse info
 
 		virtual void notifyVideoPlayerOfNewProvider( Bool nowHasValid ) override { }
+		virtual void setVolume( Real ) override { }
 
 		// Implementation specific
 		void remove( VideoStream *stream );										///< remove stream from active list
