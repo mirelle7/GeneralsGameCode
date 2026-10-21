@@ -115,6 +115,8 @@ inline int _wtoi(const wchar_t *str)
 // itoa is non-standard; some Win headers expose it. Provide a snprintf-backed
 // version so legacy callers keep working.
 #include <cstdio>
+// wsprintf is the user32 sprintf; every format the game passes it is valid for sprintf.
+#define wsprintf sprintf
 // TheSuperHackers @bugfix bobtista 01/08/2026 Take the destination as an array reference so the
 // bound comes from the caller's buffer instead of an assumed 16 bytes. glibc's _FORTIFY_SOURCE
 // compares the snprintf bound against the known object size and aborts the process when the
