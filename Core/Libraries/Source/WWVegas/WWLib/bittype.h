@@ -37,24 +37,46 @@
 
 #pragma once
 
+// These types are 32-bit by definition. 'long' is 32-bit on Windows (LLP64) but 64-bit on
+// Linux and macOS (LP64), so off Windows they use the fixed-width types instead.
+#ifndef _WIN32
+#include <stdint.h>
+#endif
+
 typedef unsigned char	uint8;
 typedef unsigned short	uint16;
+#ifdef _WIN32
 typedef unsigned long	uint32;
+#else
+typedef uint32_t		uint32;
+#endif
 typedef unsigned int    uint;
 
 typedef signed char		sint8;
 typedef signed short		sint16;
+#ifdef _WIN32
 typedef signed long		sint32;
+#else
+typedef int32_t			sint32;
+#endif
 typedef signed int      sint;
 
 typedef float				float32;
 typedef double				float64;
 
+#ifdef _WIN32
 typedef unsigned long   DWORD;
+#else
+typedef uint32_t        DWORD;
+#endif
 typedef unsigned short	WORD;
 typedef unsigned char   BYTE;
 typedef int             BOOL;
 typedef unsigned short	USHORT;
 typedef const char *		LPCSTR;
 typedef unsigned int    UINT;
+#ifdef _WIN32
 typedef unsigned long   ULONG;
+#else
+typedef uint32_t        ULONG;
+#endif
