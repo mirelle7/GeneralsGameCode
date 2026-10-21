@@ -1371,12 +1371,22 @@ static inline HFONT CreateFont(int, int, int, int, int, DWORD, DWORD, DWORD, DWO
     return reinterpret_cast<HFONT>(1);
 }
 
-static inline HBITMAP CreateDIBSection(HDC, const BITMAPINFO *, unsigned int, void **bits, HANDLE, DWORD)
+// There is no GDI to draw with, so text never reaches the bitmap. It still has to exist,
+// because the font code reads the glyphs back from it; it stays blank.
+static inline HBITMAP CreateDIBSection(HDC, const BITMAPINFO *info, unsigned int, void **bits, HANDLE, DWORD)
 {
-    if (bits != nullptr) {
-        *bits = nullptr;
+    size_t size = 1;
+    if (info != nullptr) {
+        const size_t width = info->bmiHeader.biWidth < 0 ? -info->bmiHeader.biWidth : info->bmiHeader.biWidth;
+        const size_t height = info->bmiHeader.biHeight < 0 ? -info->bmiHeader.biHeight : info->bmiHeader.biHeight;
+        const size_t stride = ((width * info->bmiHeader.biBitCount / 8) + 3) & ~static_cast<size_t>(3);
+        size = stride * height + 1;
     }
-    return reinterpret_cast<HBITMAP>(1);
+    void *buffer = std::calloc(1, size);
+    if (bits != nullptr) {
+        *bits = buffer;
+    }
+    return reinterpret_cast<HBITMAP>(buffer);
 }
 
 static inline HDC CreateCompatibleDC(HDC)
@@ -1412,8 +1422,12 @@ static inline BOOL GetTextMetrics(HDC, TEXTMETRIC *metric)
     return TRUE;
 }
 
-static inline BOOL DeleteObject(HGDIOBJ)
+// Only bitmaps own memory; every other GDI object is the placeholder handle 1.
+static inline BOOL DeleteObject(HGDIOBJ object)
 {
+    if (object != nullptr && object != reinterpret_cast<HGDIOBJ>(1)) {
+        std::free(object);
+    }
     return TRUE;
 }
 
