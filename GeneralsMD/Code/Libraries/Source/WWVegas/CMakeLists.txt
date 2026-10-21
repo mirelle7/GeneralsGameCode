@@ -5,7 +5,7 @@ target_link_libraries(z_wwcommon INTERFACE
     core_wwcommon
 )
 
-if(NOT GGC_RENDER_BACKEND STREQUAL "bgfx")
+if(GGC_RENDER_BACKEND STREQUAL "dx8")
     target_link_libraries(z_wwcommon INTERFACE
         d3d8lib
     )

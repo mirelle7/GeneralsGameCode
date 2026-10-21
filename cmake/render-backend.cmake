@@ -6,6 +6,7 @@
 # Valid values:
 #   dx8  - existing DirectX 8 backend. Default. VC6-compatible. Windows only.
 #   bgfx - bgfx abstraction over DX11/Vulkan/Metal/GL. Cross-platform. MSVC 2022+.
+#   null - draws nothing and links no graphics library. For -headless builds only.
 #
 # When set to bgfx the dependency module is included from cmake/bgfx.cmake.
 # It is not fetched when dx8 is selected.
@@ -14,14 +15,15 @@
 # project() call but before the WW3D2 source subdirectories are added.
 
 set(GGC_RENDER_BACKEND "dx8" CACHE STRING
-    "Rendering backend for WW3D2: dx8 (default) or bgfx")
-set_property(CACHE GGC_RENDER_BACKEND PROPERTY STRINGS dx8 bgfx)
+    "Rendering backend for WW3D2: dx8 (default), bgfx or null")
+set_property(CACHE GGC_RENDER_BACKEND PROPERTY STRINGS dx8 bgfx null)
 
 if(NOT GGC_RENDER_BACKEND STREQUAL "dx8" AND
-   NOT GGC_RENDER_BACKEND STREQUAL "bgfx")
+   NOT GGC_RENDER_BACKEND STREQUAL "bgfx" AND
+   NOT GGC_RENDER_BACKEND STREQUAL "null")
     message(FATAL_ERROR
         "Invalid GGC_RENDER_BACKEND: '${GGC_RENDER_BACKEND}'. "
-        "Must be one of: dx8, bgfx.")
+        "Must be one of: dx8, bgfx, null.")
 endif()
 
 message(STATUS "WW3D2 render backend: ${GGC_RENDER_BACKEND}")
@@ -48,6 +50,10 @@ if(GGC_RENDER_BACKEND STREQUAL "dx8")
     set(GGC_RENDER_BACKEND_COMPILE_DEFINE "GGC_RENDER_BACKEND_DX8=1")
 elseif(GGC_RENDER_BACKEND STREQUAL "bgfx")
     set(GGC_RENDER_BACKEND_COMPILE_DEFINE "GGC_RENDER_BACKEND_BGFX=1")
+elseif(GGC_RENDER_BACKEND STREQUAL "null")
+    # GGC_RENDER_BACKEND_BGFX guards every path that runs without a D3D8 device, not just bgfx
+    # calls (those live in Backend/Bgfx*), so the null backend shares it and adds its own define.
+    set(GGC_RENDER_BACKEND_COMPILE_DEFINE "GGC_RENDER_BACKEND_BGFX=1;GGC_RENDER_BACKEND_NULL=1")
 endif()
 
 # TheSuperHackers @refactor bobtista 03/06/2026 The bgfx backend no longer

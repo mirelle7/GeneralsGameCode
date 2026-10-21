@@ -1215,7 +1215,7 @@ target_link_libraries(corei_gameengine_public INTERFACE
     stlport
 )
 
-if(NOT GGC_RENDER_BACKEND STREQUAL "bgfx")
+if(GGC_RENDER_BACKEND STREQUAL "dx8")
     target_link_libraries(corei_gameengine_public INTERFACE
         d3d8lib
     )

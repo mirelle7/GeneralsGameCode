@@ -251,7 +251,7 @@ target_precompile_headers(z_ww3d2 PRIVATE
     [["Precompiled/BasePrecomp.h"]] # Must be first
 )
 
-if(NOT GGC_RENDER_BACKEND STREQUAL "bgfx")
+if(GGC_RENDER_BACKEND STREQUAL "dx8")
     target_precompile_headers(z_ww3d2 PRIVATE [["dx8wrapper.h"]])
 endif()
 

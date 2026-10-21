@@ -380,6 +380,65 @@
             }
         },
         {
+            "name": "headless",
+            "hidden": true,
+            "displayName": "Headless mixin (don't use directly!)",
+            "description": "No renderer and no audio: the null render backend, no OpenAL and no FFmpeg. The game runs with -headless only.",
+            "cacheVariables": {
+                "GGC_RENDER_BACKEND": "null",
+                "SAGE_USE_OPENAL": "OFF",
+                "RTS_BUILD_OPTION_FFMPEG": "OFF"
+            }
+        },
+        {
+            "name": "win64-headless",
+            "inherits": [
+                "headless",
+                "win64"
+            ],
+            "displayName": "Windows 64bit GeneralsMD Headless Release"
+        },
+        {
+            "name": "linux-headless",
+            "inherits": [
+                "headless",
+                "linux-generalsmd-sdl3-bgfx"
+            ],
+            "displayName": "Linux GeneralsMD Headless Release"
+        },
+        {
+            "name": "macos-headless",
+            "inherits": [
+                "headless",
+                "macos-generalsmd-sdl3-bgfx"
+            ],
+            "displayName": "macOS GeneralsMD Headless Release"
+        },
+        {
+            "name": "web-headless",
+            "inherits": [
+                "headless",
+                "web-generalsmd-sdl3-bgfx"
+            ],
+            "displayName": "Emscripten Web GeneralsMD Headless Release"
+        },
+        {
+            "name": "android-headless",
+            "inherits": [
+                "headless",
+                "android-generalsmd-sdl3-bgfx"
+            ],
+            "displayName": "Android GeneralsMD Headless Release"
+        },
+        {
+            "name": "switch-headless",
+            "inherits": [
+                "headless",
+                "switch-generalsmd-sdl3-bgfx"
+            ],
+            "displayName": "Nintendo Switch GeneralsMD Headless Release"
+        },
+        {
             "name": "mingw-w64-i686",
             "displayName": "MinGW-w64 32-bit (i686) Release",
             "generator": "Unix Makefiles",
@@ -584,6 +643,66 @@
             "configurePreset": "switch-generalsmd-sdl3-bgfx",
             "displayName": "Build Nintendo Switch GeneralsMD SDL3 bgfx Release",
             "description": "Build Nintendo Switch GeneralsMD SDL3 bgfx Release",
+            "configuration": "Release",
+            "targets": [
+                "z_generals"
+            ]
+        },
+        {
+            "name": "win64-headless",
+            "configurePreset": "win64-headless",
+            "displayName": "Build Windows 64bit GeneralsMD Headless Release",
+            "description": "Build Windows 64bit Release without renderer or audio (GeneralsMD only, -headless runs)",
+            "configuration": "Release",
+            "targets": [
+                "z_generals"
+            ]
+        },
+        {
+            "name": "linux-headless",
+            "configurePreset": "linux-headless",
+            "displayName": "Build Linux GeneralsMD Headless Release",
+            "description": "Build Linux Release without renderer or audio (GeneralsMD only, -headless runs)",
+            "configuration": "Release",
+            "targets": [
+                "z_generals"
+            ]
+        },
+        {
+            "name": "macos-headless",
+            "configurePreset": "macos-headless",
+            "displayName": "Build macOS GeneralsMD Headless Release",
+            "description": "Build macOS Release without renderer or audio (GeneralsMD only, -headless runs)",
+            "configuration": "Release",
+            "targets": [
+                "z_generals"
+            ]
+        },
+        {
+            "name": "web-headless",
+            "configurePreset": "web-headless",
+            "displayName": "Build Emscripten Web GeneralsMD Headless Release",
+            "description": "Build Emscripten Web Release without renderer or audio (GeneralsMD only, -headless runs)",
+            "configuration": "Release",
+            "targets": [
+                "z_generals"
+            ]
+        },
+        {
+            "name": "android-headless",
+            "configurePreset": "android-headless",
+            "displayName": "Build Android GeneralsMD Headless Release",
+            "description": "Build Android Release without renderer or audio (GeneralsMD only, -headless runs)",
+            "configuration": "Release",
+            "targets": [
+                "z_generals"
+            ]
+        },
+        {
+            "name": "switch-headless",
+            "configurePreset": "switch-headless",
+            "displayName": "Build Nintendo Switch GeneralsMD Headless Release",
+            "description": "Build Nintendo Switch Release without renderer or audio (GeneralsMD only, -headless runs)",
             "configuration": "Release",
             "targets": [
                 "z_generals"

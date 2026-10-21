@@ -24,6 +24,7 @@
 // CMake flag which sets one of:
 //   GGC_RENDER_BACKEND_DX8      - DirectX 8 (default, VC6-compatible, Windows only)
 //   GGC_RENDER_BACKEND_BGFX     - bgfx (DX11/Vulkan/Metal/GL, cross-platform)
+//   GGC_RENDER_BACKEND_NULL     - draws nothing, for -headless builds (also defines _BGFX)
 //
 // Exactly one of these is defined in any given build. If none are defined
 // (a legacy build that hasn't included render-backend.cmake) we default to
@@ -36,7 +37,9 @@
 #include "IRenderBackend.h"
 #include "ww3d.h"
 
-#if defined(GGC_RENDER_BACKEND_BGFX)
+#if defined(GGC_RENDER_BACKEND_NULL)
+#include "Backend/NullBackend.h"
+#elif defined(GGC_RENDER_BACKEND_BGFX)
 #include "Backend/BgfxBackend.h"
 #else
 #include "Backend/DX8Backend.h"
@@ -44,7 +47,11 @@
 
 IRenderBackend * Create_Render_Backend(void * window, bool lite)
 {
-#if defined(GGC_RENDER_BACKEND_BGFX)
+#if defined(GGC_RENDER_BACKEND_NULL)
+    (void)window;
+    (void)lite;
+    return new NullBackend();
+#elif defined(GGC_RENDER_BACKEND_BGFX)
     (void)window;
     (void)lite;
     return new BgfxBackend();

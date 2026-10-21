@@ -272,7 +272,7 @@ elseif(UNIX AND NOT APPLE AND NOT ANDROID)
     )
 endif()
 
-if(NOT GGC_RENDER_BACKEND STREQUAL "bgfx")
+if(GGC_RENDER_BACKEND STREQUAL "dx8")
     target_sources(corei_ww3d2 INTERFACE
         ${CMAKE_CURRENT_SOURCE_DIR}/formconv.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/dx8texman.cpp
@@ -379,6 +379,15 @@ if(GGC_RENDER_BACKEND STREQUAL "bgfx")
         OBJECT_DEPENDS "${GGC_BGFX_GENERATED_SHADER_HEADERS}"
     )
     target_link_libraries(corei_ww3d2 INTERFACE ggc_bgfx_shaders)
+elseif(GGC_RENDER_BACKEND STREQUAL "null")
+    target_sources(corei_ww3d2 INTERFACE
+        ${CMAKE_CURRENT_SOURCE_DIR}/Backend/NullBackend.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/Backend/NullBackend.h
+    )
+    # render2dsentence.cpp rasterizes glyphs with stb_truetype on platforms without GDI.
+    if(NOT WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
+        target_link_libraries(corei_ww3d2 INTERFACE stb)
+    endif()
 endif()
 
 # Propagate the active backend's compile define to every translation unit

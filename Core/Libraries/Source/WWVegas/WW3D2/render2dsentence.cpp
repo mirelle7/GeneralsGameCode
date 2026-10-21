@@ -99,7 +99,12 @@
 #endif
 #define STB_TRUETYPE_IMPLEMENTATION
 #define STBTT_STATIC
+#if defined(GGC_RENDER_BACKEND_NULL)
+// No bgfx to vendor it: take stb_truetype from the project's own stb dependency.
+#include <stb_truetype.h>
+#else
 #include <stb/stb_truetype.h>
+#endif
 #if defined(__SWITCH__) || defined(GGC_PLATFORM_UWP)
 // TheSuperHackers @feature githubawn 04/07/2026 Switch has no system TTF, so embed a
 // UI font directly in the binary (self-contained NRO, no SD/system font needed).
