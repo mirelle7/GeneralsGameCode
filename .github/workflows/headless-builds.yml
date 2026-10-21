@@ -1,0 +1,219 @@
+name: Headless Builds
+
+run-name: headless builds from ${{ inputs.ref || github.ref_name }}
+
+# TheSuperHackers @ci githubawn 21/10/2026 Builds every platform with the *-headless presets:
+# the null render backend, no OpenAL and no FFmpeg. These builds show which parts of the port
+# work without the bgfx and audio backends. Those backends are not upstream yet. CI only
+# builds: it has no game data, so nothing runs here.
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - platforms-v2
+      - 'pf/**'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag, or SHA to build"
+        required: false
+        type: string
+
+concurrency:
+  group: headless-builds-${{ inputs.ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  win64:
+    name: win64-headless
+    runs-on: windows-2022
+    timeout-minutes: 120
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.ref || github.ref_name }}
+
+      - name: Set Up VC2022 Environment
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+        with:
+          arch: x64
+
+      - name: Configure with CMake
+        run: cmake --preset win64-headless
+
+      - name: Build GeneralsMD
+        run: cmake --build --preset win64-headless
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: GeneralsZH-win64-headless
+          path: |
+            build/win64-headless/GeneralsMD/Release/*.exe
+            build/win64-headless/GeneralsMD/Release/*.pdb
+            build/win64-headless/_deps/**/Release/SDL3*.dll
+          retention-days: 30
+          if-no-files-found: error
+
+  linux:
+    name: linux-headless
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.ref || github.ref_name }}
+
+      - name: Install Dependencies
+        # SDL3 is still built for windowing and input, so it needs its X11/Wayland headers.
+        # No GL, Vulkan, OpenAL or FFmpeg packages: the headless build links none of them.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build pkg-config \
+            libx11-dev libxext-dev libxrandr-dev libxi-dev libxcursor-dev \
+            libxinerama-dev libxfixes-dev libxrender-dev libxss-dev libxtst-dev \
+            libxkbcommon-dev libwayland-dev wayland-protocols libdecor-0-dev \
+            libfreetype6-dev libfontconfig1-dev
+
+      - name: Configure with CMake
+        run: cmake --preset linux-headless
+
+      - name: Build GeneralsMD
+        run: cmake --build --preset linux-headless -j"$(nproc)"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: GeneralsZH-linux-x64-headless
+          path: |
+            build/linux-headless/GeneralsMD/Release/generalszh
+            build/linux-headless/_deps/sdl3-build/libSDL3.so*
+          retention-days: 30
+          if-no-files-found: error
+
+  macos:
+    name: macos-headless
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.ref || github.ref_name }}
+
+      - name: Install Dependencies
+        run: brew install ninja
+
+      - name: Configure with CMake
+        run: cmake --preset macos-headless
+
+      - name: Build GeneralsMD
+        run: cmake --build --preset macos-headless -j"$(sysctl -n hw.ncpu)"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: GeneralsZH-macos-arm64-headless
+          path: |
+            build/macos-headless/GeneralsMD/Release/generalszh
+            build/macos-headless/_deps/sdl3-build/libSDL3*.dylib
+          retention-days: 30
+          if-no-files-found: error
+
+  web:
+    name: web-headless
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    container: emscripten/emsdk:6.0.5
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.ref || github.ref_name }}
+
+      - name: Install Build Tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ninja-build
+
+      - name: Configure with CMake
+        run: cmake --preset web-headless
+
+      - name: Build GeneralsMD
+        run: cmake --build --preset web-headless -j"$(nproc)"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: GeneralsZH-web-headless
+          path: build/web-headless/GeneralsMD/Release/
+          retention-days: 30
+          if-no-files-found: error
+
+  android:
+    name: android-headless
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.ref || github.ref_name }}
+
+      - name: Install Build Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build
+
+      - name: Configure with CMake
+        # The runner image ships an NDK; the preset reads it from ANDROID_NDK_HOME.
+        run: |
+          export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$ANDROID_NDK_LATEST_HOME}"
+          cmake --preset android-headless
+
+      - name: Build GeneralsMD
+        run: cmake --build --preset android-headless -j"$(nproc)"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: GeneralsZH-android-arm64-headless
+          path: build/android-headless/GeneralsMD/Release/
+          retention-days: 30
+          if-no-files-found: error
+
+  switch:
+    name: switch-headless
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    container: devkitpro/devkita64:latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.ref || github.ref_name }}
+
+      - name: Install Build Tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ninja-build
+
+      - name: Configure with CMake
+        run: cmake --preset switch-headless
+
+      - name: Build GeneralsMD
+        run: cmake --build --preset switch-headless -j"$(nproc)"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: GeneralsZH-switch-headless
+          path: build/switch-headless/GeneralsMD/Release/
+          retention-days: 30
+          if-no-files-found: error
