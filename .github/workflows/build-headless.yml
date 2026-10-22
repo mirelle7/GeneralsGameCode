@@ -1,0 +1,58 @@
+name: Headless
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Off Windows there is no renderer, audio or input yet, so Zero Hour builds for -headless runs only.
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            os: ubuntu-latest
+            install: sudo apt-get update && sudo apt-get install -y --no-install-recommends ninja-build
+          - name: macos-arm64
+            os: macos-15
+            install: brew install ninja
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Build Tools
+        run: ${{ matrix.install }}
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G "Ninja Multi-Config"
+          -DRTS_BUILD_GENERALS=OFF
+          -DRTS_BUILD_ZEROHOUR_TOOLS=OFF
+          -DRTS_BUILD_CORE_TOOLS=OFF
+
+      - name: Build GeneralsMD
+        run: cmake --build build --config Release --target z_generals
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: GeneralsMD-headless-${{ matrix.name }}
+          path: build/GeneralsMD/Release/generalszh
+          retention-days: 30
+          if-no-files-found: error
