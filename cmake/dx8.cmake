@@ -5,3 +5,11 @@ FetchContent_Declare(
 )
 
 FetchContent_MakeAvailable(dx8)
+
+# Off Windows there are no DX8 libraries, only the headers. The D3DX8 helpers the engine
+# calls come from Core/Libraries/Source/WWVegas/WW3D2/D3DXStubs.cpp.
+if(NOT WIN32)
+    set_property(TARGET d3d8lib PROPERTY INTERFACE_LINK_LIBRARIES "")
+    set_property(TARGET d3d8lib PROPERTY INTERFACE_LINK_DIRECTORIES "")
+    set_property(TARGET d3d8lib PROPERTY INTERFACE_LINK_OPTIONS "")
+endif()

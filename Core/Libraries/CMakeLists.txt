@@ -10,8 +10,10 @@ add_subdirectory(Source/profile)
 # debugging library
 add_subdirectory(Source/debug)
 
-# crash dump library
-add_subdirectory(Source/MiniDumper)
+# crash dump library (DbgHelp, Windows only)
+if(WIN32)
+    add_subdirectory(Source/MiniDumper)
+endif()
 
 add_subdirectory(Source/EABrowserDispatch)
 add_subdirectory(Source/EABrowserEngine)

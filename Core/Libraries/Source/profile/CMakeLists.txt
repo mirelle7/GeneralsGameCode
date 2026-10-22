@@ -34,7 +34,19 @@ target_precompile_headers(core_profile_legacy PRIVATE
 target_link_libraries(core_profile_legacy PRIVATE
     depsi_always # Gives force included headers. Link early.
     core_config
-    core_debug
     deps_utility
     stlport
 )
+
+# core_debug is Windows-only (see Core/Libraries/Source/debug/CMakeLists.txt).
+if(WIN32)
+    target_link_libraries(core_profile_legacy PRIVATE
+        core_debug
+    )
+else()
+    # The debug headers that internal.h reads are still needed. -iquote, not -I: an
+    # angle-bracket <debug/...> must keep resolving to libstdc++'s own headers.
+    target_compile_options(core_profile_legacy PRIVATE
+        -iquote ${CMAKE_CURRENT_SOURCE_DIR}/../debug/Include
+    )
+endif()

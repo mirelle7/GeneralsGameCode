@@ -1203,10 +1203,13 @@ target_include_directories(corei_gameengine_public INTERFACE
     Include
 )
 
+if(WIN32)
+    target_link_libraries(corei_gameengine_public INTERFACE core_minidumper)
+endif()
+
 target_link_libraries(corei_gameengine_public INTERFACE
     core_compression
     core_browserdispatch
-    core_minidumper
     #core_wwvegas
     d3d8lib
     deps_dbghelp
