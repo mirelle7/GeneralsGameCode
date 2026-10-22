@@ -287,7 +287,10 @@ T * ObjectPoolClass<T,BLOCK_SIZE>::Allocate_Object_Memory()
 		*(void **)BlockListHead = tmp_block_head;
 
 		// Link the objects in the block into the free object list
-		FreeListHead = (T*)(BlockListHead + 1);
+		// TheSuperHackers @bugfix githubawn 21/10/2026 The objects start after the block link,
+		// which is pointer sized. Stepping one uint32 put the first object over the upper half
+		// of the link on 64-bit, so the block list was corrupt by the time the pool was freed.
+		FreeListHead = (T*)((char*)BlockListHead + sizeof(uint32 *));
 		for ( int i = 0; i < BLOCK_SIZE; i++ ) {
 			*(T**)(&(FreeListHead[i])) = &(FreeListHead[i+1]);	// link up the elements
 		}
