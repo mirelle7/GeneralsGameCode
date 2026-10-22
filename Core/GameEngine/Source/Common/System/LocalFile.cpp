@@ -380,7 +380,13 @@ Int LocalFile::readChar()
 
 Int LocalFile::readWideChar()
 {
+	// Game files store wide characters as 16 bits. That is WideChar on Windows; elsewhere
+	// wchar_t is 32 bits, so the 16-bit value is read and widened.
+#ifdef _WIN32
 	WideChar character = L'\0';
+#else
+	UnsignedShort character = 0;
+#endif
 
 	Int ret = read( &character, sizeof(character) );
 
@@ -439,7 +445,15 @@ Int LocalFile::writeFormat( const WideChar* format, ... )
 	Int length = vswprintf(buffer, sizeof(buffer) / sizeof(WideChar), format, args);
 	va_end(args);
 
+#ifdef _WIN32
 	return write( buffer, length * sizeof(WideChar) );
+#else
+	// Write the 16-bit characters game files use (see readWideChar).
+	UnsignedShort diskBuffer[ARRAY_SIZE(buffer)];
+	for (Int i = 0; i < length; ++i)
+		diskBuffer[i] = (UnsignedShort)buffer[i];
+	return write( diskBuffer, length * sizeof(UnsignedShort) );
+#endif
 }
 
 //=================================================================
@@ -461,9 +475,17 @@ Int LocalFile::writeChar( const Char* character )
 
 Int LocalFile::writeChar( const WideChar* character )
 {
+#ifdef _WIN32
 	if ( write( character, sizeof(WideChar) ) == sizeof(WideChar) ) {
 		return *character;
 	}
+#else
+	// Write the 16-bit character game files use (see readWideChar).
+	UnsignedShort diskCharacter = (UnsignedShort)*character;
+	if ( write( &diskCharacter, sizeof(diskCharacter) ) == sizeof(diskCharacter) ) {
+		return diskCharacter;
+	}
+#endif
 
 	return WEOF;
 }
