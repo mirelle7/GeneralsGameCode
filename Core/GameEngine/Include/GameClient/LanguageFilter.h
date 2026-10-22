@@ -73,7 +73,7 @@ public:
 	void filterLine(UnicodeString &line);
 
 protected:
-	Bool readWord(File *file1, WideChar *buf);
+	Bool readWord(File *file1, WideChar *buf, Int bufLength);
 	void unHaxor(UnicodeString &word);
 	LangMap m_wordList;
 	LangMap m_subWordList;

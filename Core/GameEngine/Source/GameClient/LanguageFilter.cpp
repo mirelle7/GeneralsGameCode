@@ -51,7 +51,7 @@ void LanguageFilter::init() {
 	}
 
 	WideChar word[128];
-	while (readWord(file1, word)) {
+	while (readWord(file1, word, ARRAY_SIZE(word))) {
 		Int wordLen = wcslen(word);
 		if (wordLen == 0) {
 			continue;
@@ -150,15 +150,24 @@ void LanguageFilter::unHaxor(UnicodeString &word) {
 	word.set(newWord);
 }
 
+// The file stores 16-bit characters. That is the size of WideChar on Windows only, so read
+// the 16-bit value and widen it.
+static Int readFileChar(File *file1, WideChar *c) {
+	UnsignedShort ch = 0;
+	Int val = file1->read(&ch, sizeof(ch));
+	*c = ch;
+	return val;
+}
+
 // returning true means that there are more words in the file.
-Bool LanguageFilter::readWord(File *file1, WideChar *buf) {
+Bool LanguageFilter::readWord(File *file1, WideChar *buf, Int bufLength) {
 	Int index = 0;
 	Bool retval = TRUE;
 	Int val = 0;
 
 	WideChar c;
 
-	val = file1->read(&c, sizeof(WideChar));
+	val = readFileChar(file1, &c);
 	if ((val == -1) || (val == 0)) {
 		buf[index] = 0;
 		return FALSE;
@@ -167,7 +176,13 @@ Bool LanguageFilter::readWord(File *file1, WideChar *buf) {
 
 	while (buf[index] != L' ') {
 		++index;
-		val = file1->read(&c, sizeof(WideChar));
+		// TheSuperHackers @bugfix githubawn 22/10/2026 Stop at the end of the buffer instead of
+		// writing past it when a word is longer than the buffer.
+		if (index >= bufLength - 1) {
+			buf[index] = 0;
+			break;
+		}
+		val = readFileChar(file1, &c);
 		if ((val == -1) || (val == 0)) {
 			c = WEOF;
 		}
