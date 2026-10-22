@@ -8,3 +8,9 @@ FetchContent_Declare(
 )
 
 FetchContent_MakeAvailable(gamespy)
+
+# Android's C library has no pthread_cancel. GameSpy only uses it when it destroys a
+# thread, so detach the thread there instead: it finishes on its own and is cleaned up.
+if(ANDROID AND TARGET gscommon)
+    target_compile_definitions(gscommon PRIVATE pthread_cancel=pthread_detach)
+endif()

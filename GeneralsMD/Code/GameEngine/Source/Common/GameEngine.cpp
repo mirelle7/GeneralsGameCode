@@ -1095,5 +1095,8 @@ void updateTGAtoDDS()
 
 	fp->close();
 
+#ifdef _WIN32
+	// The converter is a Windows tool, and iOS has no system() at all.
 	system(CONVERT_EXEC1);
+#endif
 }

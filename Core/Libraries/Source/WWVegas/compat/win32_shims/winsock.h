@@ -12,6 +12,8 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
+// Android's <sys/ioctl.h> brings in the termios baud rate macros; B0 clashes with game variables.
+#undef B0
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/types.h>
