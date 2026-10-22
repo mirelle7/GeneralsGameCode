@@ -205,6 +205,36 @@ if(NOT IS_VS6_BUILD)
     )
 endif()
 
+# Without the Win32 device layer (Miles, Bink, DirectInput, Win32 windows) the game runs
+# -headless only, through HeadlessGameEngine.
+if(NOT WIN32)
+    list(REMOVE_ITEM GAMEENGINEDEVICE_SRC
+        Include/MilesAudioDevice/MilesAudioManager.h
+        Include/VideoDevice/Bink/BinkVideoPlayer.h
+        Include/W3DDevice/GameClient/W3DMouse.h
+        Include/Win32Device/Common/Win32GameEngine.h
+        Include/Win32Device/Common/Win32LocalFile.h
+        Include/Win32Device/Common/Win32LocalFileSystem.h
+        Include/Win32Device/GameClient/Win32DIKeyboard.h
+        Include/Win32Device/GameClient/Win32Mouse.h
+        Source/MilesAudioDevice/MilesAudioManager.cpp
+        Source/VideoDevice/Bink/BinkVideoPlayer.cpp
+        Source/W3DDevice/GameClient/W3DMouse.cpp
+        Source/Win32Device/Common/Win32GameEngine.cpp
+        Source/Win32Device/Common/Win32LocalFile.cpp
+        Source/Win32Device/Common/Win32LocalFileSystem.cpp
+        Source/Win32Device/Common/Win32OSDisplay.cpp
+        Source/Win32Device/GameClient/Win32DIKeyboard.cpp
+        Source/Win32Device/GameClient/Win32Mouse.cpp
+    )
+    list(APPEND GAMEENGINEDEVICE_SRC
+        Include/StdDevice/Common/DummyAudioManager.h
+        Include/StdDevice/Common/HeadlessGameEngine.h
+        Source/StdDevice/Common/HeadlessGameEngine.cpp
+        Source/StdDevice/Common/StdOSDisplay.cpp
+    )
+endif()
+
 add_library(corei_gameenginedevice_private INTERFACE)
 add_library(corei_gameenginedevice_public INTERFACE)
 
@@ -222,9 +252,14 @@ target_link_libraries(corei_gameenginedevice_private INTERFACE
 
 target_link_libraries(corei_gameenginedevice_public INTERFACE
     corei_gameengine_public
-    deps_bink
-    deps_miles
 )
+
+if(WIN32)
+    target_link_libraries(corei_gameenginedevice_public INTERFACE
+        deps_bink
+        deps_miles
+    )
+endif()
 
 if(RTS_BUILD_OPTION_FFMPEG)
     find_package(FFMPEG REQUIRED)
