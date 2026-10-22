@@ -83,7 +83,12 @@
 #include "formconv.h"
 #include "dx8texman.h"
 #include "WWLib/bound.h"
+#ifdef _WIN32
 #include "DbgHelpGuard.h"
+#else
+// DbgHelp only exists on Windows, so there is nothing to guard.
+struct DbgHelpGuard { void deactivate() {} };
+#endif
 #include <Utility/bit_adapter.h>
 
 #include "shdlib.h"
@@ -716,11 +721,19 @@ void DX8Wrapper::Enumerate_Devices()
 			desc.set_driver_name(id.Driver);
 
 			char buf[64];
+#ifdef _WIN32
+			const DWORD driverVersionHigh = id.DriverVersion.HighPart;
+			const DWORD driverVersionLow = id.DriverVersion.LowPart;
+#else
+			// The DX8 headers split the version into two DWORDs off Windows.
+			const DWORD driverVersionHigh = id.DriverVersionHighPart;
+			const DWORD driverVersionLow = id.DriverVersionLowPart;
+#endif
 			sprintf(buf,"%d.%d.%d.%d", //"%04x.%04x.%04x.%04x",
-				HIWORD(id.DriverVersion.HighPart),
-				LOWORD(id.DriverVersion.HighPart),
-				HIWORD(id.DriverVersion.LowPart),
-				LOWORD(id.DriverVersion.LowPart));
+				HIWORD(driverVersionHigh),
+				LOWORD(driverVersionHigh),
+				HIWORD(driverVersionLow),
+				LOWORD(driverVersionLow));
 
 			desc.set_driver_version(buf);
 

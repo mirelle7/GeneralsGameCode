@@ -24,7 +24,8 @@
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
-#if defined(RTS_DEBUG) || defined(IG_DEBUG_STACKTRACE)
+// The stack dump uses DbgHelp, which only exists on Windows. StackDump.h has no-op versions.
+#if (defined(RTS_DEBUG) || defined(IG_DEBUG_STACKTRACE)) && defined(_WIN32)
 
 #pragma pack(push, 8)
 
@@ -638,3 +639,6 @@ void DumpExceptionInfo( unsigned int u, EXCEPTION_POINTERS* e_info )
 
 #endif
 
+#ifndef _WIN32
+AsciiString g_LastErrorDump;
+#endif

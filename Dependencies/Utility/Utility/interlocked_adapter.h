@@ -28,4 +28,19 @@
 
 	#include <windows.h>
 
+#else
+
+	// GCC and Clang: the same operations on top of the __atomic builtins, with the full
+	// barrier the Windows functions imply.
+	inline void* InterlockedExchangePointer(void* volatile* target, void* value)
+	{
+		return __atomic_exchange_n(target, value, __ATOMIC_SEQ_CST);
+	}
+
+	inline void* InterlockedCompareExchangePointer(void* volatile* destination, void* exchange, void* comparand)
+	{
+		__atomic_compare_exchange_n(destination, &comparand, exchange, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+		return comparand;
+	}
+
 #endif

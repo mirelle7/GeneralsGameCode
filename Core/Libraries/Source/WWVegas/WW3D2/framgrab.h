@@ -43,8 +43,10 @@
 #endif
 
 #include "windows.h"
+#ifdef _WIN32
 #include "windowsx.h"
 #include "vfw.h"
+#endif
 
 #if defined (_MSC_VER)
 #pragma warning (pop)
@@ -84,11 +86,13 @@ protected:
 	void GrabRawFrame(void *BitmapPointer);
 
 	// avi settings
-	PAVIFILE				AVIFile;
 	long					*Bitmap;
+#ifdef _WIN32
+	PAVIFILE				AVIFile;
 	PAVISTREAM			Stream;
 	AVISTREAMINFO		AVIStreamInfo;
 	BITMAPINFOHEADER	BitmapInfoHeader;
+#endif
 
 	// general purpose cleanup routine
 	void CleanupAVI();

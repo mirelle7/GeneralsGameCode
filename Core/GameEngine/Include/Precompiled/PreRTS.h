@@ -44,7 +44,9 @@ class STLSpecialAlloc;
 #if defined(__GNUC__) && defined(_WIN32)
     #include <Utility/atl_compat.h>
 #endif
+#ifdef _WIN32
 #include <atlbase.h>
+#endif
 #include <windows.h>
 
 #include <assert.h>
@@ -78,7 +80,9 @@ class STLSpecialAlloc;
 #include <sys/types.h>
 #include <tchar.h>
 #include <time.h>
+#ifdef _WIN32
 #include <vfw.h>
+#endif
 #include <winerror.h>
 #include <wininet.h>
 #include <winreg.h>

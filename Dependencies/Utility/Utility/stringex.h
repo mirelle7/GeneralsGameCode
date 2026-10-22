@@ -20,6 +20,7 @@
 
 #include <string.h>
 #include <ctype.h>
+#include <wctype.h>
 
 
 // Declaration
@@ -35,10 +36,33 @@ size_t wcsnlen(const unichar *str, size_t maxlen);
 template<typename T> size_t strlcpy_t(T *dst, const T *src, size_t dstsize);
 template<typename T> size_t strlcat_t(T *dst, const T *src, size_t dstsize);
 
+// TheSuperHackers @build bobtista 24/07/2026 glibc 2.38 added strlcpy, strlcat,
+// wcslcpy and wcslcat. Declaring or defining our own then collides with the libc
+// versions (C linkage / noexcept mismatch). Detect glibc >= 2.38 early so both the
+// declarations here and the inline definitions below are suppressed. Non-glibc
+// platforms such as macOS are unaffected: __GLIBC__ is undefined there.
+#if defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 38))
+#ifndef HAVE_STRLCPY
+#define HAVE_STRLCPY 1
+#endif
+#ifndef HAVE_STRLCAT
+#define HAVE_STRLCAT 1
+#endif
+#ifndef HAVE_WCSLCPY
+#define HAVE_WCSLCPY 1
+#endif
+#endif
+
+#ifndef HAVE_STRLCPY
 size_t strlcpy(char *dst, const char *src, size_t dstsize);
+#endif
+#ifndef HAVE_STRLCAT
 size_t strlcat(char *dst, const char *src, size_t dstsize);
+#endif
+#ifndef HAVE_WCSLCPY
 size_t wcslcpy(unichar *dst, const unichar *src, size_t dstsize);
 size_t wcslcat(unichar *dst, const unichar *src, size_t dstsize);
+#endif
 
 template<typename T> size_t strlmove_t(T *dst, const T *src, size_t dstsize);
 template<typename T> size_t strlmcat_t(T *dst, const T *src, size_t dstsize);
@@ -138,8 +162,10 @@ inline size_t strlcpy(char *dst, const char *src, size_t dstsize) { return strlc
 #ifndef HAVE_STRLCAT
 inline size_t strlcat(char *dst, const char *src, size_t dstsize) { return strlcat_t(dst, src, dstsize); }
 #endif
+#ifndef HAVE_WCSLCPY
 inline size_t wcslcpy(unichar *dst, const unichar *src, size_t dstsize) { return strlcpy_t(dst, src, dstsize); }
 inline size_t wcslcat(unichar *dst, const unichar *src, size_t dstsize) { return strlcat_t(dst, src, dstsize); }
+#endif
 
 // Templated strlmove. Prefer using this over strlcpy if dst and src overlap.
 // Moves src into dst until dstsize minus one. Always null terminates.

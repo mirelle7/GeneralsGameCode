@@ -50,6 +50,9 @@
 #include <time.h>
 #include <Utility/stdio_adapter.h>
 #include <Utility/stringex.h>
+#ifndef _WIN32
+#include <Utility/time_compat.h> // GetTickCount
+#endif
 
 // USER INCLUDES
 #define DEBUG_THREADSAFE

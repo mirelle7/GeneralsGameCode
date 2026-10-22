@@ -24,6 +24,8 @@
 #include <io.h>
 //#include <errno.h>
 
+#ifdef _WIN32
+
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
@@ -188,3 +190,25 @@ void FrameGrabClass::ConvertFrame(void *BitmapPointer)
 		}
 	}
 }
+
+#else
+
+// Without Video for Windows there is no AVI capture; grabbing does nothing.
+FrameGrabClass::FrameGrabClass(const char *filename, MODE mode, int /*width*/, int /*height*/, int /*bitcount*/, float framerate)
+	: Filename(filename), FrameRate(framerate), Mode(mode), Counter(0), Bitmap(nullptr)
+{
+}
+
+FrameGrabClass::~FrameGrabClass()
+{
+}
+
+void FrameGrabClass::ConvertGrab(void * /*BitmapPointer*/)
+{
+}
+
+void FrameGrabClass::Grab(void * /*BitmapPointer*/)
+{
+}
+
+#endif // _WIN32
